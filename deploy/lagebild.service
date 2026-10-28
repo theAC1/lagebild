@@ -8,6 +8,8 @@ User=lagebild
 WorkingDirectory=/opt/lagebild/app
 EnvironmentFile=/etc/lagebild.env
 Environment=NODE_ENV=production PORT=8080 DATA_DIR=/var/lib/lagebild
+# cloudflared läuft auf dem Proxmox-Host; nur von dort gilt CF-Connecting-IP
+Environment=TRUSTED_PROXY=192.168.1.100
 ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server/src/index.ts
 Restart=on-failure
 RestartSec=3
