@@ -35,10 +35,10 @@ Zeichnen (Linien/Flächen/Phasenlinien), Offline-Gebietsdownload, TAK/CoT-Bridge
 - Ein Prozess: `node:http` liefert `client/dist` (SPA-Fallback) und die REST-API, `ws` auf `/ws`.
 - REST: `POST /api/lage` (LageErstellen), `POST /api/beitreten`, `POST /api/foto` (Bearer, ≤ 8 MB, nur JPEG/PNG/WebP nach Magic Bytes), `GET /api/foto/:id` (Bearer, gleiche Lage), `GET /api/spuren?seit=` (Bearer, `Spuren`), `GET /api/export.gpx|.geojson` (Bearer Leitung), `DELETE /api/lage` (Bearer Leitung).
 - WS: erste Nachricht `hallo{token}` innerhalb 5 s, sonst Abbruch. Danach `snapshot`, dann Deltas nur innerhalb der Lage. Chat wird nach Ziel gefiltert zugestellt.
-- Validierung jeder Eingabe mit den zod-Schemas aus `shared/protocol.ts`. Rate-Limits: Beitreten/Erstellen pro IP (`CF-Connecting-IP`, sonst Socket-IP), WS-Nachrichten pro Verbindung, `pos` serverseitig auf ≥ 1 s gedrosselt. Max. Nachrichtengrösse 64 KB.
+- Validierung jeder Eingabe mit den zod-Schemas aus `shared/protocol.ts`. Rate-Limits: Erstellen pro IP, Beitreten nur Fehlversuche pro IP (`CF-Connecting-IP` nur von `TRUSTED_PROXY`, sonst Socket-IP; IPv6 je /64), WS-Nachrichten und `pos` (≥ 1 s) pro Teilnehmer, höchstens 3 Verbindungen je Token, Fotos 10/min pro Teilnehmer und 300 je Lage, Marker und Sichtungen je 2000 je Lage. Max. Nachrichtengrösse 64 KB.
 - Rechte: Marker ändern/löschen nur Ersteller oder Leitung. `lage.*` und `teilnehmer.entfernen` nur Leitung. Alarm aufheben nur Auslöser oder Leitung.
 - SQLite-Datei und Fotos unter `DATA_DIR`. Sicherheits-Header (CSP, nosniff, Referrer-Policy). Logs ohne Tokens und Codes.
-- Konfiguration per Env: `PORT` (8080), `DATA_DIR`, `LAGE_ERSTELL_PASSWORT` (Pflicht, Start bricht ohne ab).
+- Konfiguration per Env: `PORT` (8080), `HOST` (optional), `DATA_DIR`, `LAGE_ERSTELL_PASSWORT` (Pflicht, Start bricht ohne ab), `TRUSTED_PROXY` (Adresse von cloudflared).
 
 ## Betrieb
 

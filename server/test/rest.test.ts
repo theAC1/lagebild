@@ -50,6 +50,38 @@ describe('REST', () => {
     expect((await s.api('/api/beitreten', { method: 'POST', body, ip: '192.0.2.8' })).status).toBe(403);
   });
 
+  it('Beitreten: erfolgreiche Beitritte zählen nicht (30 Geräte hinter einem NAT)', async () => {
+    const l = await s.lage();
+    const body = JSON.stringify({ code: l.teilnehmerCode, rufname: 'X', einheit: 'Y', funktion: '', sidc: SIDC });
+    for (let i = 0; i < 30; i++) expect((await s.api('/api/beitreten', { method: 'POST', body, ip: '192.0.2.50' })).status).toBe(201);
+    // ein gesperrter Absender kommt auch mit richtigem Code nicht durch (kein Erraten trotz Sperre)
+    const falsch = JSON.stringify({ code: 'ZZZZZZZZ', rufname: 'X', einheit: 'Y', funktion: '', sidc: SIDC });
+    for (let i = 0; i < 10; i++) await s.api('/api/beitreten', { method: 'POST', body: falsch, ip: '192.0.2.51' });
+    expect((await s.api('/api/beitreten', { method: 'POST', body, ip: '192.0.2.51' })).status).toBe(429);
+  });
+
+  it('CF-Connecting-IP von nicht vertrauter Quelle umgeht das Limit nicht', async () => {
+    const direkt = await testServer([]); // 127.0.0.1 ist hier kein cloudflared
+    try {
+      const status: number[] = [];
+      for (let i = 0; i < 12; i++)
+        status.push((await direkt.api('/api/lage', { method: 'POST', body: JSON.stringify({ name: 'a', erstellPasswort: `rate${i}` }), ip: `198.51.100.${i}` })).status);
+      expect(status.slice(0, 10).every((x) => x === 403)).toBe(true);
+      expect(status.slice(10)).toEqual([429, 429]);
+    } finally {
+      await direkt.ende();
+    }
+  });
+
+  it('Foto-Upload: Rate-Limit pro Teilnehmer vor dem Lesen des Bodys', async () => {
+    const tn = await s.beitreten((await s.lage()).teilnehmerCode, 'Foto');
+    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(100)]);
+    const status: number[] = [];
+    for (let i = 0; i < 12; i++) status.push((await s.api('/api/foto', { method: 'POST', token: tn.token, body: jpeg })).status);
+    expect(status.slice(0, 10).every((x) => x === 201)).toBe(true);
+    expect(status.slice(10)).toEqual([429, 429]);
+  });
+
   it('Rate-Limit pro IP beim Erstellen', async () => {
     const body = JSON.stringify({ name: 'X', erstellPasswort: 'falsch' });
     const status: number[] = [];

@@ -8,13 +8,24 @@ import type { z } from 'zod';
 import { Beitreten, LageErstellen, STANDARD_STATUS, type Beigetreten, type Lage, type LageErstellt, type Teilnehmer } from '../../shared/protocol.ts';
 import { oeffneDb, type Db } from './db.ts';
 import { geojson, gpx, type ExportDaten } from './export.ts';
-import { gleich, log, neuerCode, neuesToken, rateLimiter, sha256 } from './sicherheit.ts';
+import { clientIp, gleich, log, neuerCode, neuesToken, rateLimiter, sha256 } from './sicherheit.ts';
 import { starteWs } from './ws.ts';
 
-export type Optionen = { port: number; dataDir: string; erstellPasswort: string; clientDir: string; host?: string };
+export type Optionen = {
+  port: number;
+  dataDir: string;
+  erstellPasswort: string;
+  clientDir: string;
+  host?: string;
+  /** Socket-Adressen, deren `CF-Connecting-IP` gilt (cloudflared). Leer: immer die Socket-IP. */
+  vertrauteProxies?: string[];
+};
 
 const MAX_JSON = 64 * 1024;
 const MAX_FOTO = 8 * 1024 * 1024;
+// ponytail: Kontingent nach Anzahl, nicht nach Bytes (Client verkleinert auf ≤ 1600 px). Worst case 300 × 8 MB je Lage.
+const MAX_FOTOS_JE_LAGE = 300;
+const MAX_UPLOADS_GLEICHZEITIG = 4;
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -99,18 +110,18 @@ async function jsonBody<T extends z.ZodType>(req: IncomingMessage, schema: T): P
   return p.data;
 }
 
-const clientIp = (req: IncomingMessage): string => {
-  const cf = req.headers['cf-connecting-ip'];
-  return (typeof cf === 'string' && cf) || req.socket.remoteAddress || 'unbekannt';
-};
-
 export async function starteServer(o: Optionen): Promise<{ server: Server; url: string; schliessen: () => Promise<void> }> {
   mkdirSync(join(o.dataDir, 'fotos'), { recursive: true });
   const db: Db = oeffneDb(join(o.dataDir, 'lagebild.sqlite'));
   const clientDir = resolve(o.clientDir);
   const fotoDir = resolve(o.dataDir, 'fotos');
+  const vertraut = new Set(o.vertrauteProxies ?? []);
+  const ip = (req: IncomingMessage): string => clientIp(req, vertraut);
   const limitErstellen = rateLimiter(10, 60_000);
-  const limitBeitreten = rateLimiter(10, 60_000);
+  // zählt nur falsche Codes: 30 Geräte hinter einem NAT sollen gleichzeitig beitreten können
+  const limitBeitreten = rateLimiter(10, 10 * 60_000);
+  const limitFoto = rateLimiter(10, 60_000);
+  let uploads = 0;
 
   function auth(req: IncomingMessage, nurLeitung = false): { lage: Lage; teilnehmer: Teilnehmer } {
     const m = /^Bearer (\S{20,200})$/.exec(req.headers.authorization ?? '');
@@ -134,7 +145,7 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
   async function api(req: IncomingMessage, res: ServerResponse, pfad: string, url: URL): Promise<void> {
     const route = `${req.method} ${pfad}`;
     if (route === 'POST /api/lage') {
-      if (!limitErstellen(clientIp(req))) throw new HttpFehler(429, 'Zu viele Versuche');
+      if (!limitErstellen(ip(req))) throw new HttpFehler(429, 'Zu viele Versuche');
       const e = await jsonBody(req, LageErstellen);
       if (!gleich(e.erstellPasswort, o.erstellPasswort)) throw new HttpFehler(403, 'Erstell-Passwort falsch');
       const lage: Lage = { id: randomUUID(), name: e.name, statusSet: STANDARD_STATUS, erstelltAm: Date.now(), beendetAm: null };
@@ -144,10 +155,14 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
       return antwort(res, 201, r);
     }
     if (route === 'POST /api/beitreten') {
-      if (!limitBeitreten(clientIp(req))) throw new HttpFehler(429, 'Zu viele Versuche');
+      const schluessel = ip(req);
+      if (!limitBeitreten.frei(schluessel)) throw new HttpFehler(429, 'Zu viele Versuche');
       const e = await jsonBody(req, Beitreten);
       const gefunden = db.lageNachCodeHash(sha256(e.code));
-      if (!gefunden) throw new HttpFehler(403, 'Code ungültig');
+      if (!gefunden) {
+        limitBeitreten(schluessel);
+        throw new HttpFehler(403, 'Code ungültig');
+      }
       if (gefunden.lage.beendetAm !== null) throw new HttpFehler(410, 'Lage ist beendet');
       const { lage, rolle } = gefunden;
       const t: Teilnehmer = {
@@ -173,15 +188,24 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
     if (route === 'POST /api/foto') {
       const { lage, teilnehmer } = auth(req);
       if (lage.beendetAm !== null) throw new HttpFehler(410, 'Lage ist beendet');
-      const daten = await body(req, MAX_FOTO);
-      const ext = bildFormat(daten);
-      if (!ext) throw new HttpFehler(415, 'Nur JPEG, PNG oder WebP');
-      const id = randomUUID();
-      mkdirSync(join(fotoDir, lage.id), { recursive: true });
-      await writeFile(join(fotoDir, lage.id, `${id}.${ext}`), daten);
-      db.fotoSpeichern(id, lage.id, ext, teilnehmer.id);
-      // Vertrag nennt die Antwort nicht; { fotoId } für SichtungInput.fotoId.
-      return antwort(res, 201, { fotoId: id });
+      // alles vor dem Lesen des Bodys prüfen: der wird ganz im RAM gepuffert
+      if (!limitFoto(teilnehmer.id)) throw new HttpFehler(429, 'Zu viele Fotos – bitte kurz warten');
+      if (db.fotoAnzahl(lage.id) >= MAX_FOTOS_JE_LAGE) throw new HttpFehler(507, 'Foto-Kontingent der Lage erschöpft');
+      if (uploads >= MAX_UPLOADS_GLEICHZEITIG) throw new HttpFehler(503, 'Server ausgelastet – bitte erneut versuchen');
+      uploads++;
+      try {
+        const daten = await body(req, MAX_FOTO);
+        const ext = bildFormat(daten);
+        if (!ext) throw new HttpFehler(415, 'Nur JPEG, PNG oder WebP');
+        const id = randomUUID();
+        mkdirSync(join(fotoDir, lage.id), { recursive: true });
+        await writeFile(join(fotoDir, lage.id, `${id}.${ext}`), daten);
+        db.fotoSpeichern(id, lage.id, ext, teilnehmer.id);
+        // Vertrag nennt die Antwort nicht; { fotoId } für SichtungInput.fotoId.
+        return antwort(res, 201, { fotoId: id });
+      } finally {
+        uploads--;
+      }
     }
     const foto = /^\/api\/foto\/([0-9a-f-]{36})$/.exec(pfad);
     if (req.method === 'GET' && foto) {
@@ -250,13 +274,14 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
       await (pfad.startsWith('/api/') ? api(req, res, pfad, url) : statisch(req, res, pfad));
     } catch (e) {
       const status = e instanceof HttpFehler ? e.status : e instanceof URIError ? 400 : 500;
-      if (status === 413) res.setHeader('Connection', 'close');
+      // Body ungelesen (zu gross oder vorher abgelehnt) → Verbindung schliessen statt ihn abzuwarten
+      if (status === 413 || status === 429 || status === 503 || status === 507) res.setHeader('Connection', 'close');
       if (status === 500) log('error', 'anfrage fehlgeschlagen', { pfad: req.url?.split('?')[0], fehler: e instanceof Error ? e.message : String(e) });
       if (!res.headersSent) antwort(res, status, { fehler: e instanceof HttpFehler ? e.message : 'Interner Fehler' });
       else res.destroy();
     }
   });
-  const ws = starteWs(server, db);
+  const ws = starteWs(server, db, ip);
 
   await new Promise<void>((ok, nok) => server.once('error', nok).listen(o.port, o.host, ok));
   const adresse = server.address();

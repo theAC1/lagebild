@@ -291,6 +291,101 @@ describe('WebSocket', () => {
     expect((await s.api('/api/beitreten', { method: 'POST', body: JSON.stringify({ code: l.teilnehmerCode, rufname: 'X', einheit: 'Y', funktion: '', sidc: SIDC }) })).status).toBe(403);
   });
 
+  it('unrealistische Zeitstempel werden abgelehnt, GPX-Export bleibt heil', async () => {
+    const { ltgB, a, b } = await szenario();
+    a.senden({ typ: 'pos', pos: { ...pos(47, 8), t: 1e300 } });
+    expect((await a.warte('fehler')).meldung).toBe('Ungültige Nachricht');
+    a.senden({ typ: 'sichtung', sichtung: { lat: 47, lon: 8, sidc: SIDC, groesse: '', taetigkeit: '', einheit: '', zeit: -1e20, ausruestung: '', bemerkung: '', vertrauen: 'unsicher', fotoId: null } });
+    expect((await a.warte('fehler')).meldung).toBe('Ungültige Nachricht');
+    await pause(100);
+    expect(b.empfangen.some((m) => m.typ === 'pos' || m.typ === 'sichtung')).toBe(false);
+    expect((await s.api('/api/export.gpx', { token: ltgB.token })).status).toBe(200);
+  });
+
+  it('Spur: erneut gesendeter Fix (gleiches t) wird verteilt, aber nicht doppelt gespeichert', async () => {
+    const { a, b, aB } = await szenario();
+    a.senden({ typ: 'pos', pos: pos(47.1, 8.1, 1000) });
+    await b.warte('pos');
+    await pause(1050);
+    a.senden({ typ: 'pos', pos: pos(47.1, 8.1, 1000) });
+    await b.warte('pos');
+    const spuren = await (await s.api('/api/spuren?seit=0', { token: aB.token })).json();
+    expect(spuren[aB.teilnehmerId]).toHaveLength(1);
+  });
+
+  it('Limits gelten je Teilnehmer, nicht je Verbindung; höchstens 3 Verbindungen je Token', async () => {
+    const { a, b, aB } = await szenario();
+    const a2 = await verbinde(s.url, aB.token);
+    // pos-Drossel über beide Verbindungen
+    a.senden({ typ: 'pos', pos: pos(47.1, 8.1, 1000) });
+    await b.warte('pos');
+    a2.senden({ typ: 'pos', pos: pos(47.2, 8.2, 2000) });
+    await pause(150);
+    expect(b.empfangen.some((m) => m.typ === 'pos')).toBe(false);
+    // Nachrichtenlimit (50 / 10 s) über beide Verbindungen
+    for (let i = 0; i < 30; i++) {
+      a.senden({ typ: 'gibtsnicht' });
+      a2.senden({ typ: 'gibtsnicht' });
+    }
+    await expect(Promise.race([a.warte('fehler', (m) => m.meldung === 'Zu viele Nachrichten'), a2.warte('fehler', (m) => m.meldung === 'Zu viele Nachrichten')])).resolves.toBeTruthy();
+    // vierte Verbindung schliesst die älteste
+    const a3 = await verbinde(s.url, aB.token);
+    const a4 = await verbinde(s.url, aB.token);
+    expect(await a.geschlossen).toBe(4004);
+    for (const c of [a2, a3, a4]) c.zu();
+  });
+
+  it('Verbindungen ohne hallo sind je IP begrenzt', async () => {
+    const roh = Array.from({ length: 21 }, () => new WebSocket(s.url.replace('http', 'ws') + '/ws'));
+    const codes = await Promise.all(roh.map((ws) => new Promise<number>((ok) => ws.on('close', ok).on('open', () => setTimeout(() => ok(0), 300)))));
+    expect(codes.filter((c) => c === 4029)).toHaveLength(1);
+    for (const ws of roh) ws.close();
+  });
+
+  it('Freitext-Meldung mit eigenem, inzwischen entferntem Status geht durch', async () => {
+    const { ltg, a, aB } = await szenario();
+    a.senden({ typ: 'status', status: 'halt', text: '' });
+    await ltg.warte('meldung');
+    ltg.senden({ typ: 'lage.statusSet', statusSet: [{ key: 'ok', label: 'OK', farbe: '#00ff00' }] });
+    await a.warte('lage');
+    a.senden({ typ: 'status', status: 'halt', text: 'Brücke gesperrt' });
+    expect((await ltg.warte('meldung')).meldung).toMatchObject({ von: aB.teilnehmerId, status: 'halt', text: 'Brücke gesperrt' });
+    a.senden({ typ: 'status', status: 'bewegung', text: '' }); // fremder entfernter Status bleibt verboten
+    expect((await a.warte('fehler')).meldung).toBe('Unbekannter Status');
+  });
+
+  it('Teilnehmer-Code erneuern: alter Code ungültig, bestehende Tokens bleiben', async () => {
+    const { l, ltg, a, aB } = await szenario();
+    a.senden({ typ: 'lage.codeErneuern' });
+    expect((await a.warte('fehler')).meldung).toMatch(/Leitung/);
+    ltg.senden({ typ: 'lage.codeErneuern' });
+    const { teilnehmerCode } = await ltg.warte('code');
+    expect(teilnehmerCode).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
+    expect(a.empfangen.some((m) => m.typ === 'code')).toBe(false); // Klartext nur an die Leitung
+    const alt = await s.api('/api/beitreten', { method: 'POST', body: JSON.stringify({ code: l.teilnehmerCode, rufname: 'X', einheit: 'Y', funktion: '', sidc: SIDC }) });
+    expect(alt.status).toBe(403);
+    expect((await s.beitreten(teilnehmerCode, 'Neu')).rolle).toBe('teilnehmer');
+    expect((await s.api('/api/spuren', { token: aB.token })).status).toBe(200);
+  });
+
+  it('Lage beenden: Leitung bekommt die Lage mit und behält Export und Löschen', async () => {
+    const { ltg, a, ltgB } = await szenario();
+    ltg.senden({ typ: 'lage.beenden' });
+    expect((await a.warte('beendet')).lage).toBeUndefined();
+    expect((await ltg.warte('beendet')).lage?.beendetAm).not.toBeNull();
+    // Neu laden: Wiederverbinden liefert wieder 'beendet' mit Lage
+    const ws = new WebSocket(s.url.replace('http', 'ws') + '/ws');
+    const msgs: { typ: string; lage?: unknown }[] = [];
+    ws.on('message', (d) => msgs.push(JSON.parse(d.toString())));
+    const code = new Promise((ok) => ws.on('close', ok));
+    await new Promise((ok) => ws.once('open', ok));
+    ws.send(JSON.stringify({ typ: 'hallo', token: ltgB.token }));
+    expect(await code).toBe(4001);
+    expect(msgs[0]).toMatchObject({ typ: 'beendet', lage: { beendetAm: expect.any(Number) } });
+    expect((await s.api('/api/export.gpx', { token: ltgB.token })).status).toBe(200);
+    expect((await s.api('/api/lage', { method: 'DELETE', token: ltgB.token })).status).toBe(204);
+  });
+
   it('ungültige Nachrichten ergeben fehler, Verbindung bleibt', async () => {
     const { a } = await szenario();
     a.senden({ typ: 'gibtsnicht' });

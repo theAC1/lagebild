@@ -18,7 +18,10 @@ npm run e2e                              # Playwright: baut, startet Server auf 
 
 E2E braucht einmalig `npx playwright install chromium`. Die Tests (`e2e/*.e2e.ts`) spielen eine ganze Lage mit Leitung und Teilnehmer durch und legen Screenshots unter `docs/screens/e2e-*.png` ab.
 
-Betrieb: `deploy/deploy.sh` (LXC, systemd-Dienst `deploy/lagebild.service`).
+Betrieb: `deploy/deploy.sh` (LXC, systemd-Dienst `deploy/lagebild.service`). In `/etc/lagebild.env` zusätzlich
+`TRUSTED_PROXY=<IP von cloudflared>` setzen (kommagetrennt): nur von dort gilt `CF-Connecting-IP` für die Rate-Limits, sonst die
+Socket-IP. Läuft cloudflared im selben Container, `HOST=127.0.0.1` und `TRUSTED_PROXY=127.0.0.1`; sonst Port 8080 per Firewall
+nur für cloudflared öffnen.
 
 ## Entscheidungslog (28.10.2026, Frage-Runden mit Juan)
 

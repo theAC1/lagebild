@@ -38,12 +38,14 @@ export function oeffneDb(pfad: string) {
     lage: db.prepare('SELECT daten FROM lage WHERE id = ?'),
     lageCode: db.prepare('SELECT daten, tn_code_hash = ? AS tn FROM lage WHERE tn_code_hash = ? OR ltg_code_hash = ?'),
     lageUpd: db.prepare('UPDATE lage SET daten = ? WHERE id = ?'),
+    lageTnCode: db.prepare('UPDATE lage SET tn_code_hash = ? WHERE id = ?'),
     tnNeu: db.prepare('INSERT INTO teilnehmer (id, lage_id, token_hash, daten) VALUES (?, ?, ?, ?)'),
     tnToken: db.prepare('SELECT lage_id, daten FROM teilnehmer WHERE token_hash = ? AND entfernt = 0'),
     tnUpd: db.prepare('UPDATE teilnehmer SET daten = ? WHERE id = ?'),
     tnWeg: db.prepare('UPDATE teilnehmer SET entfernt = 1 WHERE id = ? AND lage_id = ?'),
     tnListe: db.prepare('SELECT daten FROM teilnehmer WHERE lage_id = ? AND entfernt = 0'),
     tnAlle: db.prepare('SELECT daten FROM teilnehmer WHERE lage_id = ?'),
+    tnAktiv: db.prepare('SELECT 1 FROM teilnehmer WHERE id = ? AND lage_id = ? AND entfernt = 0'),
     spurNeu: db.prepare('INSERT INTO spur (lage_id, teilnehmer_id, t, daten) VALUES (?, ?, ?, ?)'),
     spuren: db.prepare('SELECT teilnehmer_id, daten FROM spur WHERE lage_id = ? AND t >= ? ORDER BY t'),
     eNeu: db.prepare(
@@ -54,8 +56,10 @@ export function oeffneDb(pfad: string) {
     eListe: db.prepare('SELECT daten FROM eintrag WHERE lage_id = ? AND art = ? ORDER BY t, rowid'),
     eLetzte: db.prepare('SELECT daten FROM (SELECT daten, t, rowid FROM eintrag WHERE lage_id = ? AND art = ? ORDER BY t DESC, rowid DESC LIMIT ?) ORDER BY t, rowid'),
     eWeg: db.prepare('DELETE FROM eintrag WHERE lage_id = ? AND art = ? AND id = ?'),
+    eAnzahl: db.prepare('SELECT COUNT(*) AS n FROM eintrag WHERE lage_id = ? AND art = ?'),
     fotoNeu: db.prepare('INSERT INTO foto (id, lage_id, ext, von, t) VALUES (?, ?, ?, ?, ?)'),
     foto: db.prepare('SELECT lage_id, ext FROM foto WHERE id = ?'),
+    fotoAnzahl: db.prepare('SELECT COUNT(*) AS n FROM foto WHERE lage_id = ?'),
   };
 
   return {
@@ -69,6 +73,10 @@ export function oeffneDb(pfad: string) {
     },
     lageSpeichern(lage: Lage): void {
       q.lageUpd.run(JSON.stringify(lage), lage.id);
+    },
+    /** Neuer Teilnehmer-Code: der alte wird ungültig, bestehende Tokens bleiben. */
+    teilnehmerCodeSetzen(lageId: string, hash: string): void {
+      q.lageTnCode.run(hash, lageId);
     },
     lageLoeschen(id: string): void {
       db.exec('BEGIN');
@@ -95,6 +103,7 @@ export function oeffneDb(pfad: string) {
     teilnehmerEntfernen(lageId: string, id: string): boolean {
       return Number(q.tnWeg.run(id, lageId).changes) > 0;
     },
+    teilnehmerAktiv: (lageId: string, id: string): boolean => q.tnAktiv.get(id, lageId) !== undefined,
     /** Aktive Teilnehmende; mit `auchEntfernte` alle (für Export). */
     teilnehmerListe(lageId: string, auchEntfernte = false): Teilnehmer[] {
       return (auchEntfernte ? q.tnAlle : q.tnListe).all(lageId).map((z) => json<Teilnehmer>(z)!);
@@ -122,10 +131,12 @@ export function oeffneDb(pfad: string) {
       return zeilen.map((z) => json<Eintraege[A]>(z)!);
     },
     loeschen: (lageId: string, art: Art, id: string): boolean => Number(q.eWeg.run(lageId, art, id).changes) > 0,
+    anzahl: (lageId: string, art: Art): number => Number(q.eAnzahl.get(lageId, art)!.n),
 
     fotoSpeichern(id: string, lageId: string, ext: string, von: string): void {
       q.fotoNeu.run(id, lageId, ext, von, Date.now());
     },
+    fotoAnzahl: (lageId: string): number => Number(q.fotoAnzahl.get(lageId)!.n),
     foto(id: string): { lageId: string; ext: string } | undefined {
       const z = q.foto.get(id);
       return z && { lageId: z.lage_id as string, ext: z.ext as string };

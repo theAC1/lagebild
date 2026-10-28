@@ -16,11 +16,16 @@ if (!Number.isInteger(port) || port < 0 || port > 65535) {
 
 const app = await starteServer({
   port,
+  // z.B. HOST=127.0.0.1, wenn cloudflared im selben Container läuft; sonst per Firewall nur cloudflared zulassen
+  host: process.env.HOST || undefined,
+  // Adresse(n) von cloudflared, kommagetrennt: nur deren CF-Connecting-IP gilt für die Rate-Limits
+  vertrauteProxies: (process.env.TRUSTED_PROXY ?? '').split(',').map((x) => x.trim()).filter(Boolean),
   dataDir: resolve(process.env.DATA_DIR ?? './data'),
   erstellPasswort,
   clientDir: resolve(import.meta.dirname, '../../client/dist'),
 });
 log('info', 'gestartet', { port: Number(new URL(app.url).port) });
+if (!process.env.TRUSTED_PROXY) log('warn', 'TRUSTED_PROXY fehlt: CF-Connecting-IP wird ignoriert, Rate-Limits gelten je Socket-IP');
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const)
   process.once(signal, () => {

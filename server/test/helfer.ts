@@ -9,9 +9,10 @@ import { starteServer } from '../src/http.ts';
 export const PASSWORT = 'test-passwort';
 export const SIDC = '10031000001211000000';
 
-export async function testServer() {
+/** Standard: 127.0.0.1 gilt als cloudflared, CF-Connecting-IP zählt. */
+export async function testServer(vertrauteProxies = ['127.0.0.1']) {
   const dataDir = mkdtempSync(join(tmpdir(), 'lagebild-test-'));
-  const app = await starteServer({ port: 0, host: '127.0.0.1', dataDir, erstellPasswort: PASSWORT, clientDir: join(dataDir, 'kein-client') });
+  const app = await starteServer({ port: 0, host: '127.0.0.1', dataDir, erstellPasswort: PASSWORT, clientDir: join(dataDir, 'kein-client'), vertrauteProxies });
   let ip = 0;
   const api = (pfad: string, init: RequestInit & { token?: string; ip?: string } = {}) =>
     fetch(app.url + pfad, {

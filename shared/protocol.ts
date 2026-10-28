@@ -8,6 +8,8 @@ export const Id = z.string().min(1).max(64);
 export const Lat = z.number().min(-90).max(90);
 export const Lon = z.number().min(-180).max(180);
 export const Text = (max: number) => z.string().trim().max(max);
+/** ms seit Epoch; begrenzt, damit `new Date(t).toISOString()` (Export) nie wirft. */
+export const Zeit = z.number().min(0).max(8.64e15);
 
 /** APP-6D / MIL-STD-2525D Symbol-ID (20 Ziffern), gerendert mit milsymbol. */
 export const Sidc = z.string().regex(/^\d{20}$/);
@@ -56,7 +58,7 @@ export const Position = z.object({
   ce: z.number().min(0).max(100000).nullable(), // Genauigkeit in m
   kurs: z.number().min(0).max(360).nullable(),
   tempo: z.number().min(0).max(500).nullable(), // m/s
-  t: z.number(), // ms seit Epoch (Gerätezeit)
+  t: Zeit, // ms seit Epoch (Gerätezeit)
   // Gültigkeitsdauer ab Empfang in ms (CoT «stale»). Sender setzt 2 × Sendeintervall + 15 s; Server begrenzt auf ≤ 5 min.
   staleNach: z.number().min(1000).max(300_000).optional(),
 });
@@ -115,7 +117,7 @@ export const SichtungInput = z.object({
   groesse: Text(100),
   taetigkeit: Text(200),
   einheit: Text(100),
-  zeit: z.number(),
+  zeit: Zeit,
   ausruestung: Text(200),
   bemerkung: Text(500),
   vertrauen: z.enum(['bestaetigt', 'wahrscheinlich', 'unsicher']),
@@ -166,6 +168,8 @@ export const ClientMsg = z.discriminatedUnion('typ', [
   // nur Leitung:
   z.object({ typ: z.literal('lage.statusSet'), statusSet: z.array(StatusDef).min(1).max(20) }),
   z.object({ typ: z.literal('lage.beenden') }),
+  // neuer Teilnehmer-Code; der alte wird ungültig, bestehende Tokens bleiben. Antwort 'code' nur an die auslösende Verbindung.
+  z.object({ typ: z.literal('lage.codeErneuern') }),
   z.object({ typ: z.literal('teilnehmer.entfernen'), id: Id }),
 ]);
 export type ClientMsg = z.infer<typeof ClientMsg>;
@@ -195,7 +199,11 @@ export type ServerMsg =
   | { typ: 'alarm'; alarm: Alarm }
   | { typ: 'meldung'; meldung: Meldung }
   | { typ: 'lage'; lage: Lage }
-  | { typ: 'beendet' } // Lage beendet oder ich wurde entfernt → Client zurück zum Login
+  // Lage beendet oder ich wurde entfernt → Client zurück zum Login. Mit `lage`: Lage beendet, die Leitung behält
+  // ihr Token für Export und Löschen (REST), aber ohne WebSocket.
+  | { typ: 'beendet'; lage?: Lage }
+  | { typ: 'code'; teilnehmerCode: string } // Antwort auf lage.codeErneuern
+  | { typ: 'ping' } // alle PING_MS: Lebenszeichen für den Watchdog im Client
   | { typ: 'fehler'; meldung: string };
 
 // --- REST -------------------------------------------------------------------
@@ -220,3 +228,6 @@ export const STALE_MS = 2 * 60_000; // ausgegraut, falls Position kein staleNach
 export const STALE_MAX_MS = 5 * 60_000;
 export const staleNachFuer = (intervallMs: number): number => Math.min(2 * intervallMs + 15_000, STALE_MAX_MS);
 export const OFFLINE_MS = 10 * 60_000; // als offline/Geist dargestellt
+/** Server sendet spätestens alle PING_MS eine Nachricht; der Client gilt nach STILLE_MS ohne Nachricht als getrennt. */
+export const PING_MS = 20_000;
+export const STILLE_MS = 2 * PING_MS + 5_000;
