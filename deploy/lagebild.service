@@ -1,0 +1,22 @@
+[Unit]
+Description=Lagebild-PWA (Server + WebSocket)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=lagebild
+WorkingDirectory=/opt/lagebild/app
+EnvironmentFile=/etc/lagebild.env
+Environment=NODE_ENV=production PORT=8080 DATA_DIR=/var/lib/lagebild
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server/src/index.ts
+Restart=on-failure
+RestartSec=3
+StateDirectory=lagebild
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/lagebild
+
+[Install]
+WantedBy=multi-user.target
