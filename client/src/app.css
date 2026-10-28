@@ -1,0 +1,116 @@
+/* Dunkles taktisches Schema: gedämpftes Schiefergrau, Sand als Akzent, gut lesbar draussen. */
+:root {
+  color-scheme: dark;
+  --bg: #161b1f;
+  --surface: #1f262b;
+  --surface-2: #2a3238;
+  /* für randständige Leisten/Sheets über der Karte: nicht ganz deckend, sonst verwirft Chromium (headless)
+     bei opaker Überdeckung den oberen statt den unteren Streifen des WebGL-Canvas */
+  --surface-glas: rgb(31 38 43 / 0.99);
+  --line: #3b464d;
+  --text: #e8eae4;
+  --text-2: #a9b2ab;
+  --accent: #c8b46a;
+  --accent-text: #161b1f;
+  --ok: #7cc47f;
+  --warn: #e3b450;
+  --danger: #e2553f;
+  --friend: #8fbcd4;
+  --radius: 12px;
+  --touch: 48px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --oben: calc(52px + var(--safe-top)); /* Höhe Kopfleiste */
+  --unten: calc(116px + var(--safe-bottom)); /* Koordinatenleiste + Werkzeugleiste */
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-tap-highlight-color: transparent;
+}
+
+* { box-sizing: border-box; }
+html, body, #app { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
+body { background: var(--bg); }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+button {
+  min-height: var(--touch);
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button:active { filter: brightness(1.2); }
+button:disabled { opacity: 0.45; cursor: default; }
+button.primaer { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+button.gefahr { background: transparent; color: var(--danger); border-color: var(--danger); }
+button.icon { width: var(--touch); padding: 0; display: inline-grid; place-items: center; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+input, select, textarea {
+  width: 100%;
+  min-height: var(--touch);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
+
+.mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+.leise { color: var(--text-2); font-size: 0.9rem; }
+
+/* Segmentierte Auswahl (z.B. Intervall, Zugehörigkeit) */
+.segmente { display: flex; gap: 4px; padding: 4px; background: var(--bg); border-radius: var(--radius); }
+.segmente button { flex: 1; min-width: 0; border: 0; background: transparent; padding: 0 6px; }
+.segmente button[aria-pressed='true'] { background: var(--surface-2); color: var(--accent); font-weight: 600; }
+
+/* Teilnehmer-/Symbolmarker auf der Karte */
+.bft { cursor: pointer; }
+.bft-sym {
+  display: block;
+  padding: 2px;
+  border: 3px solid var(--status, transparent);
+  border-radius: 7px;
+  background: rgb(22 27 31 / 0.35);
+  line-height: 0;
+}
+.bft-label {
+  position: absolute;
+  border-left: 4px solid var(--team, transparent);
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  margin-top: 2px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgb(22 27 31 / 0.82);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.bft.stale { filter: grayscale(1); opacity: 0.7; }
+.bft.geist { filter: grayscale(1); opacity: 0.42; }
+.bft.geist .bft-sym { border-style: dashed; }
+.bft.ich .bft-sym { box-shadow: 0 0 0 2px var(--text); }
+.bft.emcon .bft-label::after { content: ' · EMCON'; color: var(--warn); }
+.bft.kein-gps .bft-label::after { content: ' · kein GPS'; color: var(--warn); }
+/* offline/abgelaufen: grau – das eigene Symbol bei GPS-Fehler nur gedämpft */
+.bft.ich.kein-gps { opacity: 0.6; }
+
+/* MapLibre-Bedienelemente nicht unter Kopf-/Werkzeugleiste */
+.maplibregl-ctrl-top-right { top: calc(var(--oben) + 4px); }
+.maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right { bottom: var(--unten); }
+.maplibregl-ctrl-attrib { background: rgb(22 27 31 / 0.7) !important; color: var(--text-2); font-size: 11px; }
+.maplibregl-ctrl-attrib a { color: var(--text-2); }
+.maplibregl-ctrl-scale { background: rgb(22 27 31 / 0.7); color: var(--text); border-color: var(--text); }
+.maplibregl-ctrl-group { background: var(--surface); }
+.maplibregl-ctrl-group button { min-height: 0; width: 44px; height: 44px; border-radius: 0; border: 0; background: transparent; }
+.maplibregl-ctrl-compass .maplibregl-ctrl-icon { filter: invert(0.9); }
