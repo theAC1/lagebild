@@ -57,6 +57,8 @@ export const Position = z.object({
   kurs: z.number().min(0).max(360).nullable(),
   tempo: z.number().min(0).max(500).nullable(), // m/s
   t: z.number(), // ms seit Epoch (Gerätezeit)
+  // Gültigkeitsdauer ab Empfang in ms (CoT «stale»). Sender setzt 2 × Sendeintervall + 15 s; Server begrenzt auf ≤ 5 min.
+  staleNach: z.number().min(1000).max(300_000).optional(),
 });
 export type Position = z.infer<typeof Position>;
 
@@ -156,7 +158,9 @@ export const ClientMsg = z.discriminatedUnion('typ', [
   z.object({ typ: z.literal('marker.loeschen'), id: Id }),
   z.object({ typ: z.literal('chat'), an: ChatZiel, text: Text(1000).min(1) }),
   z.object({ typ: z.literal('sichtung'), sichtung: SichtungInput }),
-  z.object({ typ: z.literal('alarm.ausloesen'), art: AlarmArt }),
+  // Position immer mitsenden, auch bei sendetPos=false (wie ATAK-Notruf). Pro Person nur ein aktiver Alarm:
+  // ein neuer ersetzt den bestehenden. Solange ein eigener Alarm aktiv ist, verteilt der Server 'pos' trotz sendetPos=false.
+  z.object({ typ: z.literal('alarm.ausloesen'), art: AlarmArt, pos: Position.nullable() }),
   z.object({ typ: z.literal('alarm.quittieren'), id: Id }),
   z.object({ typ: z.literal('alarm.aufheben'), id: Id }), // Auslöser oder Leitung
   // nur Leitung:
@@ -212,5 +216,7 @@ export type Beigetreten = { token: string; teilnehmerId: string; lageId: string;
 export type Spuren = Record<string, Position[]>;
 
 /** Zeitschwellen für die Stale-Logik (Client-Darstellung). */
-export const STALE_MS = 2 * 60_000; // ausgegraut
+export const STALE_MS = 2 * 60_000; // ausgegraut, falls Position kein staleNach hat
+export const STALE_MAX_MS = 5 * 60_000;
+export const staleNachFuer = (intervallMs: number): number => Math.min(2 * intervallMs + 15_000, STALE_MAX_MS);
 export const OFFLINE_MS = 10 * 60_000; // als offline/Geist dargestellt

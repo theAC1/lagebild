@@ -43,3 +43,16 @@ Zeichnen (Linien/Flächen/Phasenlinien), Offline-Gebietsdownload, TAK/CoT-Bridge
 ## Betrieb
 
 Neuer Homelab-LXC (Debian, Node 22) mit systemd-Dienst. Öffentlich über den bestehenden Cloudflare-Tunnel unter `lage.arvuna.ch`. Den Public-Hostname setzt Juan im CF-Dashboard.
+
+## Nachtrag 28.10.: Übernahmen aus TAK (Recherche `docs/recherche/tak-vorbilder.md`)
+
+- Ausgrauen nach `pos.staleNach` (2 × Sendeintervall + 15 s, max. 5 min) statt fix. Offline-Teilnehmer werden sofort ausgegraut. Ist ein Teilnehmer verbunden, seine Position aber abgelaufen, zeigt die App das Badge «kein GPS».
+- Die Position wird sofort gesendet bei Statuswechsel, Alarm und Wiederverbindung. Zusätzlich gibt es den Modus «Dynamisch»: im Stillstand nur alle 30 s.
+- Alarm: Die Position wird immer mitgeschickt, auch bei Emission Control. Pro Person ist nur ein Alarm aktiv. Der Ring folgt dem Auslöser.
+- Für das Feld «Funktion» gibt es eine Vorschlagsliste. Die Team-Farbe pro Einheit wird aus den 14 ATAK-Teamfarben abgeleitet.
+- Karte:
+  - `bounds` auf das Datengebiet von swisstopo beschränkt.
+  - Overlays: Hangneigung ≥ 30°, Relief, Ortsnamen, Schiessanzeigen (VBS), Drohnen-Einschränkungen (BAZL).
+  - Zusätzliche Basiskarte: Landeskarte Winter.
+  - Attribution pro Layer.
+- Lizenz: aus ATAK/TAK (GPL-3.0) nur Werte und Abläufe übernommen, kein Code und keine Assets.
