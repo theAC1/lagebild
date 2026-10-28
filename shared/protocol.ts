@@ -208,6 +208,9 @@ export const Beitreten = z.object({
 });
 export type Beigetreten = { token: string; teilnehmerId: string; lageId: string; rolle: Rolle };
 
+/** GET /api/spuren?seit=<ms> (Bearer): gespeicherte Positionen je Teilnehmer, zeitlich aufsteigend. */
+export type Spuren = Record<string, Position[]>;
+
 /** Zeitschwellen für die Stale-Logik (Client-Darstellung). */
 export const STALE_MS = 2 * 60_000; // ausgegraut
 export const OFFLINE_MS = 10 * 60_000; // als offline/Geist dargestellt
