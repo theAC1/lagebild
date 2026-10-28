@@ -66,11 +66,11 @@
 {/if}
 
 <style>
+  /* umbrechen statt versteckt scrollen: sonst sind Alarme (mit Zähler), Export und Lage bei 360 px unsichtbar */
   .tabs {
     display: flex;
+    flex-wrap: wrap;
     gap: 4px;
-    overflow-x: auto;
-    scrollbar-width: none;
     padding: 4px;
     margin: 0 -4px 8px;
     background: var(--bg);

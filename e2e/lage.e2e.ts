@@ -263,13 +263,25 @@ test('Export GPX und Lage beenden', async () => {
 
   await expect(teilnehmer.getByRole('button', { name: 'Lage beitreten', exact: true })).toBeVisible();
   await expect(teilnehmer.locator('.toast', { hasText: 'beendet' })).toBeVisible();
-  await expect(leitung.getByRole('button', { name: 'Lage beitreten', exact: true })).toBeVisible();
   await bild(teilnehmer, 'e2e-beendet');
 
-  // Code ist danach ungültig
+  // Leitung bleibt angemeldet: Export und Löschen gehen auch nach dem Beenden – auch nach Neuladen
+  const nach = leitung.getByRole('region', { name: 'Lage beendet' });
+  await expect(nach).toContainText('Übung Aare');
+  await leitung.reload();
+  await expect(nach).toBeVisible();
+  const [nochmal] = await Promise.all([leitung.waitForEvent('download'), nach.getByRole('button', { name: /GPX herunterladen/ }).click()]);
+  expect(nochmal.suggestedFilename()).toMatch(/\.gpx$/);
+  await bild(leitung, 'e2e-nachbereitung');
+  await nach.getByPlaceholder('Name der Lage').fill('Übung Aare');
+  await nach.getByRole('button', { name: 'Endgültig löschen', exact: true }).click();
+  await expect(leitung.getByRole('button', { name: 'Lage beitreten', exact: true })).toBeVisible();
+  await expect(leitung.locator('.toast', { hasText: 'gelöscht' })).toBeVisible();
+
+  // Code ist danach ungültig (Lage gelöscht)
   await teilnehmer.getByLabel('Code').fill(teilnehmerCode);
   await teilnehmer.getByLabel('Rufname').fill('Charlie');
   await teilnehmer.getByLabel('Einheit').fill('Zug 1');
   await teilnehmer.getByRole('button', { name: 'Beitreten', exact: true }).click();
-  await expect(teilnehmer.getByRole('alert')).toContainText('beendet');
+  await expect(teilnehmer.getByRole('alert')).toContainText('Code ungültig');
 });

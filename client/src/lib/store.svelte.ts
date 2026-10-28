@@ -2,6 +2,7 @@
 import { SvelteMap } from 'svelte/reactivity';
 import {
   staleNachFuer,
+  STILLE_MS,
   type Alarm,
   type Beigetreten,
   type Chat,
@@ -64,6 +65,8 @@ class LageStore {
   chat = $state<Chat[]>([]);
   meldungen = $state<Meldung[]>([]);
   verbindung = $state<Verbindung>('getrennt');
+  /** Lage beendet, ich bin Leitung: Token bleibt für Export und Löschen, keine Verbindung mehr. */
+  beendet = $state(false);
   /** eigene Live-Position vom Gerät (nicht vom Server) */
   meinePos = $state<Position | null>(null);
   gpsFehler = $state<string | null>(null);
@@ -183,10 +186,14 @@ export function wende(m: ServerMsg): void {
       store.lage = m.lage;
       break;
     case 'beendet':
-      abmelden('Die Lage wurde beendet oder du wurdest entfernt.');
+      if (m.lage) nachbereitung(m.lage);
+      else abmelden('Die Lage wurde beendet oder du wurdest entfernt.');
       return;
     case 'fehler':
       toast(m.meldung);
+      break;
+    case 'ping':
+    case 'code': // Antwort für Leitung › Zugang (beiNachricht)
       break;
   }
   for (const cb of hoerer) {
@@ -203,17 +210,21 @@ export function wende(m: ServerMsg): void {
 let ws: WebSocket | null = null;
 let versuch = 0;
 let wiederTimer: ReturnType<typeof setTimeout> | undefined;
+/** Letztes Lebenszeichen der Verbindung (Gerätezeit); der Server sendet spätestens alle PING_MS. */
+let zuletztGehoert = 0;
 
 export function verbinde(): void {
   clearTimeout(wiederTimer);
-  if (!store.token || ws) return;
+  if (!store.token || store.beendet || ws) return;
   store.verbindung = 'verbinde';
   const s = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
   ws = s;
+  zuletztGehoert = Date.now();
   s.onopen = () => {
     if (store.token) s.send(JSON.stringify({ typ: 'hallo', token: store.token } satisfies ClientMsg));
   };
   s.onmessage = (e) => {
+    zuletztGehoert = Date.now();
     let m: ServerMsg;
     try {
       m = JSON.parse(e.data);
@@ -223,16 +234,28 @@ export function verbinde(): void {
     wende(m);
   };
   s.onclose = () => {
-    if (ws !== s) return;
-    ws = null;
-    store.verbindung = 'getrennt';
-    if (store.token) {
-      // Backoff 1 s … 30 s mit Streuung, damit nicht alle Geräte gleichzeitig anklopfen
-      const ms = Math.min(30_000, 1000 * 2 ** versuch++) * (0.75 + Math.random() * 0.5);
-      wiederTimer = setTimeout(verbinde, ms);
-    }
+    if (ws === s) getrennt();
   };
 }
+
+function getrennt() {
+  ws = null;
+  store.verbindung = 'getrennt';
+  if (store.token && !store.beendet) {
+    // Backoff 1 s … 30 s mit Streuung, damit nicht alle Geräte gleichzeitig anklopfen
+    const ms = Math.min(30_000, 1000 * 2 ** versuch++) * (0.75 + Math.random() * 0.5);
+    wiederTimer = setTimeout(verbinde, ms);
+  }
+}
+
+// Watchdog: Im Funkloch bleibt ein halb offener Socket minutenlang OPEN (kein FIN/RST). Ohne Lebenszeichen
+// gilt er als tot → schliessen und neu verbinden, damit send() nicht fälschlich Erfolg meldet.
+setInterval(() => {
+  if (!ws || Date.now() - zuletztGehoert <= STILLE_MS) return;
+  const tot = ws;
+  getrennt();
+  tot.close();
+}, 5000);
 
 function sofortWieder() {
   if (store.token && !ws) {
@@ -242,6 +265,30 @@ function sofortWieder() {
 }
 addEventListener('online', sofortWieder);
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && sofortWieder());
+
+export type Zustellung = 'bestaetigt' | 'abgelehnt' | 'unbestaetigt';
+export const OHNE_QUITTUNG = 'Nicht bestätigt – keine Verbindung. Funk benutzen!';
+
+/**
+ * Sendet und wartet auf das Echo des Servers (`echo`). 'abgelehnt': Server meldete einen Fehler (Toast kam schon);
+ * 'unbestaetigt': keine Verbindung oder keine Antwort in `ms` (z.B. Funkloch bei scheinbar offener Verbindung).
+ */
+export function sendeBestaetigt(msg: ClientMsg, echo: (m: ServerMsg) => boolean, ms = 5000): Promise<Zustellung> {
+  if (!send(msg)) return Promise.resolve('unbestaetigt');
+  return new Promise((ok) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const ende = (z: Zustellung) => {
+      clearTimeout(timer);
+      ab();
+      ok(z);
+    };
+    const ab = beiNachricht((m) => {
+      if (m.typ === 'fehler') ende('abgelehnt');
+      else if (echo(m)) ende('bestaetigt');
+    });
+    timer = setTimeout(() => ende('unbestaetigt'), ms);
+  });
+}
 
 /** Sendet an den Server. false, wenn gerade keine Verbindung besteht (nichts wird gepuffert). */
 export function send(msg: ClientMsg): boolean {
@@ -274,6 +321,9 @@ export function pruefeSenden(): void {
   const pos = meinePosZumSenden();
   if (!pos || !store.ichSelbst) return;
   if (!store.ichSelbst.sendetPos && !store.meinAlarmAktiv) return; // Emission Control (ausser bei eigenem Alarm)
+  // GPS-Fehler nach dem letzten Fix: den alten Fix nicht als frisch weitersenden, sonst läuft er bei den
+  // anderen nie ab und «kein GPS» erscheint nie. Ein Alarm nimmt die letzte Position trotzdem mit.
+  if (store.gpsFehler) return;
   const jetzt = Date.now();
   if (!sollSenden(jetzt, pos, letzteGesendet, intervallMs(pos), erzwingen)) return;
   // Auch ohne neuen Fix (Stillstand) wird im Intervall gesendet → Server sieht «lebt»
@@ -305,9 +355,22 @@ function setzeZurueck() {
   ui.kontext = null;
 }
 
+/** Lage beendet, ich bin Leitung: Verbindung zu, Token behalten (Export/Löschen per REST). */
+function nachbereitung(lage: Lage): void {
+  clearTimeout(wiederTimer);
+  store.beendet = true;
+  const s = ws;
+  ws = null;
+  s?.close();
+  store.verbindung = 'getrennt';
+  setzeZurueck();
+  store.lage = lage;
+}
+
 /** Token löschen, Verbindung schliessen, zurück zum Login. */
 export function abmelden(grund?: string): void {
   clearTimeout(wiederTimer);
+  store.beendet = false;
   store.token = null;
   schreibe(TOKEN_KEY, null);
   const s = ws;

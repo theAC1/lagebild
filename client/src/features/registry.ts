@@ -23,6 +23,8 @@ export interface Feature {
   MapLayer?: Component;
   /** Schwebender Schnellknopf rechts über der Werkzeugleiste. */
   Toolbar?: Component;
+  /** Knopf in der Kopfleiste: immer erreichbar, auch über offenen Sheets und im Querformat (Alarm). */
+  Kopf?: Component;
   /** Detail-Sheet für `ui.auswahl = { art: detailArt, id }`. */
   Detail?: Component<{ id: string }>;
   detailArt?: string;

@@ -29,8 +29,11 @@ export function starteGps(): void {
       pruefeSenden();
     },
     (e) => {
-      store.gpsFehler =
-        e.code === e.PERMISSION_DENIED ? 'Standortzugriff verweigert – in den Browser-Einstellungen erlauben.' : 'Keine GPS-Position.';
+      if (e.code === e.PERMISSION_DENIED) {
+        // Der Browser beendet den Watch dabei; freigeben, damit starteGps() nach dem Erlauben neu starten kann
+        stoppeGps();
+        store.gpsFehler = 'Standortzugriff verweigert – in den Browser-Einstellungen erlauben.';
+      } else store.gpsFehler = 'Keine GPS-Position.';
     },
     { enableHighAccuracy: true, maximumAge: 2000, timeout: 30_000 },
   );
@@ -68,4 +71,8 @@ export function aktualisiereWachhalten(): void {
   else void sperre?.release();
 }
 
-document.addEventListener('visibilitychange', () => void holeSperre());
+document.addEventListener('visibilitychange', () => {
+  void holeSperre();
+  // zurück aus den Einstellungen: Standort evtl. inzwischen erlaubt
+  if (document.visibilityState === 'visible' && store.token && !store.beendet && watchId === null) starteGps();
+});

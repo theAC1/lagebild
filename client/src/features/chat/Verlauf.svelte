@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { send, store } from '../../lib/store.svelte.ts';
+  import { OHNE_QUITTUNG, sendeBestaetigt, store } from '../../lib/store.svelte.ts';
   import { toast } from '../../lib/ui.svelte.ts';
   import { markiereGelesen } from './chat.svelte.ts';
   import { formatZeit, kanalVon, type Kanal } from './kanaele.ts';
@@ -19,12 +19,17 @@
     ende?.scrollIntoView({ block: 'end' });
   });
 
-  function senden(e: SubmitEvent) {
+  // Gegenüber nicht mehr in der Lage → Server lehnt ab; nicht beschreibbar machen statt Text zu verlieren
+  const weg = $derived(kanal.weg === true);
+
+  /** Text erst leeren, wenn die eigene Nachricht vom Server zurückkommt. */
+  async function senden(e: SubmitEvent) {
     e.preventDefault();
     const t = text.trim();
-    if (!t) return;
-    if (send({ typ: 'chat', an: kanal.ziel, text: t })) text = '';
-    else toast('Keine Verbindung – Nachricht nicht gesendet.');
+    if (!t || weg) return;
+    const z = await sendeBestaetigt({ typ: 'chat', an: kanal.ziel, text: t }, (m) => m.typ === 'chat' && m.chat.von === store.ich && m.chat.text === t);
+    if (z === 'bestaetigt' && text.trim() === t) text = '';
+    else if (z === 'unbestaetigt') toast(`Nachricht ${OHNE_QUITTUNG}`, 8000);
   }
 </script>
 
@@ -52,8 +57,16 @@
 </ol>
 
 <form onsubmit={senden}>
-  <input bind:value={text} maxlength="1000" enterkeyhint="send" autocomplete="off" placeholder="Nachricht an {kanal.label}" aria-label="Nachricht" />
-  <button class="primaer icon" type="submit" aria-label="Senden" disabled={!text.trim() || store.verbindung !== 'verbunden'}>➤</button>
+  <input
+    bind:value={text}
+    maxlength="1000"
+    enterkeyhint="send"
+    autocomplete="off"
+    disabled={weg}
+    placeholder={weg ? 'Nicht mehr in der Lage – keine Nachrichten möglich' : `Nachricht an ${kanal.label}`}
+    aria-label="Nachricht"
+  />
+  <button class="primaer icon" type="submit" aria-label="Senden" disabled={weg || !text.trim() || store.verbindung !== 'verbunden'}>➤</button>
 </form>
 <div bind:this={ende}></div>
 

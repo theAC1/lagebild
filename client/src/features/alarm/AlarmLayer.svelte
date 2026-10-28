@@ -64,14 +64,22 @@
     return `${formatDistanz(distanz(store.meinePos, ziel))} · ${formatGrad(azimut(store.meinePos, ziel))}`;
   }
 
+  // Höhe des Banners als --banner-h: schwebende Knöpfe, Kompass und Toasts rücken darunter statt verdeckt zu werden
+  let bannerHoehe = $state(0);
+  $effect(() => {
+    const h = liste.length ? bannerHoehe : 0;
+    document.documentElement.style.setProperty('--banner-h', h ? `${h + 6}px` : '0px');
+  });
+
   onDestroy(() => {
     for (const r of ringe.values()) r.remove();
     ringe.clear();
+    document.documentElement.style.removeProperty('--banner-h');
   });
 </script>
 
 {#if liste.length}
-  <div class="banner" role="alert">
+  <div class="banner" role="alert" bind:offsetHeight={bannerHoehe}>
     {#each liste as a (a.id)}
       {@const mein = a.von === store.ich}
       {@const p = ortVon(a)}
@@ -115,6 +123,15 @@
       transform: translateX(-50%);
     }
   }
+  /* Querformat: rechtsbündig, links bleibt Platz für das Ebenen-Menü */
+  @media (min-width: 640px) and (max-height: 500px) {
+    .banner {
+      left: auto;
+      right: 8px;
+      width: min(520px, calc(100vw - 300px));
+      transform: none;
+    }
+  }
   .alarm {
     display: flex;
     align-items: center;
@@ -148,9 +165,8 @@
     line-height: 1.25;
   }
   .text strong {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    /* umbrechen statt abschneiden: der Rufname (wer braucht Hilfe?) steht hinten */
+    overflow-wrap: anywhere;
   }
   .text span {
     /* darf umbrechen: Distanz und Quittierungen sind auf dem Handy sonst abgeschnitten */

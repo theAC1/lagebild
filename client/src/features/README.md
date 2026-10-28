@@ -8,7 +8,8 @@ const feature: Feature = {
   id: 'marker', label: 'Marker', icon: ikon('<path d="…"/>'), // 24×24-Strich-SVG, siehe ikon()
   Panel,        // Bottom-Sheet bei ui.panel.id === id; Props { params } aus oeffne(id, params). Ohne Panel kein Knopf unten.
   MapLayer,     // nach Karten-Load gemountet (ab Login), zeichnet via getMap(); in onDestroy aufräumen
-  Toolbar,      // schwebender Schnellknopf rechts (z.B. Alarm); ersetzt den Knopf in der Werkzeugleiste
+  Toolbar,      // schwebender Schnellknopf rechts (z.B. Status); ersetzt den Knopf in der Werkzeugleiste
+  Kopf,         // Knopf in der Kopfleiste, immer erreichbar (Alarm); ersetzt den Knopf in der Werkzeugleiste
   Detail, detailArt: 'marker', // Detail-Sheet bei ui.auswahl = { art: detailArt, id }
   nurLeitung,   // Knopf nur für die Leitung
   badge: () => n, // Zähler am Knopf, reaktiv gelesen (z.B. ungelesen)
@@ -19,6 +20,7 @@ const feature: Feature = {
 
 - `store`: `lage`, `ich` (eigene ID), `ichSelbst`, `istLeitung`, `teilnehmer`/`marker`/`sichtungen`/`alarme` (SvelteMap nach ID), `chat`, `meldungen`, `verbindung`, `meinePos` (Live-GPS), `gpsFehler`, `einstellungen`, `jetzt` (tickt 5 s), `meinAlarmAktiv`.
 - `send(msg: ClientMsg): boolean` – false ohne Verbindung (nichts gepuffert, Toast selbst zeigen). Nach `status`, `alarm.ausloesen` und `sendetPos:true` sendet der Kern die eigene Position sofort mit.
+- `sendeBestaetigt(msg, echo)` – wartet auf das Echo des Servers: `'bestaetigt' | 'abgelehnt' | 'unbestaetigt'`. Für alles, was nicht still verloren gehen darf (Alarm, Status, Chat): Erfolg/Text leeren erst bei `'bestaetigt'`, bei `'unbestaetigt'` `OHNE_QUITTUNG` zeigen.
 - `meinePosZumSenden()` – eigene Position inkl. `staleNach`, z.B. für `alarm.ausloesen.pos`. `sendePosJetzt()` – Position sofort senden.
 - `beiNachricht(cb)` – Hörer nach jeder Servernachricht (Vibration, Ungelesen …), gibt Abmeldefunktion zurück.
 - `api(pfad, init)` – fetch mit Bearer, wirft `Error` mit lesbarer Meldung; `postJson(pfad, body)`.

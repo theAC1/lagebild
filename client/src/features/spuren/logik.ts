@@ -20,12 +20,16 @@ export const ALT_MS = 10 * 60_000;
 /** Gut unterscheidbar auf Landeskarte und Luftbild (mit dunklem Rand gezeichnet). */
 export const SPUR_FARBEN = ['#ff5a36', '#ffd23f', '#3fa7ff', '#ff4fd8', '#5cff6e', '#ff9f1c', '#b388ff', '#00e5d4', '#ffffff', '#c6ff00'];
 
-/** Hängt p an, wenn es neuer als der letzte Punkt ist. Liefert eine neue Liste (oder die alte, wenn nichts dazukommt). */
-export function anhaengen(spur: readonly Position[] | undefined, p: Position): Position[] {
+/**
+ * Hängt p an, wenn es neuer als der letzte Punkt ist, und lässt Punkte vor `seit` fallen (Zeitfenster).
+ * Liefert eine neue Liste (oder die alte, wenn nichts dazukommt).
+ */
+export function anhaengen(spur: readonly Position[] | undefined, p: Position, seit = 0): Position[] {
   const liste = spur ?? [];
   const letzte = liste.at(-1);
   if (letzte && p.t <= letzte.t) return liste as Position[];
-  return [...liste, p];
+  const ab = liste.findIndex((x) => x.t >= seit);
+  return [...(ab === -1 ? [] : ab === 0 ? liste : liste.slice(ab)), p];
 }
 
 /** Geladene Spuren + live angekommene Punkte, die neuer sind als das Geladene (kein Verlust während des Ladens). */

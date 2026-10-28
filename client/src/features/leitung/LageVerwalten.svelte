@@ -12,7 +12,7 @@
 
   function beenden() {
     if (!send({ typ: 'lage.beenden' })) return toast('Keine Verbindung – Lage nicht beendet.');
-    beendenSchritt = 0; // Server meldet 'beendet' → Kern meldet ab
+    beendenSchritt = 0; // Server meldet 'beendet' mit Lage → Kern zeigt die Nachbereitung
   }
 
   async function loeschen() {
@@ -32,11 +32,12 @@
   }
 </script>
 
+{#if !store.beendet}
 <section>
   <h3>Lage beenden</h3>
   <p class="leise">
-    Alle werden abgemeldet, niemand kann mehr beitreten. Die Daten bleiben gespeichert. Export danach nicht mehr über die App möglich –
-    vorher exportieren.
+    Alle Teilnehmenden werden abgemeldet, niemand kann mehr beitreten. Die Daten bleiben gespeichert; die Leitung kann danach noch
+    exportieren und die Lage löschen.
   </p>
   {#if beendenSchritt === 0}
     <button class="gefahr breit" onclick={() => (beendenSchritt = 1)}>Lage beenden …</button>
@@ -49,7 +50,7 @@
           <button class="gefahr" onclick={() => (beendenSchritt = 2)}>Ja, weiter</button>
         </div>
       {:else}
-        <span><strong>Letzte Bestätigung:</strong> alle Geräte werden sofort abgemeldet.</span>
+        <span><strong>Letzte Bestätigung:</strong> alle Teilnehmenden werden sofort abgemeldet.</span>
         <div class="knoepfe">
           <button onclick={() => (beendenSchritt = 0)}>Abbrechen</button>
           <button class="gefahr voll" onclick={beenden}>Jetzt beenden</button>
@@ -58,6 +59,7 @@
     </div>
   {/if}
 </section>
+{/if}
 
 <section>
   <h3>Lage endgültig löschen</h3>

@@ -22,6 +22,10 @@ describe('anhaengen', () => {
     expect(anhaengen(b, p(1))).toBe(b);
     expect(anhaengen(undefined, p(5))).toHaveLength(1);
   });
+  it('schneidet Punkte vor dem Zeitfenster ab (Speicher wächst nicht über die Lage)', () => {
+    expect(anhaengen([p(1), p(2), p(3)], p(4), 3).map((x) => x.t)).toEqual([3, 4]);
+    expect(anhaengen([p(1), p(2)], p(9), 5).map((x) => x.t)).toEqual([9]);
+  });
 });
 
 describe('zusammenfuehren', () => {

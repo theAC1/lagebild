@@ -9,6 +9,8 @@ export interface Kanal {
   info: string;
   /** nur bei Personen: Symbol */
   sidc?: string;
+  /** Person nicht mehr in der Lage: nur Verlauf, keine neuen Nachrichten (Server lehnt ab) */
+  weg?: boolean;
 }
 
 /** Gelesen bis (Serverzeit) je Kanal; '*' gilt für Kanäle ohne eigenen Eintrag. */
@@ -59,6 +61,7 @@ export function kanaele(teilnehmer: Teilnehmer[], chat: Chat[], ich: string): Ka
     ziel: { art: 'person', id },
     label: 'Unbekannt',
     info: 'nicht mehr in der Lage',
+    weg: true,
   }));
 
   return [{ key: 'alle', ziel: { art: 'alle' }, label: 'Alle', info: 'ganze Lage' }, ...einheitKanaele, ...personKanaele, ...wegKanaele];

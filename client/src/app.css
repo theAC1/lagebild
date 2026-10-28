@@ -65,9 +65,9 @@ label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
 .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
 .leise { color: var(--text-2); font-size: 0.9rem; }
 
-/* Segmentierte Auswahl (z.B. Intervall, Zugehörigkeit) */
-.segmente { display: flex; gap: 4px; padding: 4px; background: var(--bg); border-radius: var(--radius); }
-.segmente button { flex: 1; min-width: 0; border: 0; background: transparent; padding: 0 6px; }
+/* Segmentierte Auswahl (z.B. Intervall, Zugehörigkeit); bricht um, statt Wörter über den Rand laufen zu lassen */
+.segmente { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: var(--bg); border-radius: var(--radius); }
+.segmente button { flex: 1 0 auto; border: 0; background: transparent; padding: 0 6px; }
 .segmente button[aria-pressed='true'] { background: var(--surface-2); color: var(--accent); font-weight: 600; }
 
 /* Teilnehmer-/Symbolmarker auf der Karte */
@@ -96,6 +96,8 @@ label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
   white-space: nowrap;
   line-height: 1.4;
 }
+.bft.label-oben .bft-label { top: auto; bottom: 100%; margin: 0 0 2px; }
+.bft.label-weg .bft-label { visibility: hidden; }
 .bft.stale { filter: grayscale(1); opacity: 0.7; }
 .bft.geist { filter: grayscale(1); opacity: 0.42; }
 .bft.geist .bft-sym { border-style: dashed; }
@@ -106,7 +108,7 @@ label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
 .bft.ich.kein-gps { opacity: 0.6; }
 
 /* MapLibre-Bedienelemente nicht unter Kopf-/Werkzeugleiste */
-.maplibregl-ctrl-top-right { top: calc(var(--oben) + 4px); }
+.maplibregl-ctrl-top-right { top: calc(var(--oben) + 4px + var(--banner-h, 0px)); }
 .maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right { bottom: var(--unten); }
 .maplibregl-ctrl-attrib { background: rgb(22 27 31 / 0.7) !important; color: var(--text-2); font-size: 11px; }
 .maplibregl-ctrl-attrib a { color: var(--text-2); }

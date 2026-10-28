@@ -1,6 +1,6 @@
 <script lang="ts">
   import { toDataURL } from 'qrcode';
-  import { store } from '../../lib/store.svelte.ts';
+  import { sendeBestaetigt, store } from '../../lib/store.svelte.ts';
   import { lies, schreibe, toast } from '../../lib/ui.svelte.ts';
   import { codesKey, leseCodes, zugangsLink, type GemerkteCodes } from './logik.ts';
 
@@ -49,6 +49,23 @@
     }
   }
 
+  let erneuernFrage = $state(false);
+  let erneuert = $state(false);
+
+  /** Neuer Teilnehmer-Code: sperrt Entfernte und abgeflossene Codes aus. Wer schon drin ist, bleibt drin. */
+  async function erneuern() {
+    erneuernFrage = false;
+    const lid = lageId;
+    const antwort: { code?: string } = {};
+    const z = await sendeBestaetigt({ typ: 'lage.codeErneuern' }, (m) => m.typ === 'code' && Boolean((antwort.code = m.teilnehmerCode)));
+    if (z === 'unbestaetigt') return toast('Keine Antwort vom Server – Code evtl. trotzdem erneuert, bitte erneut versuchen.', 8000);
+    if (!antwort.code || lid !== lageId) return;
+    codes = { ...codes, teilnehmerCode: antwort.code };
+    schreibe(codesKey(lid), JSON.stringify(codes));
+    erneuert = true;
+    toast('Neuer Teilnehmer-Code – der alte gilt nicht mehr.', 6000);
+  }
+
   function vergessen() {
     schreibe(codesKey(lageId), null);
     codes = {};
@@ -75,6 +92,23 @@
     <button class="primaer" type="submit">Übernehmen</button>
   </form>
 {/if}
+
+<div class="erneuern">
+  {#if erneuernFrage}
+    <div class="frage" role="alert">
+      <span>Neuen Teilnehmer-Code erzeugen? Der alte Code und QR gelten danach nicht mehr; wer schon beigetreten ist, bleibt.</span>
+      <div class="knoepfe">
+        <button onclick={() => (erneuernFrage = false)}>Abbrechen</button>
+        <button class="primaer" onclick={erneuern}>Ja, erneuern</button>
+      </div>
+    </div>
+  {:else}
+    <button class="breit" disabled={store.verbindung !== 'verbunden'} onclick={() => (erneuernFrage = true)}>Teilnehmer-Code erneuern …</button>
+    <p class="leise klein">
+      {erneuert ? 'Code erneuert.' : 'Z.B. nach dem Entfernen einer Person oder wenn der Code abgeflossen ist.'}
+    </p>
+  {/if}
+</div>
 
 {#if codes.leitungCode}
   <div class="leitung">
@@ -153,6 +187,29 @@
     display: grid;
     gap: 8px;
     margin-top: 16px;
+  }
+  .erneuern {
+    display: grid;
+    gap: 6px;
+    margin-top: 16px;
+  }
+  .klein {
+    margin: 0;
+    font-size: 0.85rem;
+  }
+  .frage {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--warn);
+    border-radius: var(--radius);
+  }
+  .knoepfe {
+    display: flex;
+    gap: 8px;
+  }
+  .knoepfe button {
+    flex: 1;
   }
   .hinweis {
     color: var(--warn);

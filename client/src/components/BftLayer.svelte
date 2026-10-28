@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Marker } from 'maplibre-gl';
   import { onDestroy } from 'svelte';
+  import { entzerre } from '../lib/labels.ts';
   import { getMap } from '../lib/map.ts';
   import { frische, keinGps, statusDef, store } from '../lib/store.svelte.ts';
   import { teamFarbe } from '../lib/team.ts';
@@ -9,6 +10,19 @@
 
   const m = getMap();
   const eintraege = new Map<string, { marker: Marker; schluessel: string }>();
+
+  // Rufnamen naher Kräfte entzerren: nach Kartenbewegung und nach jeder Änderung (auch der eigenen Position)
+  let geplant = 0;
+  const plane = () => {
+    cancelAnimationFrame(geplant);
+    geplant = requestAnimationFrame(() => entzerre(m.getContainer()));
+  };
+  m.on('moveend', plane);
+  $effect(() => {
+    void store.meinePos;
+    void store.gpsFehler;
+    plane();
+  });
 
   $effect(() => {
     const gesehen = new Set<string>();
@@ -47,9 +61,12 @@
       e.marker.remove();
       eintraege.delete(id);
     }
+    plane();
   });
 
   onDestroy(() => {
+    m.off('moveend', plane);
+    cancelAnimationFrame(geplant);
     for (const e of eintraege.values()) e.marker.remove();
     eintraege.clear();
   });

@@ -11,7 +11,7 @@ const feature: Feature = {
   icon: ikon('<path d="M12 3l10 18H2z"/><path d="M12 10v4.5M12 17.5v.5"/>'),
   Panel,
   MapLayer: AlarmLayer,
-  Toolbar,
+  Kopf: Toolbar,
   Detail,
   detailArt: 'alarm',
   // kein badge: der Knopf steht nicht in der Werkzeugleiste, offene Alarme zeigt das Banner

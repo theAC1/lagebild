@@ -5,11 +5,13 @@
 <button class="alarm-knopf" aria-label="Alarm auslösen" onclick={() => (ui.panel?.id === 'alarm' ? schliesse() : oeffne('alarm'))}>ALARM</button>
 
 <style>
+  /* in der Kopfleiste: liegt nie unter Sheets, Ebenen-Menü oder der Werkzeugleiste */
   .alarm-knopf {
-    width: 64px;
-    height: 64px;
-    padding: 0;
-    border-radius: 50%;
+    flex: none;
+    min-height: 40px;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 999px;
     border: 2px solid #ff8a78;
     background: #a3271a;
     color: #fff;

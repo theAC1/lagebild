@@ -53,11 +53,17 @@ export function zeige(ids: string[], an: boolean): void {
   if (an && !spuren.geladen && !spuren.laedt) void lade();
 }
 
-/** Live-Punkte sammeln; nach Wiederverbindung Lücke nachladen. Gibt die Abmeldung zurück (setzt alles zurück). */
+/**
+ * Live-Punkte sammeln, aber erst, wenn Spuren gebraucht werden (zeige() lädt dann nach); nur im Zeitfenster.
+ * Nach Wiederverbindung Lücke nachladen. Gibt die Abmeldung zurück (setzt alles zurück).
+ */
 export function starte(): () => void {
   const ab = beiNachricht((m) => {
-    if (m.typ === 'pos') spuren.daten = { ...spuren.daten, [m.id]: anhaengen(spuren.daten[m.id], m.pos) };
-    else if (m.typ === 'snapshot' && spuren.geladen) void lade();
+    if (m.typ === 'pos' && (spuren.geladen || spuren.laedt || spuren.sichtbar.size)) {
+      const seit = seitFuer(spuren.fenster, Date.now());
+      spuren.daten = { ...spuren.daten, [m.id]: anhaengen(spuren.daten[m.id], m.pos, seit) };
+    }
+    if (m.typ === 'snapshot' && spuren.geladen) void lade();
   });
   return () => {
     ab();

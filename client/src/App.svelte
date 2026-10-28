@@ -10,6 +10,8 @@
   import Sheet from './components/Sheet.svelte';
   import TeilnehmerDetail from './components/TeilnehmerDetail.svelte';
   import TeilnehmerListe from './components/TeilnehmerListe.svelte';
+  import { untrack } from 'svelte';
+  import Nachbereitung from './features/leitung/Nachbereitung.svelte';
   import { features } from './features/registry.ts';
   import { zentriere } from './lib/map.ts';
   import { aktualisiereWachhalten, starteGps, stoppeGps } from './lib/position.svelte.ts';
@@ -25,12 +27,13 @@
   const panelFeature = $derived(ui.panel ? features.find((f) => f.id === ui.panel!.id) : undefined);
   const detailFeature = $derived(ui.auswahl ? features.find((f) => f.detailArt === ui.auswahl!.art) : undefined);
 
-  // Angemeldet: Verbindung + GPS + Wakelock; abgemeldet: alles stoppen
+  // Angemeldet: Verbindung + GPS + Wakelock; abgemeldet oder Lage beendet: alles stoppen.
+  // Wachhalten ungetrackt: es liest store.einstellungen, sonst startet jede Einstellung GPS und Verbindung neu.
   $effect(() => {
-    if (!store.token) return;
+    if (!store.token || store.beendet) return;
     verbinde();
     starteGps();
-    aktualisiereWachhalten();
+    untrack(aktualisiereWachhalten);
     return stoppeGps;
   });
 
@@ -49,7 +52,7 @@
 </script>
 
 <MapView>
-  {#if store.token}
+  {#if store.token && !store.beendet}
     <BftLayer />
     <EigenePosition />
     {#each features as f (f.id)}
@@ -62,12 +65,17 @@
 
 {#if !store.token}
   <Login />
+{:else if store.beendet}
+  <Nachbereitung />
 {:else}
   <header class="kopf">
     <div class="lage">
       <strong>{store.lage?.name ?? 'Lagebild'}</strong>
       <span class="verbindung {store.verbindung}" role="status"><span class="lampe"></span>{VERBINDUNG[store.verbindung]}</span>
     </div>
+    {#each sichtbar as f (f.id)}
+      {#if f.Kopf}<f.Kopf />{/if}
+    {/each}
     <button class="icon" aria-label="Teilnehmende" onclick={() => oeffne('teilnehmer')}>
       {@html ikon('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.5-4 3-6 6.5-6s6 2 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2 .7 3.2 2.6 3.5 6"/>')}
       <span class="zahl">{store.teilnehmer.size}</span>
@@ -107,7 +115,7 @@
     <KoordLeiste />
     <nav class="werkzeuge" aria-label="Werkzeuge">
       <!-- Features mit eigenem Schnellknopf (Status, Alarm) nicht doppelt: sonst passt die Leiste nicht auf ein Handy -->
-      {#each sichtbar.filter((f) => f.Panel && !f.Toolbar) as f (f.id)}
+      {#each sichtbar.filter((f) => f.Panel && !f.Toolbar && !f.Kopf) as f (f.id)}
         {@const badge = f.badge?.() ?? 0}
         <button class="werkzeug" aria-pressed={ui.panel?.id === f.id} onclick={() => (ui.panel?.id === f.id ? schliesse() : oeffne(f.id))}>
           {#if typeof f.icon === 'string'}{@html f.icon}{:else}<f.icon />{/if}
@@ -209,7 +217,8 @@
   .schwebend {
     position: fixed;
     right: 10px;
-    top: calc(var(--oben) + 60px);
+    /* --banner-h: Höhe des Alarm-Banners (AlarmLayer), sonst 0 */
+    top: calc(var(--oben) + 60px + var(--banner-h, 0px));
     z-index: 9;
     display: grid;
     gap: 10px;
@@ -224,7 +233,11 @@
     color: var(--accent);
     border-color: var(--accent);
   }
+  /* Popover links neben den Knöpfen, nicht im Fluss: schiebt Folgen/Status sonst unter die Werkzeugleiste */
   .basis-wahl {
+    position: fixed;
+    top: calc(var(--oben) + 60px + var(--banner-h, 0px));
+    right: 68px;
     display: grid;
     gap: 4px;
     padding: 6px;
@@ -242,9 +255,22 @@
     font-weight: 600;
   }
   .basis-wahl {
-    max-height: calc(100dvh - var(--oben) - var(--unten) - 140px);
+    max-height: max(160px, calc(100dvh - var(--oben) - var(--unten) - 72px - var(--banner-h, 0px)));
     overflow-y: auto;
     width: min(260px, calc(100vw - 80px));
+  }
+  /* Querformat (Handy in der Halterung): Knöpfe nebeneinander, Menü über die ganze Kartenhöhe */
+  @media (max-height: 500px) {
+    .schwebend {
+      grid-auto-flow: column;
+      align-items: start;
+    }
+    .basis-wahl {
+      top: calc(var(--oben) + 8px);
+      right: auto;
+      left: 10px;
+      max-height: calc(100dvh - var(--oben) - var(--unten) - 16px);
+    }
   }
   .gruppe {
     padding: 6px 12px 2px;
@@ -323,7 +349,8 @@
   }
   .toasts {
     position: fixed;
-    top: calc(var(--oben) + 8px);
+    /* unter dem Alarm-Banner statt dahinter */
+    top: calc(var(--oben) + 8px + var(--banner-h, 0px));
     left: 50%;
     translate: -50% 0;
     z-index: 29; /* über Sheets/Fadenkreuz, unter dem Alarm-Banner (30) */

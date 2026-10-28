@@ -67,6 +67,8 @@
     bottom: calc(var(--unten) + 8px);
     z-index: 15;
     display: grid;
+    /* sonst wächst die Spalte auf die nowrap-Breite der Koordinaten und läuft rechts aus dem Bild */
+    grid-template-columns: minmax(0, 1fr);
     gap: 6px;
     padding: 10px;
     background: var(--surface);

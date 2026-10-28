@@ -43,6 +43,11 @@ describe('kanaele', () => {
     expect(keys).toContain('einheit:KP');
     expect(keys.at(-1)).toBe('person:x');
   });
+  it('Direktkanal einer entfernten Person ist als weg markiert (nicht beschreibbar)', () => {
+    const k = kanaele(teilnehmer, [msg('x', { art: 'person', id: 'a' }, 2)], ich);
+    expect(k.find((x) => x.key === 'person:x')?.weg).toBe(true);
+    expect(k.filter((x) => x.key !== 'person:x').every((x) => !x.weg)).toBe(true);
+  });
 });
 
 describe('uebersicht', () => {

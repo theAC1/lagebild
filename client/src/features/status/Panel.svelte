@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { PanelProps } from '../registry.ts';
-  import { send, statusDef, store } from '../../lib/store.svelte.ts';
+  import { OHNE_QUITTUNG, sendeBestaetigt, statusDef, store } from '../../lib/store.svelte.ts';
   import { toast } from '../../lib/ui.svelte.ts';
   import { formatZeit, neuesteZuerst, textFarbeAuf } from './logik.ts';
 
@@ -15,10 +15,15 @@
   const log = $derived(neuesteZuerst(store.meldungen));
   const verbunden = $derived(store.verbindung === 'verbunden');
 
-  /** Sendet Status + Freitext. Der Kern (send) schickt danach die eigene Position sofort mit (sendePosJetzt). */
-  function melde(status: string) {
-    if (!send({ typ: 'status', status, text: text.trim() })) return toast('Keine Verbindung – Meldung nicht gesendet.');
-    text = '';
+  /**
+   * Sendet Status + Freitext. Der Kern (send) schickt danach die eigene Position sofort mit (sendePosJetzt).
+   * Den Text erst leeren, wenn die eigene Meldung vom Server zurückkommt – sonst geht er bei Ablehnung verloren.
+   */
+  async function melde(status: string) {
+    const t = text.trim();
+    const z = await sendeBestaetigt({ typ: 'status', status, text: t }, (m) => m.typ === 'meldung' && m.meldung.von === store.ich && m.meldung.status === status);
+    if (z === 'bestaetigt' && text.trim() === t) text = '';
+    else if (z === 'unbestaetigt') toast(`Meldung ${OHNE_QUITTUNG}`, 8000);
   }
 </script>
 
