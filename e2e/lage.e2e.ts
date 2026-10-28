@@ -1,0 +1,275 @@
+// Ende-zu-Ende: Leitung (Adler, Bundeshaus) und Teilnehmer (Bravo, 1.1 km südlich) in einer Lage, gegen den echten Server.
+import { expect, test, type Browser, type Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+
+const ADLER = { latitude: 46.9466, longitude: 7.4442 };
+const BRAVO = { latitude: 46.9366, longitude: 7.4442 }; // ~1.11 km, Azimut 180° von Adler
+const SCREENS = 'docs/screens';
+
+test.describe.configure({ mode: 'serial' });
+
+let leitung: Page;
+let teilnehmer: Page;
+let teilnehmerCode = '';
+
+async function neueSeite(browser: Browser, geolocation: typeof ADLER): Promise<Page> {
+  const ctx = await browser.newContext({ geolocation });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => {
+    throw e;
+  });
+  return page;
+}
+
+async function beitreten(page: Page, rufname: string, einheit: string) {
+  await page.getByLabel('Rufname').fill(rufname);
+  await page.getByLabel('Einheit').fill(einheit);
+  await page.getByRole('button', { name: 'Beitreten', exact: true }).click();
+  await expect(page.locator('.verbindung.verbunden')).toBeVisible();
+}
+
+// Sheets/Toasts blenden ein → Animationen fertig laufen lassen, sonst halbtransparente Bilder
+const bild = (page: Page, name: string) => page.screenshot({ path: `${SCREENS}/${name}.png`, animations: 'disabled' });
+
+const werkzeug = (page: Page, label: string) => page.locator('nav.werkzeuge button.werkzeug', { hasText: label });
+const sheet = (page: Page) => page.locator('section.sheet');
+const schliesseSheet = (page: Page) => sheet(page).getByRole('button', { name: 'Schliessen', exact: true }).click();
+
+async function leitungTab(tab: string) {
+  if (!(await sheet(leitung).getByRole('tablist').isVisible().catch(() => false))) await werkzeug(leitung, 'Leitung').click();
+  await sheet(leitung).getByRole('tab', { name: tab }).click();
+}
+
+test.beforeAll(async ({ browser }) => {
+  leitung = await neueSeite(browser, ADLER);
+  teilnehmer = await neueSeite(browser, BRAVO);
+});
+
+test.afterAll(async () => {
+  await leitung?.context().close();
+  await teilnehmer?.context().close();
+});
+
+test('Lage erstellen, beitreten, gegenseitig sehen', async () => {
+  await leitung.goto('/');
+  await leitung.getByRole('button', { name: 'Neue Lage erstellen', exact: true }).click();
+  await leitung.getByLabel('Name der Lage').fill('Übung Aare');
+  await leitung.getByLabel('Erstell-Passwort').fill('e2e');
+  await leitung.getByRole('button', { name: 'Lage erstellen', exact: true }).click();
+  teilnehmerCode = (await leitung.locator('.code-box:not(.leitung) .code').textContent())!.trim();
+  expect(teilnehmerCode).toMatch(/^[A-Z0-9]{8}$/);
+  await bild(leitung, 'e2e-codes');
+  await leitung.getByRole('button', { name: 'Weiter: als Leitung beitreten', exact: true }).click();
+  await beitreten(leitung, 'Adler', 'KP');
+
+  await teilnehmer.goto(`/?code=${teilnehmerCode}`);
+  await expect(teilnehmer.getByLabel('Code')).toHaveValue(teilnehmerCode);
+  await beitreten(teilnehmer, 'Bravo', 'Zug 1');
+
+  // Karte: Symbol mit Rufname des jeweils anderen
+  await expect(leitung.locator('.bft .bft-label', { hasText: 'Bravo' })).toBeVisible();
+  await expect(teilnehmer.locator('.bft .bft-label', { hasText: 'Adler' })).toBeVisible();
+
+  // Teilnehmerliste mit Distanz
+  await leitung.getByRole('button', { name: 'Teilnehmende', exact: true }).click();
+  await expect(sheet(leitung).locator('.zeile', { hasText: 'Bravo' })).toContainText('1.11 km');
+  await expect(sheet(leitung).locator('.zeile', { hasText: 'Adler (ich)' })).toBeVisible();
+  await bild(leitung, 'e2e-teilnehmerliste');
+  await schliesseSheet(leitung);
+  await teilnehmer.getByRole('button', { name: 'Teilnehmende', exact: true }).click();
+  await expect(sheet(teilnehmer).locator('.zeile', { hasText: 'Adler' })).toBeVisible();
+  await schliesseSheet(teilnehmer);
+
+  // Leitung › Zugang kennt den Code aus dem Erstellen (QR)
+  await werkzeug(leitung, 'Leitung').click();
+  await expect(sheet(leitung).locator('.code', { hasText: teilnehmerCode })).toBeVisible();
+  await expect(sheet(leitung).getByAltText(/QR-Code zum Beitreten/)).toBeVisible();
+  await bild(leitung, 'e2e-leitung-zugang');
+  await schliesseSheet(leitung);
+  await bild(leitung, 'e2e-karte-leitung');
+});
+
+test('Status wechseln und Status-Set der Leitung', async () => {
+  await teilnehmer.getByRole('button', { name: /^Eigener Status/ }).click();
+  await sheet(teilnehmer).getByLabel('Meldung an alle').fill('Brücke gesperrt');
+  await sheet(teilnehmer).getByRole('group', { name: 'Status wählen' }).getByRole('button', { name: 'Halt', exact: true }).click();
+  await expect(leitung.locator('.toast', { hasText: 'Bravo' })).toContainText('Halt');
+  await expect(leitung.locator('.bft', { hasText: 'Bravo' })).toHaveAttribute('style', /--status:\s*#f9a825/);
+  await schliesseSheet(teilnehmer);
+
+  await leitungTab('Log');
+  await expect(sheet(leitung).locator('.log li', { hasText: 'Bravo' }).first()).toContainText('Brücke gesperrt');
+
+  await leitungTab('Status-Set');
+  await sheet(leitung).getByLabel('Bezeichnung').first().fill('Bereitschaft');
+  await sheet(leitung).getByRole('button', { name: 'Speichern', exact: true }).click();
+  await schliesseSheet(leitung);
+
+  await teilnehmer.getByRole('button', { name: /^Eigener Status/ }).click();
+  await expect(sheet(teilnehmer).getByRole('group', { name: 'Status wählen' }).getByRole('button', { name: 'Bereitschaft', exact: true })).toBeVisible();
+  await bild(teilnehmer, 'e2e-status');
+  await schliesseSheet(teilnehmer);
+});
+
+test('Marker setzen; Teilnehmer darf Leitungs-Marker nicht löschen', async () => {
+  await werkzeug(leitung, 'Marker').click();
+  await sheet(leitung).getByRole('button', { name: '+ Marker setzen', exact: true }).click();
+  await leitung.getByRole('button', { name: 'Übernehmen', exact: true }).click();
+  await sheet(leitung).getByLabel('Bezeichnung').fill('Sperre Nord');
+  await sheet(leitung).getByRole('button', { name: 'Marker setzen', exact: true }).click();
+  await expect(leitung.locator('[aria-label="Marker Sperre Nord"]')).toBeVisible();
+
+  await expect(teilnehmer.locator('[aria-label="Marker Sperre Nord"]')).toBeAttached();
+  await werkzeug(teilnehmer, 'Marker').click();
+  await sheet(teilnehmer).locator('button.zeile', { hasText: 'Sperre Nord' }).click();
+  await expect(sheet(teilnehmer).getByText('Sperre Nord').first()).toBeVisible();
+  await expect(sheet(teilnehmer).getByRole('button', { name: 'Löschen', exact: true })).toHaveCount(0);
+  await expect(sheet(teilnehmer).getByRole('button', { name: 'Bearbeiten', exact: true })).toHaveCount(0);
+  await bild(teilnehmer, 'e2e-marker-detail');
+  await schliesseSheet(teilnehmer);
+
+  // Auch am UI vorbei lehnt der Server ab
+  const antwort = await teilnehmer.evaluate(
+    () =>
+      new Promise<string>((ok) => {
+        const ws = new WebSocket(`ws://${location.host}/ws`);
+        ws.onopen = () => ws.send(JSON.stringify({ typ: 'hallo', token: localStorage.getItem('lagebild.token') }));
+        ws.onmessage = (e) => {
+          const m = JSON.parse(e.data);
+          if (m.typ === 'snapshot') {
+            const mk = m.marker.find((x: { bezeichnung: string }) => x.bezeichnung === 'Sperre Nord');
+            ws.send(JSON.stringify({ typ: 'marker.loeschen', id: mk.id }));
+          } else if (m.typ === 'fehler' || m.typ === 'marker.geloescht') {
+            ws.close();
+            ok(m.typ);
+          }
+        };
+      }),
+  );
+  expect(antwort).toBe('fehler');
+  await expect(leitung.locator('[aria-label="Marker Sperre Nord"]')).toBeVisible();
+});
+
+test('Chat an alle und direkt, Ungelesen-Zähler', async () => {
+  await werkzeug(teilnehmer, 'Chat').click();
+  const kanal = (name: string) => sheet(teilnehmer).locator('button.zeile').filter({ has: teilnehmer.locator('strong', { hasText: new RegExp(`^${name}$`) }) });
+  await kanal('Alle').click();
+  await sheet(teilnehmer).getByLabel('Nachricht').fill('Bravo an alle: Raum Marzili erreicht');
+  await sheet(teilnehmer).getByLabel('Nachricht').press('Enter');
+  await expect(werkzeug(leitung, 'Chat').locator('.badge')).toHaveText('1');
+
+  await sheet(teilnehmer).getByRole('button', { name: 'Zurück zu den Kanälen', exact: true }).click();
+  await kanal('Adler').click();
+  await sheet(teilnehmer).getByLabel('Nachricht').fill('Nur für Adler');
+  await sheet(teilnehmer).getByRole('button', { name: 'Senden', exact: true }).click();
+  await expect(werkzeug(leitung, 'Chat').locator('.badge')).toHaveText('2');
+  await schliesseSheet(teilnehmer);
+
+  await werkzeug(leitung, 'Chat').click();
+  await bild(leitung, 'e2e-chat-kanaele');
+  await sheet(leitung).locator('button.zeile').filter({ has: leitung.locator('strong', { hasText: /^Bravo$/ }) }).click();
+  await expect(sheet(leitung).getByText('Nur für Adler')).toBeVisible();
+  await bild(leitung, 'e2e-chat-direkt');
+  await schliesseSheet(leitung);
+  await expect(werkzeug(leitung, 'Chat').locator('.badge')).toHaveText('1');
+});
+
+test('Sichtung mit Foto', async () => {
+  const jpeg = await teilnehmer.evaluate(async () => {
+    const c = document.createElement('canvas');
+    c.width = 2000;
+    c.height = 1500;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#4a6b3a';
+    g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = '#b33';
+    g.fillRect(800, 600, 400, 300);
+    const blob = await new Promise<Blob>((ok) => c.toBlob((b) => ok(b!), 'image/jpeg', 0.9));
+    let s = '';
+    for (const x of new Uint8Array(await blob.arrayBuffer())) s += String.fromCharCode(x);
+    return btoa(s);
+  });
+
+  await werkzeug(teilnehmer, 'Sichtung').click();
+  await sheet(teilnehmer).getByRole('button', { name: 'Neue Sichtung melden', exact: true }).click();
+  await sheet(teilnehmer)
+    .locator('input[type=file]')
+    .setInputFiles({ name: 'sichtung.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(jpeg, 'base64') });
+  await expect(sheet(teilnehmer).getByAltText('Vorschau der Sichtung')).toBeVisible();
+  await sheet(teilnehmer).getByLabel('Grösse (S)').fill('Gruppe (ca. 8)');
+  await sheet(teilnehmer).getByLabel('Tätigkeit (A)').fill('Marsch Richtung Nord');
+  await sheet(teilnehmer).getByRole('button', { name: 'Melden', exact: true }).click();
+  await expect(teilnehmer.locator('.toast', { hasText: 'Sichtung gemeldet' })).toBeVisible();
+
+  await werkzeug(leitung, 'Sichtung').click();
+  await sheet(leitung).locator('li button', { hasText: 'Marsch Richtung Nord' }).click();
+  const foto = sheet(leitung).getByAltText('Foto der Sichtung', { exact: true });
+  await expect(foto).toBeVisible();
+  await expect(foto).toHaveAttribute('src', /^blob:/);
+  await expect.poll(() => foto.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1600);
+  await bild(leitung, 'e2e-sichtung-detail');
+  await schliesseSheet(leitung);
+});
+
+test('Alarm auslösen, quittieren, aufheben', async () => {
+  await teilnehmer.getByRole('button', { name: 'Alarm auslösen', exact: true }).click();
+  await sheet(teilnehmer).locator('button.art', { hasText: 'Notfall' }).click();
+  const knopf = sheet(teilnehmer).locator('button.halten');
+  const box = (await knopf.boundingBox())!;
+  await teilnehmer.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await teilnehmer.mouse.down();
+  await teilnehmer.waitForTimeout(2600);
+  await teilnehmer.mouse.up();
+
+  const banner = leitung.locator('.banner .alarm', { hasText: 'NOTFALL · Bravo' });
+  await expect(banner).toBeVisible();
+  await expect(leitung.locator('.alarm-ring.notfall')).toBeAttached();
+  await bild(leitung, 'e2e-alarm');
+  await banner.getByRole('button', { name: 'Quittieren', exact: true }).click();
+  await expect(teilnehmer.locator('.banner .alarm', { hasText: 'DEIN ALARM' })).toContainText('1 quittiert');
+
+  await banner.locator('button.text').click();
+  await sheet(leitung).getByRole('button', { name: 'Aufheben …', exact: true }).click();
+  await sheet(leitung).getByRole('button', { name: 'Wirklich aufheben', exact: true }).click();
+  await expect(leitung.locator('.banner')).toHaveCount(0);
+  await expect(teilnehmer.locator('.banner')).toHaveCount(0);
+  if (await sheet(teilnehmer).isVisible()) await schliesseSheet(teilnehmer);
+});
+
+test('Range & Bearing zum Teilnehmer', async () => {
+  await leitung.getByRole('button', { name: 'Teilnehmende', exact: true }).click();
+  await sheet(leitung).locator('.zeile', { hasText: 'Bravo' }).click();
+  await sheet(leitung).getByRole('button', { name: 'Range & Bearing', exact: true }).click();
+  await expect(leitung.locator('.rb-label')).toContainText('1.11 km');
+  await expect(leitung.locator('.rb-label')).toContainText('180°');
+  await expect(sheet(leitung)).toContainText('1.11 km');
+  await bild(leitung, 'e2e-rangebearing');
+  await schliesseSheet(leitung);
+});
+
+test('Export GPX und Lage beenden', async () => {
+  await leitungTab('Export');
+  const [download] = await Promise.all([leitung.waitForEvent('download'), sheet(leitung).getByRole('button', { name: /GPX herunterladen/ }).click()]);
+  expect(download.suggestedFilename()).toMatch(/\.gpx$/);
+  const gpx = await readFile((await download.path())!, 'utf8');
+  expect(gpx).toContain('<trk>');
+  expect(gpx).toContain('<name>Bravo</name>');
+  expect(gpx).toContain('Sperre Nord');
+
+  await leitungTab('Lage');
+  await sheet(leitung).getByRole('button', { name: 'Lage beenden …', exact: true }).click();
+  await sheet(leitung).getByRole('button', { name: 'Ja, weiter', exact: true }).click();
+  await sheet(leitung).getByRole('button', { name: 'Jetzt beenden', exact: true }).click();
+
+  await expect(teilnehmer.getByRole('button', { name: 'Lage beitreten', exact: true })).toBeVisible();
+  await expect(teilnehmer.locator('.toast', { hasText: 'beendet' })).toBeVisible();
+  await expect(leitung.getByRole('button', { name: 'Lage beitreten', exact: true })).toBeVisible();
+  await bild(teilnehmer, 'e2e-beendet');
+
+  // Code ist danach ungültig
+  await teilnehmer.getByLabel('Code').fill(teilnehmerCode);
+  await teilnehmer.getByLabel('Rufname').fill('Charlie');
+  await teilnehmer.getByLabel('Einheit').fill('Zug 1');
+  await teilnehmer.getByRole('button', { name: 'Beitreten', exact: true }).click();
+  await expect(teilnehmer.getByRole('alert')).toContainText('beendet');
+});
