@@ -18,10 +18,13 @@ npm run e2e                              # Playwright: baut, startet Server auf 
 
 E2E braucht einmalig `npx playwright install chromium`. Die Tests (`e2e/*.e2e.ts`) spielen eine ganze Lage mit Leitung und Teilnehmer durch und legen Screenshots unter `docs/screens/e2e-*.png` ab.
 
-Betrieb: `deploy/deploy.sh` (LXC, systemd-Dienst `deploy/lagebild.service`). In `/etc/lagebild.env` zusätzlich
-`TRUSTED_PROXY=<IP von cloudflared>` setzen (kommagetrennt): nur von dort gilt `CF-Connecting-IP` für die Rate-Limits, sonst die
-Socket-IP. Läuft cloudflared im selben Container, `HOST=127.0.0.1` und `TRUSTED_PROXY=127.0.0.1`; sonst Port 8080 per Firewall
-nur für cloudflared öffnen.
+## Betrieb
+
+- **Wo:** LXC 124 `lagebild` (192.168.1.74:8080), öffentlich als https://lage.arvuna.ch über den CF-Tunnel `proxmox-ssh` des Proxmox-Hosts.
+- **Deploy:** `deploy/deploy.sh` auf dem Host. Das Skript baut, spielt die App nach `/opt/lagebild/app` ein und startet den Dienst `lagebild` neu. Die Daten unter `/var/lib/lagebild` bleiben erhalten.
+- **Geheimnis:** `/etc/lagebild.env` enthält nur `LAGE_ERSTELL_PASSWORT` (root, 600). So ersetzt du es auf dem Host: `pct exec 124 -- bash -c 'read -rsp "Erstell-Passwort: " p; echo; umask 077; printf "LAGE_ERSTELL_PASSWORT=%s\n" "$p" > /etc/lagebild.env; systemctl restart lagebild'`
+- **Proxy:** `TRUSTED_PROXY=192.168.1.100` steht in der Unit, weil cloudflared auf dem Host läuft. Nur von dort gilt `CF-Connecting-IP` für die Rate-Limits, für alle anderen Verbindungen gilt die Socket-IP.
+- **Logs:** `pct exec 124 -- journalctl -u lagebild -f`
 
 ## Entscheidungslog (28.10.2026, Frage-Runden mit Juan)
 
