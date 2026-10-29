@@ -307,6 +307,7 @@
     labelElemente.clear();
     messLabel?.remove();
     document.body.classList.remove('zn-zeichnet');
+    m.doubleClickZoom.enable(); // Abmelden mitten im Zeichnen: Karte nicht ohne Doppelklick-Zoom zurücklassen
     zuruecksetzen();
     if (!m.getStyle()) return;
     for (const l of m.getStyle().layers.filter((l) => 'source' in l && [Q, ENTWURF, HILFE].includes(l.source as string))) m.removeLayer(l.id);

@@ -1,5 +1,5 @@
 // Rückgängig/Wiederholen für eigene Aktionen der Sitzung. Jede Aktion kennt ihre Umkehrung als Servernachrichten.
-import { MAX_ZEICHNUNGEN_JE_MSG, type ClientMsg, type ZeichnungAenderung } from '../../../../shared/protocol.ts';
+import { MAX_NACHRICHT, MAX_ZEICHNUNGEN_JE_MSG, type ClientMsg, type ZeichnungAenderung } from '../../../../shared/protocol.ts';
 
 /** Zeichnung ohne Server-Felder, immer mit ID (vom Client vergeben, damit sie rückgängig gemacht werden kann). */
 export type ZInhalt = ZeichnungAenderung;
@@ -12,8 +12,30 @@ export type Eintrag =
 /** Liste in Stücke zu höchstens n (Server nimmt max. 100 je Nachricht). */
 export const stuecke = <T>(xs: T[], n = MAX_ZEICHNUNGEN_JE_MSG): T[][] => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, (i + 1) * n));
 
-const neu = (zs: ZInhalt[]): ClientMsg[] => stuecke(zs).map((s) => ({ typ: 'zeichnung.neu', zeichnungen: s }));
-const aendern = (zs: ZInhalt[]): ClientMsg[] => stuecke(zs).map((s) => ({ typ: 'zeichnung.aendern', zeichnungen: s }));
+/** Platz je Nachricht für Zeichnungen; Rest für Hülle und Mehrbyte-Zeichen in Texten. */
+export const MAX_ZEICHEN_JE_MSG = Math.floor(MAX_NACHRICHT * 0.7);
+
+/** Zeichnungen in Stücke, die nach Anzahl und Grösse in eine Nachricht passen (sonst schliesst der Server die Verbindung). */
+export function stueckeNachGroesse(zs: ZInhalt[]): ZInhalt[][] {
+  const out: ZInhalt[][] = [];
+  let stueck: ZInhalt[] = [];
+  let groesse = 0;
+  for (const z of zs) {
+    const n = JSON.stringify(z).length;
+    if (stueck.length && (stueck.length >= MAX_ZEICHNUNGEN_JE_MSG || groesse + n > MAX_ZEICHEN_JE_MSG)) {
+      out.push(stueck);
+      stueck = [];
+      groesse = 0;
+    }
+    stueck.push(z);
+    groesse += n;
+  }
+  if (stueck.length) out.push(stueck);
+  return out;
+}
+
+const neu = (zs: ZInhalt[]): ClientMsg[] => stueckeNachGroesse(zs).map((s) => ({ typ: 'zeichnung.neu', zeichnungen: s }));
+const aendern = (zs: ZInhalt[]): ClientMsg[] => stueckeNachGroesse(zs).map((s) => ({ typ: 'zeichnung.aendern', zeichnungen: s }));
 const loeschen = (zs: ZInhalt[]): ClientMsg[] => stuecke(zs.map((z) => z.id)).map((ids) => ({ typ: 'zeichnung.loeschen', ids }));
 
 /** Nachrichten, die den Eintrag ausführen (vor) bzw. aufheben (zurueck). */

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { azimut, distanz, formatDistanz, himmelsrichtung } from '../lib/coords.ts';
+  import { azimut, distanz, formatDistanz, formatRichtung, himmelsrichtung } from '../lib/coords.ts';
   import { zentriere } from '../lib/map.ts';
   import { frische, keinGps, statusDef, store } from '../lib/store.svelte.ts';
   import { teamFarbe } from '../lib/team.ts';
@@ -39,7 +39,9 @@
         <span class="status" style:background={statusDef(t.status)?.farbe ?? 'var(--line)'} title={statusDef(t.status)?.label}></span>
         <span class="dist mono">
           {#if d != null && t.pos && store.meinePos}
-            {formatDistanz(d)}<br /><span class="leise">{himmelsrichtung(azimut(store.meinePos, t.pos))} {Math.round(azimut(store.meinePos, t.pos))}°</span>
+            {@const az = azimut(store.meinePos, t.pos)}
+            <!-- Himmelsrichtung in Proportionalschrift: in Monospace sieht «O» (Ost) aus wie eine Null -->
+            {formatDistanz(d)}<br /><span class="leise">{formatRichtung(az).split(' / ')[0]} <span class="himmel">{himmelsrichtung(az)}</span></span>
           {:else if !t.pos}<span class="leise">keine Pos.</span>{/if}
         </span>
       </button>
@@ -108,5 +110,9 @@
     text-align: right;
     min-width: 72px;
     font-size: 0.9rem;
+    white-space: nowrap;
+  }
+  .himmel {
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   }
 </style>

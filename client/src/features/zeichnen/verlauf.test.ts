@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ClientMsg, STANDARD_STIL } from '../../../../shared/protocol.ts';
+import { ClientMsg, MAX_NACHRICHT, STANDARD_STIL } from '../../../../shared/protocol.ts';
 import { MAX_VERLAUF, nachrichten, stuecke, Verlauf, type ZInhalt } from './verlauf.ts';
 
 const z = (id: string, lat = 47): ZInhalt => ({
@@ -61,5 +61,13 @@ describe('Verlauf', () => {
     expect(msgs.map((m) => (m.typ === 'zeichnung.neu' ? m.zeichnungen.length : 0))).toEqual([100, 100, 50]);
     for (const m of [...msgs, ...nachrichten({ typ: 'neu', zeichnungen: viele }, 'zurueck')]) expect(ClientMsg.safeParse(m).success).toBe(true);
     expect(stuecke([], 100)).toEqual([]);
+  });
+  it('grosse Zeichnungen (Kopieren mehrerer Freihand-Linien): jede Nachricht bleibt unter der Servergrenze', () => {
+    const punkte = Array.from({ length: 2000 }, (_, i) => ({ lat: -46.123456789012 - i / 1e6, lon: -7.123456789012 - i / 1e6 }));
+    const gross = Array.from({ length: 6 }, (_, i) => ({ ...z(`f${i}`), art: 'freihand' as const, punkte }));
+    const msgs = nachrichten({ typ: 'neu', zeichnungen: gross }, 'vor');
+    expect(msgs.length).toBeGreaterThan(1);
+    expect(msgs.flatMap((m) => (m.typ === 'zeichnung.neu' ? m.zeichnungen.map((x) => x.id) : []))).toEqual(gross.map((x) => x.id));
+    for (const m of msgs) expect(new TextEncoder().encode(JSON.stringify(m)).length).toBeLessThan(MAX_NACHRICHT);
   });
 });

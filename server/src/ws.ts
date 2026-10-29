@@ -2,15 +2,13 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, Server } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { ClientMsg, PING_MS, type Alarm, type Chat, type Lage, type Meldung, type Position, type ServerMsg, type Teilnehmer } from '../../shared/protocol.ts';
+import { ClientMsg, MAX_NACHRICHT, PING_MS, type Alarm, type Chat, type Lage, type Meldung, type Position, type ServerMsg, type Teilnehmer } from '../../shared/protocol.ts';
 import type { Db } from './db.ts';
 import { beendeAuftraege, sichtbareAuftraege, verarbeiteZeichnen } from './zeichnen.ts';
 import { log, neuerCode, rateLimiter, sha256 } from './sicherheit.ts';
 
 const HALLO_TIMEOUT_MS = 5000;
 const POS_MIN_ABSTAND_MS = 1000;
-// Grenze/Freihand mit 2000 Punkten sind ~75 KB; bis zu 100 Zeichnungen je Nachricht
-const MAX_NACHRICHT = 256 * 1024;
 /** Je Teilnehmer gleichzeitig (Tabs, Reconnect-Überlappung); eine neue Verbindung schliesst die älteste. */
 const MAX_VERBINDUNGEN_JE_TEILNEHMER = 3;
 /** Je IP gleichzeitig offene Verbindungen ohne hallo. */

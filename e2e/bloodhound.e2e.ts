@@ -127,8 +127,16 @@ test('Auftrag: Leitung → Bravo sieht Banner, quittiert, Leitung sieht «quitti
   await expect(eintrag).not.toContainText('nicht quittiert');
   await bild(leitung, 'auftraege-leitung');
 
-  // Handy quer: Leiste kollidiert nicht mit den Knöpfen rechts
+  // Handy quer: Leiste kollidiert nicht mit den Knöpfen rechts; ohne Panel reserviert links nichts Platz
   await bravo.setViewportSize({ width: 844, height: 390 });
+  await expect(bravo.locator('section.sheet')).toHaveCount(0);
+  const rechts = (await bravo.locator('nav.werkzeuge').boundingBox())!;
+  expect(await bravo.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--links').trim())).toBe('0px');
+  await expect.poll(async () => (await bravo.locator('.karte').boundingBox())!.x).toBe(0);
+  // MapLibre zieht die Zeichenfläche erst im nächsten Frame nach, neue Kacheln blenden 300 ms ein: abwarten,
+  // sonst zeigt das Bild links einen dunklen Streifen, obwohl das Layout stimmt
+  await expect.poll(async () => (await bravo.locator('.maplibregl-canvas').boundingBox())!.width).toBeCloseTo(rechts.x, 0);
+  await bravo.waitForTimeout(1000);
   await bild(bravo, 'auftrag-banner-quer');
   await bravo.setViewportSize({ width: 390, height: 844 });
 

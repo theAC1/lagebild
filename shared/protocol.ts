@@ -177,6 +177,8 @@ export type ZeichnungAenderung = z.infer<typeof ZeichnungAenderung>;
 export const Zeichnung = ZeichnungKern.extend({ id: Id, von: Id, erstelltAm: z.number(), geaendertAm: z.number() }).superRefine(pruefeZeichnung);
 export type Zeichnung = z.infer<typeof Zeichnung>;
 export const MAX_ZEICHNUNGEN_JE_MSG = 100;
+/** Grösste WebSocket-Nachricht (Bytes); grössere schliesst der Server. Grenze/Freihand mit 2000 Punkten sind ~100 KB. */
+export const MAX_NACHRICHT = 256 * 1024;
 
 // --- Bloodhound-Aufträge (v2) -------------------------------------------------
 

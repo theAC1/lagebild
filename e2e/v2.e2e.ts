@@ -124,6 +124,9 @@ test('Desktop 1440×900: zwei Panels, jedes mit eigenem Schliessen; Karte bleibt
   // Klick in die Karte schliesst nichts
   await leitung.mouse.click(k.x + k.width * 0.3, k.y + k.height * 0.8);
   await expect(sheets(leitung)).toHaveCount(2);
+  // Azimut dreistellig, Himmelsrichtung getrennt (Bravo liegt östlich: «090° O», nicht «O 90°»)
+  const bravoZeile = leitung.getByRole('region', { name: 'Teilnehmende' }).locator('li', { hasText: 'Bravo' });
+  await expect(bravoZeile.locator('.dist')).toContainText(/(?<!\d)\d{3}° O$/);
   await bild(leitung, 'desktop-panels');
 
   // Chat-Panel schliessen lässt Teilnehmende offen
