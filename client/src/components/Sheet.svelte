@@ -69,11 +69,16 @@
     gap: 8px;
     padding: 6px 8px 0 16px;
   }
+  /* Werkzeug-Optik: Titel in Versalien wie die Randknöpfe, Akzentstrich links */
   h2 {
     flex: 1;
     margin: 0;
-    font-size: 1.05rem;
-    font-weight: 650;
+    padding-left: 10px;
+    border-left: 3px solid var(--accent);
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
   .schliessen {
     border: 0;
