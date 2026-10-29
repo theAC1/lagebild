@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Sichtung } from '../../../../shared/protocol.ts';
-import { ausDatetimeLocal, formatZeit, neuesteZuerst, vonMir, zielMasse, zuDatetimeLocal } from './logik.ts';
+import { SichtungInput } from '../../../../shared/protocol.ts';
+import { felderAus, formatZeit, neuesteZuerst, STANDARD_WAHL, vonMir, zielMasse } from './logik.ts';
 
 describe('zielMasse', () => {
   it('verkleinert die längere Seite auf 1600 px', () => {
@@ -15,15 +16,38 @@ describe('zielMasse', () => {
   });
 });
 
-describe('datetime-local', () => {
-  it('Hin und zurück auf die Minute genau', () => {
-    const t = new Date(2026, 9, 28, 14, 5, 33).getTime();
-    expect(zuDatetimeLocal(t)).toBe('2026-10-28T14:05');
-    expect(ausDatetimeLocal(zuDatetimeLocal(t))).toBe(new Date(2026, 9, 28, 14, 5).getTime());
+describe('felderAus (Chips → SichtungInput)', () => {
+  const start = Date.UTC(2026, 9, 29, 13, 0);
+
+  it('Vorgaben: Feind, unbekannt, jetzt, wahrscheinlich – sofort gültig', () => {
+    const f = felderAus(STANDARD_WAHL, start);
+    expect(f).toEqual({ sidc: '10061000000000000000', groesse: '', taetigkeit: '', ausruestung: '', zeit: start, vertrauen: 'wahrscheinlich' });
+    const ok = SichtungInput.safeParse({ ...f, lat: 46.9, lon: 7.4, einheit: '', bemerkung: '', fotoId: null });
+    expect(ok.success).toBe(true);
   });
-  it('leer oder ungültig → null', () => {
-    expect(ausDatetimeLocal('')).toBeNull();
-    expect(ausDatetimeLocal('gestern')).toBeNull();
+
+  it('Art, Grösse und Seite bilden das Zeichen; Tätigkeit mit Richtung; Ausrüstung in fester Reihenfolge', () => {
+    const f = felderAus(
+      { ...STANDARD_WAHL, art: 'spz', seite: 'unbekannt', groesse: 'zug', taetigkeit: 'bewegt sich', richtung: 'NO', ausruestung: ['Panzerabwehr', 'Mg'], vorMin: 15, vertrauen: 'bestaetigt' },
+      start,
+    );
+    expect(f.sidc).toBe('10011000141211020000'); // Unbekannt, Zug, mech. Infanterie
+    expect(f.groesse).toBe('Zug (~30)');
+    expect(f.taetigkeit).toBe('bewegt sich Richtung NO');
+    expect(f.ausruestung).toBe('Mg, Panzerabwehr');
+    expect(f.zeit).toBe(start - 15 * 60_000);
+    expect(f.vertrauen).toBe('bestaetigt');
+  });
+
+  it('Rad-Fahrzeug: Ausrüstungs-Zeichen mit Mobilität Räder; Grösse nur als Text', () => {
+    const f = felderAus({ ...STANDARD_WAHL, art: 'rad', groesse: 'gruppe' }, start);
+    expect(f.sidc).toBe('10061500321401000000');
+    expect(f.groesse).toBe('Gruppe (~10)');
+  });
+
+  it('Richtung zählt nur bei «bewegt sich»', () => {
+    expect(felderAus({ ...STANDARD_WAHL, taetigkeit: 'in Stellung', richtung: 'S' }, start).taetigkeit).toBe('in Stellung');
+    expect(felderAus({ ...STANDARD_WAHL, taetigkeit: 'bewegt sich' }, start).taetigkeit).toBe('bewegt sich');
   });
 });
 

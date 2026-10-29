@@ -3,6 +3,7 @@ import { ikon } from '../../lib/ui.svelte.ts';
 import Panel from './Panel.svelte';
 import Detail from './Detail.svelte';
 import Layer from './Layer.svelte';
+import { sichtungMelden } from './entwurf.svelte.ts';
 
 const feature: Feature = {
   id: 'sichtung',
@@ -12,6 +13,7 @@ const feature: Feature = {
   MapLayer: Layer,
   Detail,
   detailArt: 'sichtung',
+  haupt: { aktion: sichtungMelden },
 };
 
 export default feature;
