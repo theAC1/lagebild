@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Marker as MapMarker } from 'maplibre-gl';
   import { onDestroy } from 'svelte';
-  import { getMap, registriereKontextAktion } from '../../lib/map.ts';
+  import { getMap, markiereZiel, registriereKontextAktion } from '../../lib/map.ts';
   import { store } from '../../lib/store.svelte.ts';
   import { symbolElement } from '../../lib/symbol.ts';
   import { oeffne, waehle } from '../../lib/ui.svelte.ts';
@@ -24,6 +24,7 @@
         const id = mk.id;
         const { element, offset } = symbolElement(mk.sidc, { size: 28, rufname: mk.bezeichnung || undefined });
         element.classList.add('lage-marker');
+        markiereZiel(element, { art: 'marker', id });
         element.setAttribute('role', 'button');
         element.setAttribute('aria-label', `Marker ${mk.bezeichnung}`);
         element.addEventListener('click', (ev) => {

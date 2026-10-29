@@ -2,11 +2,11 @@
   import { Marker } from 'maplibre-gl';
   import { onDestroy } from 'svelte';
   import { entzerre } from '../lib/labels.ts';
-  import { getMap } from '../lib/map.ts';
+  import { getMap, markiereZiel } from '../lib/map.ts';
   import { frische, keinGps, statusDef, store } from '../lib/store.svelte.ts';
   import { teamFarbe } from '../lib/team.ts';
   import { teilnehmerElement } from '../lib/symbol.ts';
-  import { waehle } from '../lib/ui.svelte.ts';
+  import { ui, waehle } from '../lib/ui.svelte.ts';
 
   const m = getMap();
   const eintraege = new Map<string, { marker: Marker; schluessel: string }>();
@@ -48,6 +48,7 @@
           richtung,
           klassen: [f, ...(t.sendetPos ? [] : ['emcon']), ...(ohneGps ? ['kein-gps'] : [])],
         });
+        markiereZiel(element, { art: 'teilnehmer', id });
         element.addEventListener('click', (ev) => {
           ev.stopPropagation();
           waehle('teilnehmer', id);
@@ -62,6 +63,15 @@
       eintraege.delete(id);
     }
     plane();
+  });
+
+  // «Folgen» aus dem Radial-Menü: Karte zieht mit dem Teilnehmer mit, bis er geht oder die Karte verschoben wird
+  $effect(() => {
+    const id = ui.folgtTeilnehmer;
+    if (!id) return;
+    const pos = store.teilnehmer.get(id)?.pos;
+    if (pos) m.easeTo({ center: [pos.lon, pos.lat], duration: 600 });
+    else ui.folgtTeilnehmer = null;
   });
 
   onDestroy(() => {

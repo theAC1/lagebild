@@ -6,7 +6,7 @@ Nur im eigenen Ordner arbeiten; `registry.ts`, `lib/` und `components/` gehören
 ```ts
 const feature: Feature = {
   id: 'marker', label: 'Marker', icon: ikon('<path d="…"/>'), // 24×24-Strich-SVG, siehe ikon()
-  Panel,        // Bottom-Sheet bei ui.panel.id === id; Props { params } aus oeffne(id, params). Ohne Panel kein Knopf unten.
+  Panel,        // Panel (hoch: Sheet unten, quer: Seitenpanel) bei istOffen(id); Props { params } aus oeffne(id, params). Ohne Panel kein Knopf in der Werkzeugleiste.
   MapLayer,     // nach Karten-Load gemountet (ab Login), zeichnet via getMap(); in onDestroy aufräumen
   Toolbar,      // schwebender Schnellknopf rechts (z.B. Status); ersetzt den Knopf in der Werkzeugleiste
   Kopf,         // Knopf in der Kopfleiste, immer erreichbar (Alarm); ersetzt den Knopf in der Werkzeugleiste
@@ -28,13 +28,36 @@ const feature: Feature = {
 
 ## lib/ui.svelte.ts – UI-Zustand
 
-`oeffne(featureId, params?)`, `schliesse()`, `waehle(art, id)` (Detail-Sheet), `ui.panel`, `ui.auswahl`, `toast(text, ms?)`, `ikon(svgInhalt)`, `lies/schreibe` (localStorage, fehlertolerant).
+- Panels: bis zu zwei gleichzeitig (ab 1100 px Breite im Querformat), sonst eines. `ui.panels` (Anzeigereihenfolge), `ui.oben` (zuletzt geöffnet/bedient).
+- `oeffne(featureId, params?)`: schon offen → nur params ersetzen; aus einem Panel heraus geöffnet → ersetzt dieses (Drill-down); sonst daneben, falls Platz, andernfalls ersetzt es das ältere.
+- `waehle(art, id)`: Detail-Panel (`DETAIL`, params `{ art, id }`), es gibt höchstens eines.
+- `schliesse(id?)`: ohne ID das oberste Panel (das, in dem zuletzt getippt wurde), `schliesseAlle()`.
+- `istOffen(id)` statt `ui.panel?.id === id` (ein Panel kann auch das zweite sein). `ui.panel` (oberstes Feature-Panel) und `ui.auswahl` (Detail) bleiben als Nur-Lese-Getter für v1-Code.
+- `ui.folgen` (eigene Position), `ui.folgtTeilnehmer`, `ui.radial`, `ui.kontext`, `toast(text, ms?)`, `ikon(svgInhalt)`, `lies/schreibe` (localStorage, fehlertolerant).
 
 Konventionen für `params`: Chat `{ an: ChatZiel }`, Range & Bearing `{ ziel: { art: 'teilnehmer' | 'marker' | 'sichtung' | 'punkt', id?, punkt? } }`.
 
 ## lib/map.ts – Karte
 
-`getMap()` (in MapLayer sicher), `onMapReady(cb)`, `zentriere(p, zoom?)`, `waehlePunkt(hinweis): Promise<Punkt | null>` (Fadenkreuz, Sheet wird ausgeblendet), `registriereKontextAktion({ label, aktion(p), nurLeitung? })` → Abmeldefunktion (Langdruck-Menü).
+`getMap()` (in MapLayer sicher), `onMapReady(cb)`, `zentriere(p, zoom?)`, `folgeMir()`, `folgeTeilnehmer(id)`, `waehlePunkt(hinweis): Promise<Punkt | null>` (Fadenkreuz, Panels werden ausgeblendet), `registriereKontextAktion({ label, aktion(p), nurLeitung? })` → Abmeldefunktion (Langdruck/Rechtsklick auf leere Karte).
+
+### Radial-Menü (Langdruck/Rechtsklick auf ein Symbol)
+
+```ts
+const ab = registriereRadialAktion({
+  fuer: 'teilnehmer',                       // oder Liste: ['teilnehmer', 'marker', 'sichtung', 'ich', 'zeichnung']
+  label: 'Bloodhound',                      // oder (ziel) => string, reaktiv gelesen
+  icon: ikon('<path d="…"/>'),
+  aktion: (ziel) => …,                      // ziel = { art, id }; für 'ich' ist id die eigene Teilnehmer-ID
+  sichtbar: (ziel) => store.istLeitung,     // optional, reaktiv (Rechte, Zustand)
+});
+onDestroy(ab);
+```
+
+- Höchstens `MAX_RADIAL` (8) Knöpfe; Reihenfolge = Anmeldung, der Kern meldet zuerst an (Details, R&B, Koord., Folgen, Spur, Chat, Marker hier, Bearbeiten, Löschen). Spätere Knöpfe fallen bei Überlauf weg.
+- DOM-Symbole (MapLibre-`Marker`) mit `markiereZiel(element, { art, id })` kennzeichnen: dann öffnen Rechtsklick/Langdruck den Ring und Doppelklick die Details (`detailArt` des Features).
+- Ziele im WebGL-Layer (Zeichnungen): `registriereTreffer((punkt) => ziel | null)` – bekommt Kartenpixel wie `MapMouseEvent.point`, z.B. `queryRenderedFeatures`. Eigene Gesten können `oeffneRadial(ziel, clientX, clientY)` rufen.
+- Esc schliesst Ring → Kontextmenü → Punktwahl → oberstes Panel. Ein Werkzeug mit eigenem Esc ruft `preventDefault()` im eigenen keydown-Hörer (Capture), dann greift der Kern nicht.
 
 ## Weitere Helfer
 
