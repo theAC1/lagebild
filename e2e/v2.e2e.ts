@@ -194,6 +194,10 @@ test('Koordinatenzeile: standardmässig aus, Klick aufs eigene Symbol schaltet (
 test('Ausrichtung fix «Hoch» ohne Sperre: Hinweis «Gerät drehen»', async () => {
   await leitung.getByRole('button', { name: 'Einstellungen', exact: true }).click();
   const gruppe = leitung.getByRole('group', { name: 'Ausrichtung' });
+  // «ohne Sperre» ausdrücklich: headless Chromium erfüllt lock() sonst, dann blitzt der Hinweis nur kurz auf
+  await leitung.evaluate(() => {
+    (screen.orientation as ScreenOrientation & { lock: () => Promise<void> }).lock = () => Promise.reject(new Error('nicht unterstützt'));
+  });
   await gruppe.getByRole('button', { name: 'Hoch' }).click();
   await expect(leitung.getByRole('status').filter({ hasText: 'Gerät drehen' })).toBeVisible();
   await bild(leitung, 'desktop-drehen');
