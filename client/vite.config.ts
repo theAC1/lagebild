@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [
     svelte(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt', // Hinweis «Neu laden» in lib/update.svelte.ts
       includeAssets: ['icons/icon.svg'],
       manifest: {
         name: 'Lagebild',

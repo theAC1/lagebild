@@ -20,6 +20,7 @@
   import { aktualisiereWachhalten, starteGps, stoppeGps } from './lib/position.svelte.ts';
   import { BASISKARTEN, OVERLAYS, type Overlay } from './lib/karten.ts';
   import { setzeEinstellung, store, verbinde } from './lib/store.svelte.ts';
+  import { neuLaden, update } from './lib/update.svelte.ts';
   import { begrenzePanels, DETAIL, ikon, istOffen, maxPanels, merkeQuelle, oeffne, schliesse, setzeLeisteZu, ui, type PanelZustand } from './lib/ui.svelte.ts';
 
   const EINGEBAUT: Record<string, string> = { teilnehmer: 'Teilnehmende', einstellungen: 'Einstellungen' };
@@ -182,6 +183,9 @@
 {/if}
 
 <div class="toasts" aria-live="polite">
+  {#if update.bereit}
+    <button class="toast neu" onclick={() => neuLaden(true)}>Neue Version bereit · <u>Neu laden</u></button>
+  {/if}
   {#each ui.toasts as t (t.id)}
     <div class="toast">{t.text}</div>
   {/each}
@@ -476,6 +480,11 @@
     border-radius: var(--radius);
     box-shadow: 0 6px 18px rgb(0 0 0 / 0.45);
     text-align: center;
+  }
+  .neu {
+    pointer-events: auto;
+    color: var(--text);
+    border-color: var(--accent);
   }
   @keyframes blinken {
     50% {
