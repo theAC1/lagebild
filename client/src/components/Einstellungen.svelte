@@ -5,6 +5,11 @@
   import { abmelden, setzeEinstellung, store, type Einstellungen } from '../lib/store.svelte.ts';
 
   const INTERVALLE: Einstellungen['intervallS'][] = [5, 10, 30];
+  const AUSRICHTUNGEN: { id: Einstellungen['ausrichtung']; label: string }[] = [
+    { id: 'auto', label: 'Automatisch' },
+    { id: 'hoch', label: 'Hoch' },
+    { id: 'quer', label: 'Quer' },
+  ];
   const staleS = $derived(staleNachFuer(store.einstellungen.intervallS * 1000) / 1000);
   let verlassenFragen = $state(false);
 
@@ -65,6 +70,24 @@
         <button aria-pressed={store.einstellungen.koordFormat === f.id} onclick={() => setzeEinstellung('koordFormat', f.id)}>{f.label}</button>
       {/each}
     </div>
+  </div>
+
+  <label class="schalter">
+    <span>
+      <strong>Koordinatenzeile</strong>
+      <span class="leise">Eigene Koordinate unten einblenden. Auch per Tippen aufs eigene Symbol.</span>
+    </span>
+    <input type="checkbox" role="switch" checked={store.einstellungen.koordLeiste} onchange={(e) => setzeEinstellung('koordLeiste', e.currentTarget.checked)} />
+  </label>
+
+  <div>
+    <div class="titel">Ausrichtung</div>
+    <div class="segmente" role="group" aria-label="Ausrichtung">
+      {#each AUSRICHTUNGEN as a (a.id)}
+        <button aria-pressed={store.einstellungen.ausrichtung === a.id} onclick={() => setzeEinstellung('ausrichtung', a.id)}>{a.label}</button>
+      {/each}
+    </div>
+    <p class="leise">Fest sperren klappt nur in der installierten App auf Android; sonst erscheint ein Hinweis, das Gerät zu drehen.</p>
   </div>
 
   <div class="lage">

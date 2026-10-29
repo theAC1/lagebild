@@ -1,9 +1,9 @@
 <script lang="ts">
   import { Marker, type GeoJSONSource } from 'maplibre-gl';
   import { onDestroy, untrack } from 'svelte';
-  import { getMap } from '../lib/map.ts';
+  import { getMap, markiereZiel } from '../lib/map.ts';
   import { kreis } from '../lib/coords.ts';
-  import { statusDef, store } from '../lib/store.svelte.ts';
+  import { setzeEinstellung, statusDef, store } from '../lib/store.svelte.ts';
   import { teamFarbe } from '../lib/team.ts';
   import { STANDARD_SIDC, teilnehmerElement } from '../lib/symbol.ts';
   import { ui } from '../lib/ui.svelte.ts';
@@ -43,6 +43,14 @@
         team,
         richtung,
         klassen: ['ich', ...(emcon ? ['emcon'] : []), ...(ohneGps ? ['kein-gps'] : [])],
+      });
+      markiereZiel(element, { art: 'ich', id: ich?.id ?? 'ich' });
+      element.setAttribute('role', 'button');
+      element.setAttribute('aria-label', 'Eigenes Symbol: Koordinatenzeile ein/aus');
+      // Tippen aufs eigene Symbol schaltet die Koordinatenzeile (gemerkt)
+      element.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        setzeEinstellung('koordLeiste', !store.einstellungen.koordLeiste);
       });
       marker = new Marker({ element, offset }).setLngLat([p.lon, p.lat]).addTo(m);
       schluessel = k;
