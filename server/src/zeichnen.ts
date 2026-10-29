@@ -29,6 +29,22 @@ export function sichtbareAuftraege(db: Db, lageId: string, t: Pick<Teilnehmer, '
   return db.eintraege(lageId, 'bloodhound').filter((a) => offen(a) && (t.rolle === 'leitung' || a.an === t.id));
 }
 
+/**
+ * Beendet offene Aufträge, auf die `trifft` passt, als 'aufgehoben' (Empfänger entfernt, Ziel gelöscht),
+ * verteilt sie und schreibt ein Meldungslog. Gibt die Anzahl zurück.
+ */
+export function beendeAuftraege(u: Umfeld, lageId: string, von: string, trifft: (a: BloodhoundAuftrag) => boolean, grund: string): number {
+  const jetzt = Date.now();
+  const treffer = u.db.eintraege(lageId, 'bloodhound').filter((a) => offen(a) && trifft(a));
+  for (const a of treffer) {
+    const neu: BloodhoundAuftrag = { ...a, ende: 'aufgehoben', endeAm: jetzt };
+    u.db.speichern(lageId, 'bloodhound', neu, neu.erstelltAm);
+    u.anLeitungUnd(lageId, neu.an, { typ: 'bloodhound', auftrag: neu });
+    u.meldung(lageId, von, `Bloodhound-Auftrag aufgehoben (${grund})`);
+  }
+  return treffer.length;
+}
+
 /** true, wenn die Nachricht hierher gehört (auch bei Fehlern, die dann per `fehler` gemeldet sind). */
 export function verarbeiteZeichnen(u: Umfeld, t: Teilnehmer, lage: Lage, m: ClientMsg): boolean {
   const { db, anAlle } = u;

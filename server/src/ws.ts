@@ -4,7 +4,7 @@ import type { IncomingMessage, Server } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { ClientMsg, PING_MS, type Alarm, type Chat, type Lage, type Meldung, type Position, type ServerMsg, type Teilnehmer } from '../../shared/protocol.ts';
 import type { Db } from './db.ts';
-import { sichtbareAuftraege, verarbeiteZeichnen } from './zeichnen.ts';
+import { beendeAuftraege, sichtbareAuftraege, verarbeiteZeichnen } from './zeichnen.ts';
 import { log, neuerCode, rateLimiter, sha256 } from './sicherheit.ts';
 
 const HALLO_TIMEOUT_MS = 5000;
@@ -194,6 +194,7 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
         if (!alt) return fehler(v, 'Marker nicht gefunden');
         if (alt.von !== t.id && !leitung) return fehler(v, 'Keine Berechtigung für diesen Marker');
         db.loeschen(lage.id, 'marker', m.id);
+        beendeAuftraege(u, lage.id, t.id, (a) => a.ziel.art === 'marker' && a.ziel.id === m.id, 'Marker gelöscht');
         return anAlle(lage.id, { typ: 'marker.geloescht', id: m.id });
       }
       case 'chat': {
@@ -268,6 +269,8 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
         if (!leitung) return fehler(v, 'Nur für die Leitung');
         if (m.id === t.id) return fehler(v, 'Sich selbst entfernen ist nicht möglich');
         if (!db.teilnehmerEntfernen(lage.id, m.id)) return fehler(v, 'Teilnehmer nicht gefunden');
+        beendeAuftraege(u, lage.id, t.id, (a) => a.an === m.id, 'Empfänger entfernt');
+        beendeAuftraege(u, lage.id, t.id, (a) => a.ziel.art === 'teilnehmer' && a.ziel.id === m.id, 'Ziel entfernt');
         rauswerfen(lage.id, m.id);
         return anAlle(lage.id, { typ: 'teilnehmer.weg', id: m.id });
       }
