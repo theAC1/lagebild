@@ -246,6 +246,13 @@ test('Tablet quer 1180×820: Ränder bleiben, zwei Panels zwischen Rand und Kart
   await leitung.setViewportSize(QUER);
 });
 
+test('Niedriges Handy quer 740×360: alle Randknöpfe ganz sichtbar, Hauptaktionen ≥ 56 px', async () => {
+  await leitung.setViewportSize({ width: 740, height: 360 });
+  for (const name of [/^Eigener Status/, 'Sichtung', /^Alarm/, 'Karte nach Norden ausrichten', 'Marker', /^Chat/, 'Mehr']) await expect(knopf(leitung, name)).toBeInViewport({ ratio: 1 });
+  expect((await box(leitung, 'Mehr')).height).toBeGreaterThanOrEqual(56);
+  await leitung.setViewportSize(QUER);
+});
+
 test('Klassisch bleibt wählbar und gilt nach Neuladen', async () => {
   await knopf(bravo, 'Mehr').click();
   await bravo.getByRole('menuitem', { name: 'Einstellungen' }).click();
