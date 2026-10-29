@@ -58,6 +58,7 @@ export function oeffneDb(pfad: string) {
     eLetzte: db.prepare('SELECT daten FROM (SELECT daten, t, rowid FROM eintrag WHERE lage_id = ? AND art = ? ORDER BY t DESC, rowid DESC LIMIT ?) ORDER BY t, rowid'),
     eWeg: db.prepare('DELETE FROM eintrag WHERE lage_id = ? AND art = ? AND id = ?'),
     eAnzahl: db.prepare('SELECT COUNT(*) AS n FROM eintrag WHERE lage_id = ? AND art = ?'),
+    eGroesse: db.prepare('SELECT COALESCE(SUM(LENGTH(daten)), 0) AS n FROM eintrag WHERE lage_id = ? AND art = ?'),
     fotoNeu: db.prepare('INSERT INTO foto (id, lage_id, ext, von, t) VALUES (?, ?, ?, ?, ?)'),
     foto: db.prepare('SELECT lage_id, ext FROM foto WHERE id = ?'),
     fotoAnzahl: db.prepare('SELECT COUNT(*) AS n FROM foto WHERE lage_id = ?'),
@@ -133,6 +134,8 @@ export function oeffneDb(pfad: string) {
     },
     loeschen: (lageId: string, art: Art, id: string): boolean => Number(q.eWeg.run(lageId, art, id).changes) > 0,
     anzahl: (lageId: string, art: Art): number => Number(q.eAnzahl.get(lageId, art)!.n),
+    /** Summe der gespeicherten JSON-Längen (Zeichen) einer Art, z.B. als Grössenbudget des Snapshots. */
+    groesse: (lageId: string, art: Art): number => Number(q.eGroesse.get(lageId, art)!.n),
 
     fotoSpeichern(id: string, lageId: string, ext: string, von: string): void {
       q.fotoNeu.run(id, lageId, ext, von, Date.now());

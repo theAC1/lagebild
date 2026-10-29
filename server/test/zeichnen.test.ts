@@ -2,6 +2,8 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { standardEbeneId, STANDARD_STIL, ZeichnungInput, ClientMsg, type ZeichnungInput as ZInput } from '../../shared/protocol.ts';
+import { oeffneDb } from '../src/db.ts';
+import { MAX_ZEICHNUNGEN_ZEICHEN_JE_LAGE, verarbeiteZeichnen } from '../src/zeichnen.ts';
 import { pause, testServer, verbinde } from './helfer.ts';
 
 let s: Awaited<ReturnType<typeof testServer>>;
@@ -166,6 +168,28 @@ describe('Zeichnungen', () => {
     expect(await fehlerText(a)).toBe('Zeichnungs-ID bereits vergeben');
   });
 
+  it('Grössenbudget je Lage: neu und wachsende Änderung werden abgelehnt, schrumpfende nicht', () => {
+    const db = oeffneDb(':memory:');
+    const lage = { id: 'L', name: 'L', statusSet: [], erstelltAm: 0, beendetAm: null };
+    db.lageErstellen(lage, 'tn', 'ltg');
+    const std = db.ebenenSicherstellen(lage.id)[0].id;
+    const fehler: string[] = [];
+    const u = { db, anAlle: () => {}, anLeitungUnd: () => {}, fehler: (t: string) => void fehler.push(t), meldung: () => {} };
+    const t = { id: 'T', rolle: 'teilnehmer' } as Parameters<typeof verarbeiteZeichnen>[1];
+    const sende = (m: ClientMsg) => verarbeiteZeichnen(u, t, lage, m);
+    sende({ typ: 'zeichnung.neu', zeichnungen: [linie(std, { id: 'klein' })] });
+    expect(fehler).toEqual([]);
+    // Budget bis auf ~1000 Zeichen mit einem Füll-Eintrag ausschöpfen
+    db.speichern(lage.id, 'zeichnung', { id: 'polster', polster: 'x'.repeat(MAX_ZEICHNUNGEN_ZEICHEN_JE_LAGE - db.groesse(lage.id, 'zeichnung') - 1000) } as never, 0);
+    const lang = Array.from({ length: 100 }, (_, i) => P(46 + i / 1000, 7 + i / 1000));
+    sende({ typ: 'zeichnung.neu', zeichnungen: [linie(std, { punkte: lang })] });
+    sende({ typ: 'zeichnung.aendern', zeichnungen: [{ ...linie(std, { punkte: lang }), id: 'klein' }] });
+    expect(fehler).toEqual(['Zu viele Zeichnungsdaten in dieser Lage', 'Zu viele Zeichnungsdaten in dieser Lage']);
+    sende({ typ: 'zeichnung.aendern', zeichnungen: [{ ...linie(std, { bezeichnung: 'kürzer geht immer' }), id: 'klein' }] });
+    expect(fehler).toHaveLength(2);
+    db.schliessen();
+  });
+
   it('grosse Grenze (2000 Punkte) passt durch den WebSocket', async () => {
     const { a, b, std } = await szenario();
     const punkte = Array.from({ length: 2000 }, (_, i) => P(46 + i / 10000, 7.123456 + i / 10000));
@@ -321,6 +345,9 @@ describe('Lage löschen und Export', () => {
     expect(gpx).toContain('<trk><name>freihand</name>');
     expect(gpx).toContain('<wpt lat="47.5" lon="8.5">');
     expect(gpx).toContain('Radius: 500 m');
+    // GPX 1.1: erst alle wpt, dann rte, dann trk (strenge Programme lehnen sonst ab)
+    expect(gpx.lastIndexOf('<wpt ')).toBeLessThan(gpx.indexOf('<rte>'));
+    expect(gpx.lastIndexOf('<rte>')).toBeLessThan(gpx.indexOf('<trk>'));
 
     // Löschen der Lage löscht alles mit
     const db = () => new DatabaseSync(join(s.dataDir, 'lagebild.sqlite'));

@@ -56,8 +56,12 @@ function wpt(lat: number, lon: number, t: number, name: string, desc: string, ty
 export function gpx(d: ExportDaten): string {
   let s = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Lagebild" xmlns="http://www.topografix.com/GPX/1/1">\n`;
   s += `  <metadata><name>${xml(d.lage.name)}</name><time>${iso(d.lage.erstelltAm)}</time></metadata>\n`;
-  for (const m of d.marker) s += wpt(m.lat, m.lon, m.erstelltAm, m.bezeichnung || 'Marker', m.notiz, `marker ${m.sidc}`);
-  for (const x of d.sichtungen) s += wpt(x.lat, x.lon, x.zeit, sichtungName(x), salute(x), `sichtung ${x.sidc}`);
+  // GPX 1.1 verlangt die Reihenfolge wpt*, rte*, trk*
+  let wpts = '';
+  let rtes = '';
+  let trks = '';
+  for (const m of d.marker) wpts += wpt(m.lat, m.lon, m.erstelltAm, m.bezeichnung || 'Marker', m.notiz, `marker ${m.sidc}`);
+  for (const x of d.sichtungen) wpts += wpt(x.lat, x.lon, x.zeit, sichtungName(x), salute(x), `sichtung ${x.sidc}`);
   const ebeneName = (id: string): string => d.ebenen.find((e) => e.id === id)?.name ?? '';
   const zname = (z: Zeichnung): string => z.bezeichnung || z.text || z.art;
   // Linienartige als Route, Freihand als Track, Flächen als geschlossene Route, Text und Kreismittelpunkt als Wegpunkt
@@ -65,20 +69,21 @@ export function gpx(d: ExportDaten): string {
     const typ = `zeichnung ${z.art}${z.raumArt ? ` ${z.raumArt}` : ''}`;
     const desc = [z.text, ebeneName(z.ebeneId) && `Ebene: ${ebeneName(z.ebeneId)}`, z.radiusM !== undefined && `Radius: ${Math.round(z.radiusM)} m`].filter(Boolean).join('\n');
     if (z.art === 'text' || z.art === 'kreis') {
-      s += wpt(z.punkte[0].lat, z.punkte[0].lon, z.erstelltAm, zname(z), desc, typ);
+      wpts += wpt(z.punkte[0].lat, z.punkte[0].lon, z.erstelltAm, zname(z), desc, typ);
       continue;
     }
     const pts = z.art === 'rechteck' ? rechteckRing(z.punkte).map(([lon, lat]) => ({ lat, lon })) : z.art === 'flaeche' || z.art === 'raum' ? [...z.punkte, z.punkte[0]] : z.punkte;
     if (z.art === 'freihand') {
-      s += `  <trk><name>${xml(zname(z))}</name><desc>${xml(desc)}</desc><type>${typ}</type><trkseg>\n`;
-      for (const p of pts) s += `    <trkpt lat="${p.lat}" lon="${p.lon}"/>\n`;
-      s += `  </trkseg></trk>\n`;
+      trks += `  <trk><name>${xml(zname(z))}</name><desc>${xml(desc)}</desc><type>${typ}</type><trkseg>\n`;
+      for (const p of pts) trks += `    <trkpt lat="${p.lat}" lon="${p.lon}"/>\n`;
+      trks += `  </trkseg></trk>\n`;
     } else {
-      s += `  <rte><name>${xml(zname(z))}</name><desc>${xml(desc)}</desc><type>${typ}</type>\n`;
-      for (const p of pts) s += `    <rtept lat="${p.lat}" lon="${p.lon}"/>\n`;
-      s += `  </rte>\n`;
+      rtes += `  <rte><name>${xml(zname(z))}</name><desc>${xml(desc)}</desc><type>${typ}</type>\n`;
+      for (const p of pts) rtes += `    <rtept lat="${p.lat}" lon="${p.lon}"/>\n`;
+      rtes += `  </rte>\n`;
     }
   }
+  s += wpts + rtes + trks;
   for (const t of d.teilnehmer) {
     const punkte = d.spuren[t.id];
     if (!punkte?.length) continue;

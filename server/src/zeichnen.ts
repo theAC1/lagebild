@@ -6,6 +6,9 @@ import type { Db } from './db.ts';
 export const MAX_ZEICHNUNGEN_JE_LAGE = 5000;
 export const MAX_EBENEN_JE_LAGE = 50;
 export const MAX_AUFTRAEGE_JE_LAGE = 1000;
+/** Budget für alle Zeichnungen einer Lage (JSON-Zeichen): sie gehen mit jedem Snapshot an jedes Gerät. */
+export const MAX_ZEICHNUNGEN_ZEICHEN_JE_LAGE = 10 * 1024 * 1024;
+const zeichen = (zs: object[]): number => zs.reduce((n, z) => n + JSON.stringify(z).length, 0);
 
 /** Was ws.ts bereitstellt; hält dieses Modul frei von Verbindungsdetails. */
 export type Umfeld = {
@@ -76,6 +79,7 @@ export function verarbeiteZeichnen(u: Umfeld, t: Teilnehmer, lage: Lage, m: Clie
       }
       if (db.anzahl(lage.id, 'zeichnung') + m.zeichnungen.length > MAX_ZEICHNUNGEN_JE_LAGE) return nein('Zu viele Zeichnungen in dieser Lage');
       const neu: Zeichnung[] = m.zeichnungen.map((z) => ({ ...z, id: z.id ?? randomUUID(), von: t.id, erstelltAm: jetzt, geaendertAm: jetzt }));
+      if (db.groesse(lage.id, 'zeichnung') + zeichen(neu) > MAX_ZEICHNUNGEN_ZEICHEN_JE_LAGE) return nein('Zu viele Zeichnungsdaten in dieser Lage');
       for (const z of neu) db.speichern(lage.id, 'zeichnung', z, z.erstelltAm);
       anAlle(lage.id, { typ: 'zeichnungen', zeichnungen: neu });
       u.meldung(lage.id, t.id, neu.length === 1 ? `Zeichnung: ${ZEICHNUNG_NAME[neu[0].art]}${neu[0].bezeichnung ? ` «${neu[0].bezeichnung}»` : ''}` : `${neu.length} Zeichnungen eingefügt`);
@@ -94,6 +98,8 @@ export function verarbeiteZeichnen(u: Umfeld, t: Teilnehmer, lage: Lage, m: Clie
         alte.push(alt);
       }
       const neu: Zeichnung[] = m.zeichnungen.map((z, i) => ({ ...z, von: alte[i].von, erstelltAm: alte[i].erstelltAm, geaendertAm: jetzt }));
+      const zuwachs = zeichen(neu) - zeichen(alte);
+      if (zuwachs > 0 && db.groesse(lage.id, 'zeichnung') + zuwachs > MAX_ZEICHNUNGEN_ZEICHEN_JE_LAGE) return nein('Zu viele Zeichnungsdaten in dieser Lage');
       for (const z of neu) db.speichern(lage.id, 'zeichnung', z, z.erstelltAm);
       anAlle(lage.id, { typ: 'zeichnungen', zeichnungen: neu });
       return true; // kein Log-Eintrag: Verschieben/Stützpunkte ziehen würden das Meldungslog fluten
