@@ -229,6 +229,8 @@
     flex-direction: column;
     gap: 6px;
     padding: calc(6px + var(--safe-top)) 6px calc(6px + var(--safe-bottom));
+    overflow-y: auto; /* Notnagel für sehr niedrige Fenster: Mehr bleibt erreichbar */
+    scrollbar-width: none;
     background: var(--surface-glas);
   }
   .rand.links {
@@ -280,6 +282,15 @@
   }
   .rand .karten-knopf {
     box-shadow: none;
+  }
+  /* niedrige Handys quer (360 px, Adressleiste): Kartenknöpfe etwas flacher, Hauptaktionen bleiben 56 px */
+  @media (orientation: landscape) and (max-height: 400px) {
+    .rand {
+      gap: 4px;
+    }
+    .rand .karten-knopf {
+      height: 44px;
+    }
   }
   .schwebend {
     position: fixed;

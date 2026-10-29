@@ -65,6 +65,7 @@ export const istOffen = (id: string): boolean => ui.panels.some((p) => p.id === 
  * Sonst daneben, solange Platz ist (≥ 1100 px quer: zwei), andernfalls ersetzt es das ältere.
  */
 export function oeffne(featureId: string, params: Record<string, any> = {}): void {
+  ui.punktWahl?.fertig(null); // Panels sind während der Punktwahl ausgeblendet: Knopf am Rand bricht sie ab
   ui.kontext = null;
   ui.radial = null;
   const neu = { id: featureId, params };

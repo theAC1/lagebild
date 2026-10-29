@@ -39,10 +39,11 @@ export function starteEntwurf(ort: Punkt | null = null): void {
 
 /**
  * Hauptknopf «Sichtung»: Fadenkreuz → «Hier» → Chips mit Vorgaben → «Senden» (drei Tipps).
- * Ein angefangener Entwurf (z.B. mit Foto) geht nicht verloren: dann nur das Panel öffnen.
+ * Ein Entwurf mit Foto oder Text wird fortgesetzt; sonst neu, damit nicht alter Ort und alte Zeit rausgehen.
  */
 export async function sichtungMelden(): Promise<void> {
-  if (sichtungZustand.entwurf) return oeffne('sichtung');
+  const e = sichtungZustand.entwurf;
+  if (e && (e.foto || e.einheit.trim() || e.bemerkung.trim())) return oeffne('sichtung');
   const p = await waehlePunkt('Fadenkreuz auf den Ort der Sichtung', 'Hier');
   if (!p) return;
   starteEntwurf(p);

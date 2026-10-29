@@ -22,9 +22,10 @@
     ausloesen(art);
   }
 
-  /** Wahl an <body> hängen: der Rand (position: fixed) ist ein eigener Stapelkontext unter Toasts und Panels. */
+  /** Wahl an <body> hängen (der Rand ist ein eigener Stapelkontext unter Toasts und Panels) und Fokus hineinsetzen. */
   function nachBody(el: HTMLElement) {
     document.body.append(el);
+    el.focus();
     return () => el.remove();
   }
 
@@ -43,11 +44,14 @@
   style:--dauer="{HALTEN_MS}ms"
   aria-label="Alarm: 1,5 Sekunden gedrückt halten"
   onpointerdown={(e) => {
+    if (e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     halten = true;
   }}
   onpointerup={() => (halten = false)}
   onpointercancel={() => (halten = false)}
+  onlostpointercapture={() => (halten = false)}
+  onblur={() => (halten = false)}
   onkeydown={(e) => {
     if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) {
       e.preventDefault();
@@ -67,15 +71,17 @@
 </button>
 
 {#if wahl}
-  <div class="hintergrund" aria-hidden="true" onclick={() => (wahl = false)} {@attach nachBody}></div>
-  <div class="wahl" role="dialog" aria-label="Alarm auslösen" {@attach nachBody}>
-    <div class="titel">Alarm auslösen</div>
-    {#each Object.entries(ARTEN) as [id, a] (id)}
-      <button class="art {id}" onclick={() => los(id as AlarmArt)}>{a.label}</button>
-    {/each}
-    {#if store.meinAlarmAktiv}<p class="leise">Dein aktiver Alarm wird ersetzt.</p>{/if}
-    {#if !store.meinePos}<p class="leise">Kein GPS – Alarm geht ohne Position raus.</p>{/if}
-    <button onclick={() => (wahl = false)}>Abbrechen</button>
+  <div class="ebene" tabindex="-1" {@attach nachBody}>
+    <div class="hintergrund" aria-hidden="true" onclick={() => (wahl = false)}></div>
+    <div class="wahl" role="dialog" aria-label="Alarm auslösen">
+      <div class="titel">Alarm auslösen</div>
+      {#each Object.entries(ARTEN) as [id, a] (id)}
+        <button class="art {id}" onclick={() => los(id as AlarmArt)}>{a.label}</button>
+      {/each}
+      {#if store.meinAlarmAktiv}<p class="leise">Dein aktiver Alarm wird ersetzt.</p>{/if}
+      {#if !store.meinePos}<p class="leise">Kein GPS – Alarm geht ohne Position raus.</p>{/if}
+      <button onclick={() => (wahl = false)}>Abbrechen</button>
+    </div>
   </div>
 {/if}
 
@@ -124,6 +130,9 @@
   }
   .alarm-halten span {
     position: relative;
+  }
+  .ebene:focus {
+    outline: none;
   }
   .hintergrund {
     position: fixed;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { ServerMsg } from '../../../../shared/protocol.ts';
   import { OHNE_QUITTUNG, sendeBestaetigt, store } from '../../lib/store.svelte.ts';
   import { toast } from '../../lib/ui.svelte.ts';
   import { markiereGelesen } from './chat.svelte.ts';
@@ -26,10 +27,25 @@
   /** Ein Tipp sendet sofort (Spec v3), das Textfeld ist zweitrangig. */
   const SCHNELL = ['Verstanden', 'Wiederholen', 'Warten', 'Bereit', 'Ziel erreicht', 'Brauche Unterstützung', 'Negativ'];
 
+  let sendet = $state(false);
+
   async function sende(t: string): Promise<boolean> {
-    const z = await sendeBestaetigt({ typ: 'chat', an: kanal.ziel, text: t }, (m) => m.typ === 'chat' && m.chat.von === store.ich && m.chat.text === t);
+    const key = kanal.key;
+    const echo = (m: ServerMsg) => m.typ === 'chat' && m.chat.von === store.ich && m.chat.text === t && kanalVon(m.chat, ich) === key;
+    const z = await sendeBestaetigt({ typ: 'chat', an: kanal.ziel, text: t }, echo);
     if (z === 'unbestaetigt') toast(`Nachricht ${OHNE_QUITTUNG}`, 8000);
     return z === 'bestaetigt';
+  }
+
+  /** Schnellmeldung: bis zur Quittung gesperrt, sonst schickt ein Doppeltipp (Handschuhe) sie zweimal. */
+  async function schnell(t: string) {
+    if (sendet) return;
+    sendet = true;
+    try {
+      await sende(t);
+    } finally {
+      sendet = false;
+    }
   }
 
   /** Text erst leeren, wenn die eigene Nachricht vom Server zurückkommt. */
@@ -67,7 +83,7 @@
 <form onsubmit={senden}>
   <div class="chips schnell" role="group" aria-label="Schnellmeldungen">
     {#each SCHNELL as t (t)}
-      <button type="button" disabled={gesperrt} onclick={() => sende(t)}>{t}</button>
+      <button type="button" disabled={gesperrt || sendet} onclick={() => schnell(t)}>{t}</button>
     {/each}
   </div>
   <input
