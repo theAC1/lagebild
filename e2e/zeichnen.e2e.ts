@@ -1,5 +1,6 @@
 // Spec v2 Punkt 4: Zeichnen am Desktop (voller Umfang) und mobil (reduziert), gegen den echten Server.
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
+import { bedienung } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const BRAVO = { latitude: 46.9476, longitude: 7.4462 };
@@ -20,6 +21,7 @@ async function sitzung(browser: Browser, code: string, rufname: string, geolocat
   expect(r.status()).toBe(201);
   const { token, teilnehmerId } = await r.json();
   await ctx.addInitScript((t) => localStorage.setItem('lagebild.token', t), token);
+  await ctx.addInitScript(bedienung, 'klassisch');
   const page = await ctx.newPage();
   page.on('pageerror', (e) => {
     throw e;

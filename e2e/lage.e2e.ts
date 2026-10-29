@@ -1,6 +1,7 @@
 // Ende-zu-Ende: Leitung (Adler, Bundeshaus) und Teilnehmer (Bravo, 1.1 km südlich) in einer Lage, gegen den echten Server.
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { bedienung } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const BRAVO = { latitude: 46.9366, longitude: 7.4442 }; // ~1.11 km, Azimut 180° von Adler
@@ -14,6 +15,7 @@ let teilnehmerCode = '';
 
 async function neueSeite(browser: Browser, geolocation: typeof ADLER): Promise<Page> {
   const ctx = await browser.newContext({ geolocation });
+  await ctx.addInitScript(bedienung, 'klassisch'); // Layout v2; Daumen-Ränder siehe v3.e2e.ts
   const page = await ctx.newPage();
   page.on('pageerror', (e) => {
     throw e;
@@ -91,11 +93,12 @@ test('Lage erstellen, beitreten, gegenseitig sehen', async () => {
 
 test('Status wechseln und Status-Set der Leitung', async () => {
   await teilnehmer.getByRole('button', { name: /^Eigener Status/ }).click();
+  await sheet(teilnehmer).getByText('+ Text').click(); // Freitext liegt eingeklappt
   await sheet(teilnehmer).getByLabel('Meldung an alle').fill('Brücke gesperrt');
   await sheet(teilnehmer).getByRole('group', { name: 'Status wählen' }).getByRole('button', { name: 'Halt', exact: true }).click();
   await expect(leitung.locator('.toast', { hasText: 'Bravo' })).toContainText('Halt');
   await expect(leitung.locator('.bft', { hasText: 'Bravo' })).toHaveAttribute('style', /--status:\s*#f9a825/);
-  await schliesseSheet(teilnehmer);
+  await expect(sheet(teilnehmer)).toHaveCount(0); // ein Tipp meldet und schliesst
 
   await leitungTab('Log');
   await expect(sheet(leitung).locator('.log li', { hasText: 'Bravo' }).first()).toContainText('Brücke gesperrt');
@@ -196,13 +199,16 @@ test('Sichtung mit Foto', async () => {
     .locator('input[type=file]')
     .setInputFiles({ name: 'sichtung.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(jpeg, 'base64') });
   await expect(sheet(teilnehmer).getByAltText('Vorschau der Sichtung')).toBeVisible();
-  await sheet(teilnehmer).getByLabel('Grösse (S)').fill('Gruppe (ca. 8)');
-  await sheet(teilnehmer).getByLabel('Tätigkeit (A)').fill('Marsch Richtung Nord');
-  await sheet(teilnehmer).getByRole('button', { name: 'Melden', exact: true }).click();
+  const chip = (gruppe: string, name: string) => sheet(teilnehmer).getByRole('group', { name: gruppe, exact: true }).getByRole('button', { name, exact: true });
+  await chip('Grösse', 'Gruppe (~10)').click();
+  await chip('Tätigkeit', 'bewegt sich').click();
+  await chip('Richtung', 'N').click();
+  await sheet(teilnehmer).getByRole('button', { name: 'Senden', exact: true }).click();
   await expect(teilnehmer.locator('.toast', { hasText: 'Sichtung gemeldet' })).toBeVisible();
+  await expect(sheet(teilnehmer)).toHaveCount(0);
 
   await werkzeug(leitung, 'Sichtung').click();
-  await sheet(leitung).locator('li button', { hasText: 'Marsch Richtung Nord' }).click();
+  await sheet(leitung).locator('li button', { hasText: 'bewegt sich Richtung N' }).click();
   const foto = sheet(leitung).getByAltText('Foto der Sichtung', { exact: true });
   await expect(foto).toBeVisible();
   await expect(foto).toHaveAttribute('src', /^blob:/);

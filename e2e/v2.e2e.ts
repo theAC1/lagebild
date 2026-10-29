@@ -1,5 +1,6 @@
 // Spec v2: Querformat (Handy, Tablet, Desktop), zwei Panels, Desktop-Bedienung, Radial-Menü.
 import { expect, test, type Browser, type Page } from '@playwright/test';
+import { bedienung } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const NAH = { latitude: 46.9466, longitude: 7.4462 }; // ~150 m östlich
@@ -17,6 +18,7 @@ async function seite(browser: Browser, code: string, rufname: string, geolocatio
   expect(r.status()).toBe(201);
   const { token } = await r.json();
   await ctx.addInitScript((t) => localStorage.setItem('lagebild.token', t), token);
+  await ctx.addInitScript(bedienung, 'klassisch');
   const page = await ctx.newPage();
   page.on('pageerror', (e) => {
     throw e;

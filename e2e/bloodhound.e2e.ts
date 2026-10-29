@@ -1,6 +1,7 @@
 // Bloodhound: persönliches Bloodhound per Rechtsklick-Radial (Desktop) und Auftrag der Leitung bis «erreicht».
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { WebSocket } from 'ws';
+import { bedienung } from './hilfen.ts';
 
 const PORT = Number(process.env.PW_PORT ?? 8797);
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
@@ -21,6 +22,7 @@ async function seite(browser: Browser, code: string, rufname: string, geolocatio
   expect(r.status()).toBe(201);
   const { token } = await r.json();
   await ctx.addInitScript((t) => localStorage.setItem('lagebild.token', t), token);
+  await ctx.addInitScript(bedienung, 'klassisch');
   const page = await ctx.newPage();
   page.on('pageerror', (e) => {
     throw e;
