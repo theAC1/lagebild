@@ -1,29 +1,35 @@
 <script lang="ts">
   import type { PanelProps } from '../registry.ts';
   import { OHNE_QUITTUNG, sendeBestaetigt, statusDef, store } from '../../lib/store.svelte.ts';
-  import { toast } from '../../lib/ui.svelte.ts';
-  import { formatZeit, neuesteZuerst, textFarbeAuf } from './logik.ts';
+  import { schliesse, toast } from '../../lib/ui.svelte.ts';
+  import { textFarbeAuf } from './logik.ts';
 
   let {}: PanelProps = $props();
 
   const MAX_TEXT = 200;
   let text = $state('');
+  let sendet = $state<string | null>(null);
 
   const ich = $derived(store.ichSelbst);
   const aktuell = $derived(ich ? statusDef(ich.status) : null);
   const statusSet = $derived(store.lage?.statusSet ?? []);
-  const log = $derived(neuesteZuerst(store.meldungen));
   const verbunden = $derived(store.verbindung === 'verbunden');
 
   /**
-   * Sendet Status + Freitext. Der Kern (send) schickt danach die eigene Position sofort mit (sendePosJetzt).
-   * Den Text erst leeren, wenn die eigene Meldung vom Server zurückkommt – sonst geht er bei Ablehnung verloren.
+   * Ein Tipp meldet den Status (mit dem Text, falls einer aufgeklappt ist) und schliesst das Panel.
+   * Der Kern (send) schickt danach die eigene Position sofort mit. Den Text erst leeren, wenn die eigene
+   * Meldung vom Server zurückkommt – sonst geht er bei Ablehnung verloren.
    */
   async function melde(status: string) {
+    if (sendet) return;
     const t = text.trim();
+    sendet = status;
     const z = await sendeBestaetigt({ typ: 'status', status, text: t }, (m) => m.typ === 'meldung' && m.meldung.von === store.ich && m.meldung.status === status);
-    if (z === 'bestaetigt' && text.trim() === t) text = '';
-    else if (z === 'unbestaetigt') toast(`Meldung ${OHNE_QUITTUNG}`, 8000);
+    sendet = null;
+    if (z === 'bestaetigt') {
+      if (text.trim() === t) text = '';
+      schliesse('status');
+    } else if (z === 'unbestaetigt') toast(`Meldung ${OHNE_QUITTUNG}`, 8000);
   }
 </script>
 
@@ -42,50 +48,31 @@
         style:background={s.farbe}
         style:color={textFarbeAuf(s.farbe)}
         aria-pressed={s.key === ich.status}
-        disabled={!verbunden}
+        aria-busy={sendet === s.key}
+        disabled={!verbunden || sendet !== null}
         onclick={() => melde(s.key)}>{s.label}</button
       >
     {/each}
   </div>
 
-  <form
-    class="meldung"
-    onsubmit={(e) => {
-      e.preventDefault();
-      if (text.trim()) melde(ich.status);
-    }}
-  >
-    <label class="feld">
-      Meldung an alle
-      <textarea bind:value={text} maxlength={MAX_TEXT} rows="2" placeholder="z.B. Brücke gesperrt, weichen nach Norden aus"></textarea>
-    </label>
-    <div class="zeile">
-      <span class="leise">Tippe einen Status, um ihn mit dem Text zu senden.</span>
-      <button class="primaer" type="submit" disabled={!verbunden || !text.trim()}>Senden</button>
-    </div>
-  </form>
-
-  <h3>Meldungslog</h3>
-  {#if log.length === 0}
-    <p class="leise">Noch keine Meldungen.</p>
-  {:else}
-    <ul class="log">
-      {#each log as m (m.id)}
-        {@const def = m.status ? statusDef(m.status) : null}
-        <li>
-          <span class="zeit mono">{formatZeit(m.t)}</span>
-          <span class="inhalt">
-            <strong>{store.teilnehmer.get(m.von)?.rufname ?? 'Unbekannt'}{m.von === store.ich ? ' (ich)' : ''}</strong>
-            {#if m.status}
-              {@const farbe = def?.farbe ?? '#3b464d'}
-              <span class="badge" style:background={farbe} style:color={textFarbeAuf(farbe)}>{def?.label ?? m.status}</span>
-            {/if}
-            {#if m.text}<span class="text">{m.text}</span>{/if}
-          </span>
-        </li>
-      {/each}
-    </ul>
-  {/if}
+  <details class="freitext">
+    <summary>+ Text</summary>
+    <form
+      onsubmit={(e) => {
+        e.preventDefault();
+        if (text.trim()) melde(ich.status);
+      }}
+    >
+      <label class="feld">
+        Meldung an alle
+        <textarea bind:value={text} maxlength={MAX_TEXT} rows="2" placeholder="z.B. Brücke gesperrt, weichen nach Norden aus"></textarea>
+      </label>
+      <div class="zeile">
+        <span class="leise">Oder einen Status tippen: er geht mit diesem Text raus.</span>
+        <button class="primaer" type="submit" disabled={!verbunden || !text.trim() || sendet !== null}>Senden</button>
+      </div>
+    </form>
+  </details>
 {/if}
 
 <style>
@@ -112,11 +99,16 @@
     margin: 12px 0;
   }
   .status {
-    min-height: 60px;
+    min-height: var(--haupt);
     padding: 0 10px;
     border: 3px solid transparent;
+    font-size: 0.95rem;
     font-weight: 700;
-    overflow-wrap: anywhere;
+    hyphens: auto;
+    overflow-wrap: break-word;
+  }
+  .status:disabled {
+    opacity: 0.6;
   }
   .status[aria-pressed='true'] {
     border-color: var(--text);
@@ -125,7 +117,24 @@
   .status[aria-pressed='true']::before {
     content: '✓ ';
   }
-  .meldung {
+  .status[aria-busy='true'] {
+    opacity: 1;
+    animation: senden 0.8s ease-in-out infinite alternate;
+  }
+  .freitext summary {
+    display: flex;
+    align-items: center;
+    min-height: var(--touch);
+    padding: 0 4px;
+    color: var(--accent);
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+  }
+  .freitext summary::-webkit-details-marker {
+    display: none;
+  }
+  form {
     display: grid;
     gap: 8px;
   }
@@ -141,46 +150,9 @@
   .zeile .leise {
     font-size: 0.8rem;
   }
-  h3 {
-    margin: 18px 0 6px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-2);
-  }
-  .log {
-    display: grid;
-    gap: 2px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .log li {
-    display: flex;
-    gap: 10px;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .zeit {
-    flex: none;
-    color: var(--text-2);
-  }
-  .inhalt {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 8px;
-    align-items: baseline;
-    min-width: 0;
-  }
-  .badge {
-    padding: 1px 8px;
-    border-radius: 999px;
-    font-size: 0.78rem;
-    font-weight: 700;
-  }
-  .text {
-    flex-basis: 100%;
-    overflow-wrap: anywhere;
+  @keyframes senden {
+    to {
+      filter: brightness(1.35);
+    }
   }
 </style>

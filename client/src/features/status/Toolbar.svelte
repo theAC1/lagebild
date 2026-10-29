@@ -1,21 +1,11 @@
 <script lang="ts">
-  import { beiNachricht, statusDef, store } from '../../lib/store.svelte.ts';
-  import { istOffen, oeffne, schliesse, toast } from '../../lib/ui.svelte.ts';
-  import { meldungText, textFarbeAuf } from './logik.ts';
+  import { statusDef, store } from '../../lib/store.svelte.ts';
+  import { istOffen, oeffne, schliesse } from '../../lib/ui.svelte.ts';
+  import { textFarbeAuf } from './logik.ts';
 
   const ich = $derived(store.ichSelbst);
   const def = $derived(ich ? statusDef(ich.status) : null);
   const farbe = $derived(def?.farbe ?? '#3b464d');
-
-  // Neue Meldungen anderer als Toast (der Snapshot kommt nicht als 'meldung' → kein Schwall beim Verbinden)
-  $effect(() =>
-    beiNachricht((m) => {
-      // status null = Alarm-Eintrag des Servers; den zeigt schon das Alarm-Banner
-      if (m.typ !== 'meldung' || m.meldung.von === store.ich || m.meldung.status === null) return;
-      const { von, status, text } = m.meldung;
-      toast(meldungText(store.teilnehmer.get(von)?.rufname ?? 'Unbekannt', status ? (statusDef(status)?.label ?? status) : null, text));
-    }),
-  );
 </script>
 
 {#if ich}

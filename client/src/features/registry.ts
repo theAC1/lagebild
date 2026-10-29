@@ -10,6 +10,7 @@ import spuren from './spuren/index.ts';
 import leitung from './leitung/index.ts';
 import bloodhound from './bloodhound/index.ts';
 import zeichnen from './zeichnen/index.ts';
+import meldungen from './meldungen/index.ts';
 
 /** Props jedes Panels: was `oeffne(id, params)` mitgegeben hat. */
 export type PanelProps = { params: Record<string, any> };
@@ -34,6 +35,11 @@ export interface Feature {
   nurLeitung?: boolean;
   /** Zähler am Werkzeugknopf (z.B. ungelesene Nachrichten); wird reaktiv gelesen. */
   badge?: () => number;
+  /**
+   * Bedienung «Daumen-Ränder»: fest sichtbare Hauptaktion am Rand statt im Mehr-Menü (wo sie sitzt, legt components/Daumen fest).
+   * `aktion` ersetzt «Panel auf» (ist das Panel offen, schliesst der Knopf es), `Knopf` ersetzt den ganzen Standardknopf.
+   */
+  haupt?: { aktion?: () => void; Knopf?: Component };
 }
 
-export const features: Feature[] = [marker, status, chat, sichtung, alarm, rangebearing, spuren, zeichnen, leitung, bloodhound];
+export const features: Feature[] = [marker, status, chat, sichtung, alarm, rangebearing, spuren, zeichnen, leitung, meldungen, bloodhound];
