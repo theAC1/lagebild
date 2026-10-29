@@ -93,7 +93,11 @@
 }
 /* Nordung hat bei den Daumen-Rändern einen eigenen Knopf bei den Kartenknöpfen; hoch sitzt links unten der Alarm */
 :root:has(.daumen) .maplibregl-ctrl-top-right { display: none; }
-@media (orientation: portrait) { :root:has(.daumen) .maplibregl-ctrl-bottom-left { left: 90px; } }
+@media (orientation: portrait) {
+  :root:has(.daumen) .maplibregl-ctrl-bottom-left { left: 90px; }
+  /* Toasts zwischen Alarm (links, bei offenem Sheet oben) und Kartenknöpfen (rechts), sonst verdecken sie beide */
+  :root:has(.daumen) { --toast-rand: 80px; }
+}
 
 * { box-sizing: border-box; }
 html, body, #app { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }

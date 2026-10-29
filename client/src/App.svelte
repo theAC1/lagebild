@@ -353,7 +353,7 @@
     z-index: 29; /* über Sheets/Fadenkreuz, unter dem Alarm-Banner (30) */
     display: grid;
     gap: 6px;
-    width: min(92vw, 420px, calc(100vw - var(--links, 0px) - var(--rechts, 0px) - 16px));
+    width: min(92vw, 420px, calc(100vw - var(--links, 0px) - var(--rechts, 0px) - 16px - 2 * var(--toast-rand, 0px)));
     pointer-events: none;
   }
   .einklappen {
