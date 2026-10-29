@@ -5,6 +5,7 @@
   import { waehlePunkt } from '../../lib/map.ts';
   import { api, send, store } from '../../lib/store.svelte.ts';
   import { symbolSvg } from '../../lib/symbol.ts';
+  import { groesse } from '../../lib/groesse.svelte.ts';
   import { schliesse, toast } from '../../lib/ui.svelte.ts';
   import { verkleinere } from './bild.ts';
   import { setzeFoto, sichtungZustand, verwirfEntwurf, type Entwurf } from './entwurf.svelte.ts';
@@ -94,13 +95,13 @@
   }}
 >
   <div class="ort">
-    <span class="sym" aria-hidden="true">{@html symbolSvg(felder.sidc, { size: 30 })}</span>
+    <span class="sym" aria-hidden="true">{@html symbolSvg(felder.sidc, { size: 30 * groesse.ui })}</span>
     <span class="ort-text">
       <span class="mono">{ortText}</span>
       <span class="leise">{e.ort ? 'Kartenpunkt' : 'eigene Position'}</span>
     </span>
     <button type="button" class="icon" aria-label="Ort ändern" title="Ort ändern" onclick={aufKarte}>
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"
+      <svg class="ikon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"
         ><circle cx="12" cy="12" r="6.5" /><path d="M12 2v5M12 17v5M2 12h5M17 12h5" /></svg
       >
     </button>
@@ -164,7 +165,7 @@
     <button type="button" onclick={verwirfEntwurf} disabled={sendet}>Verwerfen</button>
     <label class="kamera" aria-busy={fotoArbeit} title="Foto aufnehmen">
       <input type="file" accept="image/*" capture="environment" aria-label="Foto aufnehmen" onchange={fotoGewaehlt} disabled={fotoArbeit} />
-      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"
+      <svg viewBox="0 0 24 24" width="26" height="26" style="width: calc(26 * var(--u)); height: calc(26 * var(--u))" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"
         ><path d="M4 7h3l2-3h6l2 3h3v13H4z" /><circle cx="12" cy="13" r="4" /></svg
       >
     </label>
@@ -175,6 +176,7 @@
 <style>
   .formular {
     display: grid;
+    grid-template-columns: minmax(0, 1fr); /* lange Koordinate/Chips sprengen bei grosser Schrift sonst die Spalte */
     gap: 14px;
   }
   .ort {
@@ -197,7 +199,7 @@
     line-height: 1.25;
   }
   .ort-text .mono {
-    font-size: 0.92rem;
+    font-size: min(0.92rem, 4.4vw); /* Koordinate bricht bei grosser Schrift nur am « / » um */
     overflow-wrap: anywhere;
   }
   .ort-text .leise {
@@ -267,15 +269,16 @@
     position: sticky;
     bottom: -16px; /* bis an den Rand des Sheets (Innenabstand) */
     display: flex;
+    flex-wrap: wrap; /* grosse Bediengrösse: «Senden» rutscht in eine eigene Zeile statt aus dem Sheet */
     gap: 8px;
     padding: 8px 0 16px;
     background: var(--surface-glas);
   }
   .aktionen > * {
-    min-height: var(--haupt);
+    min-height: min(var(--haupt), 64px); /* bei grosser Bediengrösse zweizeilig: nicht das halbe Sheet belegen */
   }
   .senden {
-    flex: 1;
+    flex: 1 0 auto;
     font-size: 1.05rem;
   }
   .kamera {

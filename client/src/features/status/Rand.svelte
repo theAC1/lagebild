@@ -33,20 +33,21 @@
     border-color: var(--text);
     box-shadow: 0 0 0 2px var(--accent);
   }
+  /* min(…, vw): im Hochformat-Dock teilen sich fünf Knöpfe die Breite (Bediengrösse) */
   .klein {
-    font-size: 0.6rem;
+    font-size: min(0.6rem, 2.5vw);
     letter-spacing: 0.1em;
     text-transform: uppercase;
     opacity: 0.85;
   }
   strong {
     max-width: 100%;
-    font-size: 0.82rem;
+    font-size: min(0.82rem, 3.4vw);
     overflow-wrap: anywhere;
     white-space: normal;
   }
   /* quer in der Melde-Spalte: höher als die anderen, der Status ist die häufigste Meldung */
   :global(.rand.links) .status {
-    height: clamp(80px, 24dvh, 128px);
+    height: clamp(var(--haupt), 24dvh, 128px);
   }
 </style>

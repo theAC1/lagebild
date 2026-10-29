@@ -4,6 +4,7 @@
   import { STANDARD_STIL } from '../../../../shared/protocol.ts';
   import { onDestroy, untrack } from 'svelte';
   import { distanz, formatDistanz } from '../../lib/coords.ts';
+  import { groesse } from '../../lib/groesse.svelte.ts';
   import { getMap, registriereRadialAktion, type RadialZiel } from '../../lib/map.ts';
   import { store } from '../../lib/store.svelte.ts';
   import { ikon, oeffne, toast } from '../../lib/ui.svelte.ts';
@@ -194,7 +195,7 @@
       const gross = !istDesktop();
       for (const g of griffeVon(gf)) {
         const aktiv = zn.griff?.id === gf.id && zn.griff.art === g.art && zn.griff.i === g.i;
-        f.push(pt(g.p, { rolle: 'griff', typ: aktiv ? 'aktiv' : g.art === 'mitte' ? 'mitte' : 'punkt', r: gross ? 14 : g.art === 'mitte' ? 4 : 5.5 }));
+        f.push(pt(g.p, { rolle: 'griff', typ: aktiv ? 'aktiv' : g.art === 'mitte' ? 'mitte' : 'punkt', r: (gross ? 14 : g.art === 'mitte' ? 4 : 5.5) * groesse.ui }));
       }
     }
     if (zn.werkzeug && zn.werkzeug !== 'messen') for (const p of zn.entwurf) f.push(pt(p, { rolle: 'entwurf' }));
@@ -335,13 +336,13 @@
     background: rgb(22 27 31 / 0.82);
     border: 1.5px solid var(--zn-farbe);
     color: #fff;
-    font-size: 12px;
+    font-size: calc(12px * var(--karte));
     font-weight: 700;
     line-height: 1.3;
     white-space: nowrap;
   }
   :global(.zn-label small) {
-    font-size: 9.5px;
+    font-size: calc(9.5px * var(--karte));
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -355,14 +356,14 @@
   }
   :global(.zn-label.zn-raum) {
     background: rgb(22 27 31 / 0.7);
-    font-size: 13px;
+    font-size: calc(13px * var(--karte));
   }
   /* Text-Zeichnung: Schrift in der Zeichnungsfarbe mit dunklem Rand, ohne Kasten */
   :global(.zn-label.zn-text) {
     background: none;
     border: 0;
     color: var(--zn-farbe);
-    font-size: 16px;
+    font-size: calc(16px * var(--karte));
     text-shadow: 0 0 2px #161b1f, 0 0 2px #161b1f, 0 0 4px #161b1f;
   }
   :global(.zn-label.gewaehlt) {

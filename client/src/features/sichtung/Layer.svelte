@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Marker } from 'maplibre-gl';
   import { onDestroy } from 'svelte';
+  import { groesse } from '../../lib/groesse.svelte.ts';
   import { getMap, markiereZiel, registriereKontextAktion } from '../../lib/map.ts';
   import { beiNachricht, store } from '../../lib/store.svelte.ts';
   import { symbolElement } from '../../lib/symbol.ts';
@@ -9,13 +10,19 @@
   import { KAMERA_SVG } from './logik.ts';
 
   const m = getMap();
-  // Sichtungen sind unveränderlich (kein Bearbeiten im Vertrag) → je ID einmal anlegen
+  // Sichtungen sind unveränderlich (kein Bearbeiten im Vertrag) → je ID einmal anlegen (neu nur bei anderer Bediengrösse)
   const eintraege = new Map<string, Marker>();
+  let faktor = 0;
 
   $effect(() => {
+    if (groesse.karte !== faktor) {
+      for (const mk of eintraege.values()) mk.remove();
+      eintraege.clear();
+      faktor = groesse.karte;
+    }
     for (const s of store.sichtungen.values()) {
       if (eintraege.has(s.id)) continue;
-      const { element, offset } = symbolElement(s.sidc, { size: 26 });
+      const { element, offset } = symbolElement(s.sidc, { size: 26 * faktor });
       element.classList.add('sichtung-symbol');
       markiereZiel(element, { art: 'sichtung', id: s.id });
       if (s.fotoId) element.insertAdjacentHTML('beforeend', `<span class="sichtung-kamera">${KAMERA_SVG}</span>`);

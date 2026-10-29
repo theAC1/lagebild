@@ -92,7 +92,7 @@
     border-radius: 8px;
     background: rgb(22 27 31 / 0.88);
     color: #e8eae4;
-    font-size: 12px;
+    font-size: calc(12px * var(--karte));
     font-weight: 600;
     white-space: nowrap;
     cursor: pointer;

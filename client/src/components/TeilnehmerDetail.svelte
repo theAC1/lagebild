@@ -5,6 +5,7 @@
   import { alterMs, formatAlter, frische, keinGps, statusDef, store } from '../lib/store.svelte.ts';
   import { teamFarbe } from '../lib/team.ts';
   import { funktionLabel, symbolSvg } from '../lib/symbol.ts';
+  import { groesse } from '../lib/groesse.svelte.ts';
   import { oeffne } from '../lib/ui.svelte.ts';
 
   let { id }: { id: string } = $props();
@@ -19,7 +20,7 @@
   <p class="leise">Teilnehmer nicht mehr in der Lage.</p>
 {:else}
   <div class="kopf">
-    <div class="zeichen">{@html symbolSvg(t.sidc, { size: 34 })}</div>
+    <div class="zeichen">{@html symbolSvg(t.sidc, { size: 34 * groesse.ui })}</div>
     <div>
       <div class="rufname">{t.rufname}{#if t.rolle === 'leitung'}<span class="badge">Leitung</span>{/if}</div>
       <div class="leise"><span class="team" style:background={teamFarbe(t.einheit)}></span>{t.einheit}{t.funktion ? ` · ${t.funktion}` : ''} · {funktionLabel(t.sidc)}</div>

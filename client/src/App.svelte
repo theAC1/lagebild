@@ -17,6 +17,7 @@
   import { onMount, untrack } from 'svelte';
   import Nachbereitung from './features/leitung/Nachbereitung.svelte';
   import { features } from './features/registry.ts';
+  import { wendeGroesseAn } from './lib/groesse.svelte.ts';
   import { folgeMir, onMapReady } from './lib/map.ts';
   import './lib/radialKern.ts';
   import { aktualisiereWachhalten, starteGps, stoppeGps } from './lib/position.svelte.ts';
@@ -38,6 +39,8 @@
   }
   const koordLeiste = $derived(store.einstellungen.koordLeiste || !store.meinePos); // ohne Fix ist sie die einzige GPS-Anzeige
   const daumen = $derived(store.einstellungen.bedienung === 'daumen');
+
+  $effect(wendeGroesseAn); // Bediengrösse: wirkt sofort, auch vor dem Anmelden
 
   // Unter 1100 px (oder nach dem Drehen ins Hochformat) bleibt nur das oberste Panel
   $effect(() => {
@@ -226,11 +229,20 @@
     border: 0;
     background: transparent;
   }
+  /* grosse Bediengrösse auf schmalem Handy: Icon-Knöpfe nicht breiter als nötig, damit der Lagename Platz behält */
+  .kopf button.icon {
+    width: min(var(--touch), 13vw);
+  }
   .lage {
     flex: 1;
     min-width: 0;
     display: grid;
     line-height: 1.2;
+  }
+  .lage .verbindung {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
   }
   .lage strong {
     overflow: hidden;
@@ -365,7 +377,7 @@
   /* Querformat: kompakte Kopfzeile, Werkzeuge als Leiste rechts, Panels als Spalten links neben der Karte */
   @media (orientation: landscape) {
     .kopf button {
-      min-height: 44px;
+      min-height: min(44px, calc(var(--oben) - var(--safe-top)));
     }
     .lage {
       display: flex;

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { staleNachFuer } from '../../../shared/protocol.ts';
   import { KOORD_FORMATE } from '../lib/coords.ts';
+  import { BEDIENGROESSEN } from '../lib/groesse.svelte.ts';
   import { aktualisiereWachhalten, setzeSendetPos } from '../lib/position.svelte.ts';
   import { abmelden, setzeEinstellung, store, type Einstellungen } from '../lib/store.svelte.ts';
 
@@ -24,6 +25,16 @@
 </script>
 
 <div class="gruppen">
+  <div>
+    <div class="titel">Bediengrösse</div>
+    <div class="segmente" role="group" aria-label="Bediengrösse">
+      {#each BEDIENGROESSEN as g (g.id)}
+        <button aria-pressed={store.einstellungen.groesse === g.id} onclick={() => setzeEinstellung('groesse', g.id)}>{g.label}</button>
+      {/each}
+    </div>
+    <p class="leise">Knöpfe, Schrift und Kartenzeichen. Wird pro Gerät gemerkt.</p>
+  </div>
+
   <div>
     <div class="titel">Bedienung</div>
     <div class="segmente" role="group" aria-label="Bedienung">
@@ -124,6 +135,7 @@
 <style>
   .gruppen {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 18px;
   }
   .schalter {
@@ -135,6 +147,9 @@
   }
   .schalter > span {
     display: grid;
+    min-width: 0;
+    hyphens: auto; /* «Koordinatenzeile» bei grosser Schrift */
+    overflow-wrap: break-word;
   }
   .schalter input {
     width: 52px;

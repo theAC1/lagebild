@@ -1,3 +1,14 @@
+/* Bediengrösse (lib/groesse.svelte.ts setzt --ui/--schrift/--karte auf <html>): Der Build rechnet jede px-Angabe der
+   eigenen Stile in Vielfache von --u (Masse) bzw. --s (Schrift) um (client/uiSkala.ts). Fixe Pixel: Wert selbst mit
+   var(--u)/var(--s)/var(--karte) schreiben. Auf der Karte wächst nur --karte (Symbole, Rufnamen). */
+:root {
+  --ui: 1;
+  --schrift: 1;
+  --karte: 1;
+  --u: calc(1px * var(--ui));
+  --s: calc(1px * var(--schrift));
+}
+
 /* Farb- und Typo-Tokens. Zwei Themen, gewählt nach Sonnenstand (lib/thema.ts → data-thema):
    «Nacht» dunkel-taktisch mit gedeckten Oliv-/Sandtönen, «Tag» hell mit hohem Kontrast für Sonnenlicht. */
 :root {
@@ -36,8 +47,9 @@
   --links: 0px;
   --rechts: 0px;
   --rand-l: 0px; /* Daumen-Ränder quer: Melde-Spalte links */
-  --rand-b: calc(84px + env(safe-area-inset-left, 0px));
-  --panel-b: clamp(320px, 30vw, 420px);
+  /* höchstens 16vw: auch bei «Sehr gross» behält die Karte quer gut die Hälfte der Breite */
+  --rand-b: calc(min(calc(84 * var(--u)), 16vw) + env(safe-area-inset-left, 0px));
+  --panel-b: min(clamp(320px, 30vw, 420px), 50vw);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 16px;
   line-height: 1.4;
@@ -74,7 +86,7 @@
   :root:has(nav.werkzeuge:not(.zu)) { --rechts: calc(76px + env(safe-area-inset-right, 0px)); }
   :root:has(.panels > .sheet) { --links: var(--panel-b); }
   /* zwei Panels: schmaler, damit die Karte auch auf dem Tablet sichtbar bleibt */
-  :root:has(.panels > .sheet + .sheet) { --panel-b: clamp(320px, 22vw, 380px); --links: calc(2 * var(--panel-b)); }
+  :root:has(.panels > .sheet + .sheet) { --panel-b: min(clamp(320px, 22vw, 380px), 32vw); --links: calc(2 * var(--panel-b)); }
 }
 /* Daumen-Ränder (components/Daumen): hoch Dock unten; quer Melde-Spalte links, Karten-Spalte rechts, Panels dazwischen */
 :root:has(.daumen) { --oben: calc(48px + var(--safe-top)); --unten: calc(76px + var(--safe-bottom)); }
@@ -85,11 +97,15 @@
     --unten: var(--safe-bottom);
     --rand-l: var(--rand-b);
     --links: var(--rand-l);
-    --rechts: calc(84px + env(safe-area-inset-right, 0px));
+    --rechts: calc(min(calc(84 * var(--u)), 16vw) + env(safe-area-inset-right, 0px));
   }
   :root:has(.daumen footer .leiste) { --unten: calc(40px + var(--safe-bottom)); }
   :root:has(.daumen):has(.panels > .sheet) { --links: calc(var(--rand-l) + var(--panel-b)); }
   :root:has(.daumen):has(.panels > .sheet + .sheet) { --links: calc(var(--rand-l) + 2 * var(--panel-b)); }
+}
+/* Niedriges Querformat (Handy quer): Kopfzeile bleibt einzeilig und flach, auch bei grosser Bediengrösse */
+@media (orientation: landscape) and (max-height: 500px) {
+  :root, :root:has(.daumen) { --oben: calc(min(calc(44 * var(--u)), 56px) + var(--safe-top)); }
 }
 /* Nordung hat bei den Daumen-Rändern einen eigenen Knopf bei den Kartenknöpfen; hoch sitzt links unten der Alarm */
 :root:has(.daumen) .maplibregl-ctrl-top-right { display: none; }
@@ -98,6 +114,8 @@
   /* Toasts zwischen Alarm (links, bei offenem Sheet oben) und Kartenknöpfen (rechts), sonst verdecken sie beide */
   :root:has(.daumen) { --toast-rand: 80px; }
 }
+/* Handy quer mit schwebenden Kartenknöpfen (Daumen.svelte): Toasts nicht darüber */
+@media (orientation: landscape) { :root:has(.daumen > .schwebend) { --toast-rand: calc(var(--touch) + 20px); } }
 
 * { box-sizing: border-box; }
 html, body, #app { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
@@ -119,6 +137,8 @@ button:disabled { opacity: 0.45; cursor: default; }
 button.primaer { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
 button.gefahr { background: transparent; color: var(--danger); border-color: var(--danger); }
 button.icon { width: var(--touch); padding: 0; display: inline-grid; place-items: center; }
+/* Strich-Icons (ikon() in lib/ui.svelte.ts) wachsen mit der Bediengrösse */
+.ikon { width: 24px; height: 24px; flex: none; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 input, select, textarea {
@@ -137,6 +157,8 @@ label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
 /* Segmentierte Auswahl (z.B. Intervall, Zugehörigkeit); bricht um, statt Wörter über den Rand laufen zu lassen */
 .segmente { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: var(--bg); border-radius: var(--radius); }
 .segmente button { flex: 1 0 auto; border: 0; background: transparent; padding: 0 6px; }
+/* Reiter brechen bei grosser Bediengrösse in mehrere Zeilen um: flacher halten, sonst füllen sie das Sheet */
+.segmente button { min-height: min(var(--touch), 64px); }
 .segmente button[aria-pressed='true'] { background: var(--surface-2); color: var(--accent); font-weight: 600; }
 
 /* Chips: ein Tipp wählt (Meldungen ohne Tastatur). aria-pressed = gewählt. */
@@ -225,7 +247,7 @@ label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
   border-radius: 6px;
   background: var(--karte-bg);
   color: var(--karte-text);
-  font-size: 12px;
+  font-size: calc(12px * var(--karte));
   font-weight: 600;
   white-space: nowrap;
   line-height: 1.4;
@@ -251,5 +273,6 @@ label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
 .maplibregl-ctrl-scale { background: var(--karte-bg); color: var(--karte-text); border-color: var(--karte-text); font-family: var(--mono); }
 .maplibregl-ctrl-group { background: var(--surface); }
 .maplibregl-ctrl-group button { min-height: 0; width: 44px; height: 44px; border-radius: 0; border: 0; background: transparent; }
+.maplibregl-ctrl-group button .maplibregl-ctrl-icon { background-size: 29px; } /* wächst mit der Bediengrösse */
 .maplibregl-ctrl-compass .maplibregl-ctrl-icon { filter: invert(0.9); }
 :root[data-thema='tag'] .maplibregl-ctrl-compass .maplibregl-ctrl-icon { filter: none; }

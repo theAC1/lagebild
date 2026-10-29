@@ -121,7 +121,7 @@ export function toast(text: string, dauerMs = 3500, knopf?: ToastKnopf): void {
 
 /** 24×24-Strich-Icon aus SVG-Pfaden (für Feature.icon). */
 export const ikon = (inhalt: string) =>
-  `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inhalt}</svg>`;
+  `<svg class="ikon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inhalt}</svg>`;
 
 /** Kleiner localStorage-Helfer (privater Modus / gesperrter Speicher → still null). */
 export function lies(key: string): string | null {

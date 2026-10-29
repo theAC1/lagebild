@@ -3,6 +3,7 @@
   import { zentriere } from '../../lib/map.ts';
   import { api, formatAlter, serverJetzt, store } from '../../lib/store.svelte.ts';
   import { funktionLabel, symbolSvg } from '../../lib/symbol.ts';
+  import { groesse } from '../../lib/groesse.svelte.ts';
   import { oeffne } from '../../lib/ui.svelte.ts';
   import { formatZeit, vertrauenLabel, vonMir } from './logik.ts';
 
@@ -56,7 +57,7 @@
   <p class="leise">Sichtung nicht mehr vorhanden.</p>
 {:else}
   <div class="kopf">
-    <div class="zeichen">{@html symbolSvg(s.sidc, { size: 34 })}</div>
+    <div class="zeichen">{@html symbolSvg(s.sidc, { size: 34 * groesse.ui })}</div>
     <div>
       <div class="titel">{s.einheit || funktionLabel(s.sidc)}</div>
       <div class="leise">{#if s.einheit}{funktionLabel(s.sidc)} · {/if}<span class="vertrauen {s.vertrauen}">{vertrauenLabel(s.vertrauen)}</span></div>

@@ -4,6 +4,7 @@
   // Was ein Hauptknopf tut, bestimmt das Feature (Feature.haupt); wo er sitzt, steht hier.
   import { MediaQuery } from 'svelte/reactivity';
   import { features, type Feature } from '../features/registry.ts';
+  import { groesse } from '../lib/groesse.svelte.ts';
   import { folgeMir, getMap, onMapReady } from '../lib/map.ts';
   import { store } from '../lib/store.svelte.ts';
   import { ikon, istOffen, oeffne, schliesse, ui } from '../lib/ui.svelte.ts';
@@ -18,6 +19,10 @@
   const IKON_EINST = ikon('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9L7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>');
 
   const quer = new MediaQuery('(orientation: landscape)', false);
+  const niedrig = new MediaQuery('(max-height: 500px)', false);
+  // Handy quer mit Touch oder grosser Bediengrösse: sechs Knöpfe passen nicht übereinander in die rechte Spalte →
+  // Kartenknöpfe schweben wie im Hochformat rechts über der Karte, die Spalte behält Marker, Chat, Mehr.
+  const schwebend = $derived(!quer.current || (niedrig.current && groesse.ui > 1));
   const sichtbar = $derived(features.filter((f) => !f.nurLeitung || store.istLeitung));
   const haupt = $derived(new Map(sichtbar.filter((f) => f.haupt).map((f) => [f.id, f])));
   const mehr = $derived([
@@ -111,7 +116,7 @@
     {@html ikon('<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>')}
   </button>
   <button class="karten-knopf" class:gedreht={Math.abs(peilung) > 0.5} aria-label="Karte nach Norden ausrichten" onclick={() => getMap().resetNorth()}>
-    <svg class="nadel" style:rotate="{-peilung}deg" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+    <svg class="nadel" style:rotate="{-peilung}deg" viewBox="0 0 24 24" width="26" height="26" style="width: calc(26 * var(--u)); height: calc(26 * var(--u))" aria-hidden="true">
       <path d="M12 2.5l4 9.5h-8z" fill="var(--danger)" />
       <path d="M12 21.5l-4-9.5h8z" fill="currentColor" opacity="0.55" />
       <text x="12" y="10.6" text-anchor="middle" font-size="5.5" font-weight="800" fill="#fff">N</text>
@@ -123,7 +128,7 @@
 <div class="daumen">
   <header class="kopf">
     <strong class="lage">{store.lage?.name ?? 'Lagebild'}</strong>
-    <span class="verbindung {store.verbindung}" role="status"><span class="lampe"></span>{VERBINDUNG[store.verbindung]}</span>
+    <span class="verbindung {store.verbindung}" role="status"><span class="lampe"></span><span class="vtext">{VERBINDUNG[store.verbindung]}</span></span>
     {#each sichtbar.filter((f) => f.Kopf && !f.haupt) as f (f.id)}<f.Kopf />{/each}
     <button class="tn" aria-label="Teilnehmende ({store.teilnehmer.size})" onclick={() => oeffne('teilnehmer')}>
       {@html IKON_TN}<span class="mono">{store.teilnehmer.size}</span>
@@ -137,14 +142,13 @@
       {@render knopf('alarm')}
     </aside>
     <aside class="rand rechts" aria-label="Karte">
-      {@render kartenKnoepfe()}
+      {#if !schwebend}{@render kartenKnoepfe()}{/if}
       <span class="luecke"></span>
       {#each RECHTS as id (id)}{@render knopf(id)}{/each}
       {@render mehrKnopf()}
     </aside>
     {#if koordLeiste}<footer class="fuss"><KoordLeiste /></footer>{/if}
   {:else}
-    <div class="schwebend">{@render kartenKnoepfe()}</div>
     <div class="alarm-hoch">{@render knopf('alarm')}</div>
     <footer class="fuss">
       {#if koordLeiste}<KoordLeiste />{/if}
@@ -155,12 +159,14 @@
     </footer>
   {/if}
 
+  {#if schwebend}<div class="schwebend">{@render kartenKnoepfe()}</div>{/if}
+
   {#if ebenenOffen || mehrOffen}
     <!-- Tippen daneben schliesst das Menü -->
     <div class="hintergrund" aria-hidden="true" onclick={() => (mehrOffen = ebenenOffen = false)}></div>
   {/if}
   {#if ebenenOffen}
-    <div class="pop ebenen" role="group" aria-label="Karte"><EbenenListe /></div>
+    <div class="pop ebenen" class:neben-schwebend={schwebend} role="group" aria-label="Karte"><EbenenListe /></div>
   {/if}
   {#if mehrOffen}
     <div class="pop mehr" role="menu" aria-label="Mehr">
@@ -193,14 +199,23 @@
     border-bottom: 1px solid var(--line);
   }
   .lage {
-    min-width: 0;
+    flex: none;
+    max-width: 60%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     letter-spacing: 0.01em;
   }
+  /* bei grosser Schrift weicht zuerst «verbunden», die Lampe bleibt */
   .verbindung {
     flex: 1;
+    min-width: 8px; /* die Lampe */
+  }
+  .vtext {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   .tn {
     flex: none;
@@ -284,6 +299,13 @@
     box-shadow: none;
   }
   /* niedrige Handys quer (360 px, Adressleiste): Kartenknöpfe etwas flacher, Hauptaktionen bleiben 56 px */
+  /* Kopfzeile quer flach (app.css begrenzt --oben): Teilnehmer-Knopf füllt sie, statt herauszuragen */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .tn {
+      min-height: 0;
+      align-self: stretch;
+    }
+  }
   @media (orientation: landscape) and (max-height: 400px) {
     .rand {
       gap: 4px;
@@ -294,7 +316,7 @@
   }
   .schwebend {
     position: fixed;
-    right: 10px;
+    right: calc(var(--rechts) + 10px);
     top: calc(var(--oben) + 10px + var(--banner-h, 0px));
     z-index: 9;
     display: grid;
@@ -314,13 +336,15 @@
   }
   .dock {
     display: flex;
-    gap: 6px;
+    /* waagrecht nicht mitwachsen: die Breite gehört den fünf Knöpfen */
+    gap: min(calc(6 * var(--u)), 6px);
     height: 76px;
-    padding: 8px 8px 6px;
+    padding: 8px min(calc(8 * var(--u)), 8px) 6px;
   }
   .dock > :global(*) {
     flex: 1 1 0;
-    font-size: 0.6rem;
+    /* fünf Knöpfe auf Handybreite: die Beschriftung wächst nur, solange «SICHTUNG» in den Knopf passt */
+    font-size: min(0.6rem, 2.5vw);
     letter-spacing: 0.02em;
   }
   .alarm-hoch {
@@ -400,5 +424,10 @@
       top: calc(var(--oben) + 8px);
       right: calc(var(--rechts) + 8px);
     }
+  }
+  /* schwebende Kartenknöpfe bleiben neben dem Menü sichtbar */
+  .ebenen.neben-schwebend {
+    right: calc(var(--rechts) + var(--touch) + 20px);
+    width: min(260px, calc(100vw - var(--links) - var(--rechts) - var(--touch) - 30px));
   }
 </style>

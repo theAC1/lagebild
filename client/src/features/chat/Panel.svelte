@@ -3,6 +3,7 @@
   import type { PanelProps } from '../registry.ts';
   import { store } from '../../lib/store.svelte.ts';
   import { symbolSvg } from '../../lib/symbol.ts';
+  import { groesse } from '../../lib/groesse.svelte.ts';
   import { teamFarbe } from '../../lib/team.ts';
   import { chat } from './chat.svelte.ts';
   import { kanaele, kanalKey, zielAus } from './kanaele.ts';
@@ -34,7 +35,7 @@
       <li>
         <button class="zeile" class:neu={(s?.ungelesen ?? 0) > 0} onclick={() => (chat.aktiv = k.key)}>
           <span class="zeichen" aria-hidden="true">
-            {#if k.sidc}{@html symbolSvg(k.sidc, { size: 18 })}
+            {#if k.sidc}{@html symbolSvg(k.sidc, { size: 18 * groesse.ui })}
             {:else if k.ziel.art === 'einheit'}<span class="team" style:background={teamFarbe(k.ziel.einheit)}></span>
             {:else}<span class="alle">∗</span>{/if}
           </span>

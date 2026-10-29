@@ -1,12 +1,14 @@
 <script lang="ts">
+  import { groesse } from '../lib/groesse.svelte.ts';
   import { radialAktionenFuer, type RadialAktion } from '../lib/map.ts';
   import { store } from '../lib/store.svelte.ts';
   import { ui, type RadialZiel } from '../lib/ui.svelte.ts';
 
   let { ziel, x, y }: { ziel: RadialZiel; x: number; y: number } = $props();
 
-  const RADIUS = 88;
-  const RAND = RADIUS + 52; // Knopf + Beschriftung bleiben im Bild
+  // Ring wächst mit der Bediengrösse, aber nie über den Bildschirm hinaus (Knopf + Beschriftung bleiben im Bild)
+  const RADIUS = $derived(Math.min(88 * groesse.ui, Math.min(innerWidth, innerHeight) / 2 - 52 * groesse.ui));
+  const RAND = $derived(RADIUS + 52 * groesse.ui);
 
   const aktionen = $derived(radialAktionenFuer(ziel));
   const titel = $derived.by(() => {

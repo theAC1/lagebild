@@ -116,9 +116,9 @@ export function symbolElement(sidc: string, o: SymbolOpts = {}): { element: HTML
 /** Marker-Element für Teilnehmende (BFT): Zeichen mit Statusrahmen (Ring) und Rufname-Label mit Team-Farbe (Rand). */
 export function teilnehmerElement(
   sidc: string,
-  o: { rufname: string; farbe?: string | null; team?: string | null; richtung?: number | null; klassen?: string[] },
+  o: { rufname: string; farbe?: string | null; team?: string | null; richtung?: number | null; klassen?: string[]; size?: number },
 ): { element: HTMLDivElement; offset: [number, number] } {
-  const { element, offset } = symbolElement(sidc, { size: 26, richtung: o.richtung });
+  const { element, offset } = symbolElement(sidc, { size: o.size ?? 26, richtung: o.richtung });
   const sym = document.createElement('div');
   sym.className = 'bft-sym';
   sym.innerHTML = element.innerHTML;

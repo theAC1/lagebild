@@ -3,6 +3,7 @@
   import { waehlePunkt, zentriere } from '../../lib/map.ts';
   import { formatAlter, send, serverJetzt, store } from '../../lib/store.svelte.ts';
   import { funktionLabel, symbolSvg } from '../../lib/symbol.ts';
+  import { groesse } from '../../lib/groesse.svelte.ts';
   import { oeffne, schliesse, toast } from '../../lib/ui.svelte.ts';
   import { darfAendern, formatZeit, markerName, setzenNachricht } from './logik.ts';
 
@@ -32,7 +33,7 @@
   <p class="leise">Marker nicht mehr vorhanden.</p>
 {:else}
   <div class="kopf">
-    <div class="zeichen">{@html symbolSvg(m.sidc, { size: 34 })}</div>
+    <div class="zeichen">{@html symbolSvg(m.sidc, { size: 34 * groesse.ui })}</div>
     <div class="titel">
       <div class="name">{markerName(m)}</div>
       <div class="leise">{funktionLabel(m.sidc)}</div>

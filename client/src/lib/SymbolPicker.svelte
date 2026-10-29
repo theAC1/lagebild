@@ -1,5 +1,6 @@
 <script lang="ts">
   import { baueSidc, FUNKTIONEN, GROESSEN, istGueltig, symbolSvg, zerlegeSidc, ZUGEHOERIGKEITEN } from './symbol.ts';
+  import { groesse } from './groesse.svelte.ts';
 
   let { value, onchange }: { value: string; onchange: (sidc: string) => void } = $props();
 
@@ -14,7 +15,7 @@
 </script>
 
 <div class="picker">
-  <div class="vorschau">{@html symbolSvg(value, { size: 44 })}</div>
+  <div class="vorschau">{@html symbolSvg(value, { size: 44 * groesse.ui })}</div>
 
   <div class="segmente" role="group" aria-label="Zugehörigkeit">
     {#each ZUGEHOERIGKEITEN as z (z.id)}
@@ -34,7 +35,7 @@
     {#each FUNKTIONEN as f (f.set + f.funktion)}
       {@const aktiv = teile.set === f.set && teile.funktion === f.funktion}
       <button type="button" class:aktiv aria-pressed={aktiv} onclick={() => setze({ set: f.set, funktion: f.funktion })}>
-        <span class="mini">{@html symbolSvg(baueSidc({ ...teile, set: f.set, funktion: f.funktion, groesse: '00' }), { size: 20 })}</span>
+        <span class="mini">{@html symbolSvg(baueSidc({ ...teile, set: f.set, funktion: f.funktion, groesse: '00' }), { size: 20 * groesse.ui })}</span>
         <span class="name">{f.label}</span>
       </button>
     {/each}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { formatAlter, send, serverJetzt, store } from '../../lib/store.svelte.ts';
   import { symbolSvg } from '../../lib/symbol.ts';
+  import { groesse } from '../../lib/groesse.svelte.ts';
   import { toast } from '../../lib/ui.svelte.ts';
 
   let fragen = $state<string | null>(null);
@@ -21,7 +22,7 @@
     {@const ich = t.id === store.ich}
     <li>
       <div class="zeile" class:offline={!t.online}>
-        <span class="zeichen">{@html symbolSvg(t.sidc, { size: 18 })}</span>
+        <span class="zeichen">{@html symbolSvg(t.sidc, { size: 18 * groesse.ui })}</span>
         <span class="name">
           <strong>{t.rufname}{ich ? ' (ich)' : ''}{t.rolle === 'leitung' ? ' · Leitung' : ''}</strong>
           <span class="leise">{t.einheit}{t.funktion ? ` · ${t.funktion}` : ''}</span>
@@ -67,7 +68,7 @@
     opacity: 0.7;
   }
   .zeichen {
-    width: 44px;
+    width: min(44px, 12vw);
     display: grid;
     place-items: center;
     flex: none;
@@ -81,6 +82,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* grosse Bediengrösse: Rufname umbrechen statt abschneiden */
+  .name > strong {
+    white-space: normal;
+  }
+  .zeile .gefahr {
+    padding: 0 10px;
   }
   .online {
     color: var(--ok);

@@ -5,6 +5,7 @@
   import { waehlePunkt, zentriere } from '../../lib/map.ts';
   import { store } from '../../lib/store.svelte.ts';
   import { symbolSvg, ZUGEHOERIGKEITEN } from '../../lib/symbol.ts';
+  import { groesse } from '../../lib/groesse.svelte.ts';
   import { oeffne, waehle } from '../../lib/ui.svelte.ts';
   import MarkerFormular from './MarkerFormular.svelte';
   import { filtereMarker, markerName, zaehle, type MarkerFilter } from './logik.ts';
@@ -58,7 +59,7 @@
       {#each liste as m (m.id)}
         <li>
           <button class="zeile" onclick={() => zeige(m.id, m)}>
-            <span class="zeichen">{@html symbolSvg(m.sidc, { size: 22 })}</span>
+            <span class="zeichen">{@html symbolSvg(m.sidc, { size: 22 * groesse.ui })}</span>
             <span class="name">{markerName(m)}</span>
             {#if store.meinePos}
               <span class="mono leise weg">{formatDistanz(distanz(store.meinePos, m))}<br />{formatRichtung(azimut(store.meinePos, m)).split(' / ')[0]}</span>

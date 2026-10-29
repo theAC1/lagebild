@@ -94,7 +94,7 @@
           <button class="quitt" onclick={() => quittiere(a.id)}>Quittieren</button>
         {/if}
         <button class="icon" aria-label="Zentrieren" disabled={!p} onclick={() => p && zentriere(p, 16)}>
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" style="width: calc(22 * var(--u)); height: calc(22 * var(--u))" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <circle cx="12" cy="12" r="7" /><circle cx="12" cy="12" r="2" fill="currentColor" /><path d="M12 1v4M12 19v4M1 12h4M19 12h4" />
           </svg>
         </button>
@@ -119,7 +119,7 @@
     .banner {
       left: calc(var(--links, 0px) + (100vw - var(--links, 0px) - var(--rechts, 0px)) / 2);
       right: auto;
-      width: 520px;
+      width: min(520px, calc(100vw - var(--links, 0px) - var(--rechts, 0px) - 16px));
       transform: translateX(-50%);
     }
   }
@@ -128,7 +128,7 @@
     .banner {
       left: auto;
       right: calc(var(--rechts, 0px) + 8px);
-      width: min(520px, calc(100vw - 300px - var(--rechts, 0px)));
+      width: min(520px, max(calc(100vw - 300px - var(--rechts, 0px)), 45vw)); /* 45vw: bei grosser Bediengrösse nicht zu schmal */
       transform: none;
     }
   }

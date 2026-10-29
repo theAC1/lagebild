@@ -64,7 +64,7 @@
     left: calc(var(--links, 0px) + 10px);
     bottom: calc(var(--unten) + 40px);
     z-index: 9;
-    width: 300px;
+    width: min(300px, calc(100vw - var(--links, 0px) - 20px));
     padding: 8px 10px;
     background: var(--surface-glas);
     border: 1px solid var(--line);

@@ -1,10 +1,13 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
+import { uiSkala } from './uiSkala.ts';
 
 const backend = 'http://localhost:8080';
 
 export default defineConfig({
+  // Einstellung «Bediengrösse»: px in den eigenen Stilen skalieren mit --ui/--schrift (siehe uiSkala.ts)
+  css: { postcss: { plugins: [uiSkala()] } },
   plugins: [
     svelte(),
     VitePWA({

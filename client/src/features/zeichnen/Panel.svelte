@@ -54,6 +54,8 @@
   }
   .mobil-werkzeuge button {
     flex: 1;
+    min-width: 0;
+    padding: 0 4px;
     min-height: 64px;
     display: grid;
     justify-items: center;

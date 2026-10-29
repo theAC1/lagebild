@@ -4,6 +4,7 @@
   import { frische, keinGps, statusDef, store } from '../lib/store.svelte.ts';
   import { teamFarbe } from '../lib/team.ts';
   import { symbolSvg } from '../lib/symbol.ts';
+  import { groesse } from '../lib/groesse.svelte.ts';
   import { waehle } from '../lib/ui.svelte.ts';
 
   const zeilen = $derived.by(() => {
@@ -27,7 +28,7 @@
   {#each zeilen as { t, d } (t.id)}
     <li>
       <button class="zeile {frische(t)}" onclick={() => tippe(t.id)}>
-        <span class="zeichen">{@html symbolSvg(t.sidc, { size: 18 })}</span>
+        <span class="zeichen">{@html symbolSvg(t.sidc, { size: 18 * groesse.ui })}</span>
         <span class="name">
           <strong>{t.rufname}{t.id === store.ich ? ' (ich)' : ''}</strong>
           <span class="leise"
@@ -73,8 +74,9 @@
   .zeile.geist {
     opacity: 0.45;
   }
+  /* min(…, vw): bei grosser Bediengrösse behält der Rufname Platz */
   .zeichen {
-    width: 44px;
+    width: min(44px, 12vw);
     display: grid;
     place-items: center;
     flex: none;
@@ -88,6 +90,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* Rufname bricht lieber um, als bei grosser Schrift zu «Swe…» zu schrumpfen */
+  .name > strong {
+    white-space: normal;
   }
   .team {
     display: inline-block;
@@ -108,7 +114,7 @@
   }
   .dist {
     text-align: right;
-    min-width: 72px;
+    min-width: min(72px, 20vw);
     font-size: 0.9rem;
     white-space: nowrap;
   }

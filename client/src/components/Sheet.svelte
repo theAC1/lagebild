@@ -33,7 +33,7 @@
   @media (min-width: 640px) {
     .sheet {
       left: 50%;
-      width: 520px;
+      width: min(520px, 100vw);
       transform: translateX(-50%);
     }
   }
@@ -42,6 +42,8 @@
     :global(:root:has(.daumen)) .sheet {
       bottom: var(--unten);
       padding-bottom: 0;
+      /* der Alarm (68 px, wandert bei offenem Sheet nach oben) bleibt auch bei grosser Bediengrösse frei */
+      max-height: min(70dvh, calc(100dvh - var(--unten) - var(--oben) - 88px));
     }
   }
   /* Querformat: Seitenpanel neben der Karte (App legt die Panels in eine Zeile links) */

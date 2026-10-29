@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Marker as MapMarker } from 'maplibre-gl';
   import { onDestroy } from 'svelte';
+  import { groesse } from '../../lib/groesse.svelte.ts';
   import { getMap, markiereZiel, registriereKontextAktion } from '../../lib/map.ts';
   import { store } from '../../lib/store.svelte.ts';
   import { symbolElement } from '../../lib/symbol.ts';
@@ -15,7 +16,7 @@
     const gesehen = new Set<string>();
     for (const mk of store.marker.values()) {
       gesehen.add(mk.id);
-      const schluessel = `${mk.sidc}|${mk.bezeichnung}`;
+      const schluessel = `${mk.sidc}|${mk.bezeichnung}|${groesse.karte}`;
       let e = eintraege.get(mk.id);
       if (e && e.schluessel !== schluessel) {
         e.marker.remove();
@@ -23,7 +24,7 @@
       }
       if (!e) {
         const id = mk.id;
-        const { element, offset } = symbolElement(mk.sidc, { size: 28, rufname: mk.bezeichnung || undefined });
+        const { element, offset } = symbolElement(mk.sidc, { size: 28 * groesse.karte, rufname: mk.bezeichnung || undefined });
         element.classList.add('lage-marker');
         markiereZiel(element, { art: 'marker', id });
         element.setAttribute('role', 'button');

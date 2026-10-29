@@ -5,6 +5,7 @@
   import { getMap, markiereZiel } from '../lib/map.ts';
   import { frische, keinGps, statusDef, store } from '../lib/store.svelte.ts';
   import { teamFarbe } from '../lib/team.ts';
+  import { groesse } from '../lib/groesse.svelte.ts';
   import { teilnehmerElement } from '../lib/symbol.ts';
   import { ui, waehle } from '../lib/ui.svelte.ts';
 
@@ -33,7 +34,7 @@
       const farbe = statusDef(t.status)?.farbe ?? null;
       const richtung = t.pos.kurs != null && (t.pos.tempo ?? 0) > 0.5 ? Math.round(t.pos.kurs / 15) * 15 : null;
       const ohneGps = keinGps(t);
-      const schluessel = [t.sidc, t.rufname, t.einheit, f, farbe, richtung, t.sendetPos, ohneGps].join('|');
+      const schluessel = [t.sidc, t.rufname, t.einheit, f, farbe, richtung, t.sendetPos, ohneGps, groesse.karte].join('|');
       let e = eintraege.get(t.id);
       if (e && e.schluessel !== schluessel) {
         e.marker.remove();
@@ -43,6 +44,7 @@
         const id = t.id;
         const { element, offset } = teilnehmerElement(t.sidc, {
           rufname: t.rufname,
+          size: 26 * groesse.karte,
           farbe,
           team: teamFarbe(t.einheit),
           richtung,

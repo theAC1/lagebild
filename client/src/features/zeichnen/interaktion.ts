@@ -2,6 +2,7 @@
 import type { Map as MapLibreMap, MapMouseEvent, MapTouchEvent } from 'maplibre-gl';
 import { PUNKTE_JE_ART, MAX_PUNKTE_LANG, STANDARD_STIL, type Punkt, type Zeichnung } from '../../../../shared/protocol.ts';
 import { distanz, versetze } from '../../lib/coords.ts';
+import { groesse } from '../../lib/groesse.svelte.ts';
 import { getMap, registriereTreffer } from '../../lib/map.ts';
 import { store } from '../../lib/store.svelte.ts';
 import { schliesseAlle, toast, ui, waehle } from '../../lib/ui.svelte.ts';
@@ -79,7 +80,7 @@ export function mitGriff(z: ZInhalt, g: Griff, p: Punkt): ZInhalt {
 }
 
 function griffUnter(z: Zeichnung, px: Px): Griff | null {
-  const tol = istDesktop() ? 9 : 24;
+  const tol = (istDesktop() ? 9 : 24) * groesse.ui;
   let best: Griff | null = null;
   let d = tol;
   // Stützpunkte vor Mittelgriffen: bei kurzen Segmenten liegen beide nah beieinander

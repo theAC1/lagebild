@@ -3,6 +3,7 @@
   import { onDestroy, untrack } from 'svelte';
   import { getMap, markiereZiel } from '../lib/map.ts';
   import { kreis } from '../lib/coords.ts';
+  import { groesse } from '../lib/groesse.svelte.ts';
   import { setzeEinstellung, statusDef, store } from '../lib/store.svelte.ts';
   import { teamFarbe } from '../lib/team.ts';
   import { STANDARD_SIDC, teilnehmerElement } from '../lib/symbol.ts';
@@ -34,11 +35,12 @@
     const emcon = ich ? !ich.sendetPos : false;
     const ohneGps = store.gpsFehler !== null;
     const team = ich ? teamFarbe(ich.einheit) : null;
-    const k = [sidc, ich?.rufname, team, farbe, richtung, emcon, ohneGps].join('|');
+    const k = [sidc, ich?.rufname, team, farbe, richtung, emcon, ohneGps, groesse.karte].join('|');
     if (k !== schluessel || !marker) {
       marker?.remove();
       const { element, offset } = teilnehmerElement(sidc, {
         rufname: ich?.rufname ?? 'Ich',
+        size: 26 * groesse.karte,
         farbe,
         team,
         richtung,

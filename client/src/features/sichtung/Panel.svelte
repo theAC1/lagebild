@@ -2,6 +2,7 @@
   import type { PanelProps } from '../registry.ts';
   import { formatAlter, serverJetzt, store } from '../../lib/store.svelte.ts';
   import { funktionLabel, symbolSvg } from '../../lib/symbol.ts';
+  import { groesse } from '../../lib/groesse.svelte.ts';
   import { waehle } from '../../lib/ui.svelte.ts';
   import { zentriere } from '../../lib/map.ts';
   import { sichtungZustand, starteEntwurf } from './entwurf.svelte.ts';
@@ -31,7 +32,7 @@
               waehle('sichtung', s.id);
             }}
           >
-            <span class="sym">{@html symbolSvg(s.sidc, { size: 24 })}</span>
+            <span class="sym">{@html symbolSvg(s.sidc, { size: 24 * groesse.ui })}</span>
             <span class="text">
               <strong>{s.einheit || funktionLabel(s.sidc)}{#if s.fotoId}<span class="kamera" title="mit Foto">{@html KAMERA_SVG}</span>{/if}</strong>
               {#if s.taetigkeit || s.groesse}<span class="zeile">{[s.groesse, s.taetigkeit].filter(Boolean).join(' · ')}</span>{/if}

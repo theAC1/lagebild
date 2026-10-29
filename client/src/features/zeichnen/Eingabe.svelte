@@ -1,6 +1,7 @@
 <script lang="ts">
   // Kleines Eingabefeld an der Karte: Text einer Text-Zeichnung oder Bezeichnung einer taktischen Form.
   import { onMount } from 'svelte';
+  import { groesse } from '../../lib/groesse.svelte.ts';
 
   let { x, y, titel, wert: start, ohneText, fertig }: { x: number; y: number; titel: string; wert: string; ohneText: string | null; fertig: (t: string | null) => void } = $props();
   // svelte-ignore state_referenced_locally
@@ -14,8 +15,8 @@
     e.stopPropagation();
     fertig(e.key === 'Enter' ? wert : null);
   }
-  const links = $derived(Math.min(Math.max(8, x + 12), innerWidth - 268));
-  const oben = $derived(Math.min(Math.max(8, y + 12), innerHeight - 120));
+  const links = $derived(Math.min(Math.max(8, x + 12), innerWidth - 268 * groesse.ui));
+  const oben = $derived(Math.min(Math.max(8, y + 12), innerHeight - 120 * groesse.ui));
 </script>
 
 <div class="eingabe" role="dialog" aria-label={titel} style:left="{links}px" style:top="{oben}px">
@@ -33,7 +34,7 @@
   .eingabe {
     position: fixed;
     z-index: 28;
-    width: 260px;
+    width: min(260px, calc(100vw - 16px));
     display: grid;
     gap: 8px;
     padding: 10px;
