@@ -34,11 +34,10 @@ export function starte(ziel: BloodhoundZiel): void {
   setze({ ziel });
 }
 
-/** Auftrag der Leitung übernehmen: startet automatisch, mit kurzem Signal. */
+/** Auftrag der Leitung übernehmen: startet automatisch, mit Signal (das Banner in der Leiste ersetzt den Toast). */
 export function uebernimm(a: BloodhoundAuftrag): void {
   setze({ ziel: a.ziel, auftragId: a.id });
   signal();
-  toast('Auftrag von Leitung: Bloodhound');
 }
 
 /** Lokal beenden, ohne den Server zu fragen (Ziel weg, Auftrag vom Server beendet). */

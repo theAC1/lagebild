@@ -33,8 +33,9 @@
   }
 
   function ausfuehren(a: (p: Punkt) => void) {
+    const p = { lat: punkt.lat, lon: punkt.lon }; // vor dem Schliessen kopieren: `punkt` liest live aus ui.kontext
     ui.kontext = null;
-    a(punkt);
+    a(p);
   }
 </script>
 

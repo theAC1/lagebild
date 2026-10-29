@@ -99,7 +99,7 @@
     box-shadow: 0 3px 10px rgb(0 0 0 / 0.5);
   }
   .text {
-    max-width: 76px;
+    max-width: 132px;
     padding: 0 5px;
     border-radius: 6px;
     background: rgb(22 27 31 / 0.88);

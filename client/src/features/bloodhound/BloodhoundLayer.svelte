@@ -30,7 +30,7 @@
     }),
     registriereRadialAktion({
       fuer: 'teilnehmer',
-      label: 'Auftrag: Bloodhound',
+      label: 'BH-Auftrag', // kurz: Ring-Beschriftungen werden bei ~10 Zeichen gekürzt
       icon: ikon('<path d="M5 20V4M5 5h11l-2 3.5 2 3.5H5"/>'),
       aktion: (z) => oeffne('leitung', { tab: 'auftraege', an: z.id }),
       sichtbar: (z) => store.istLeitung && z.id !== store.ich,
