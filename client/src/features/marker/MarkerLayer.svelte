@@ -5,6 +5,7 @@
   import { store } from '../../lib/store.svelte.ts';
   import { symbolElement } from '../../lib/symbol.ts';
   import { oeffne, waehle } from '../../lib/ui.svelte.ts';
+  import { markerName } from './logik.ts';
 
   const m = getMap();
   const eintraege = new Map<string, { marker: MapMarker; schluessel: string }>();
@@ -26,7 +27,7 @@
         element.classList.add('lage-marker');
         markiereZiel(element, { art: 'marker', id });
         element.setAttribute('role', 'button');
-        element.setAttribute('aria-label', `Marker ${mk.bezeichnung}`);
+        element.setAttribute('aria-label', `Marker ${markerName(mk)}`);
         element.addEventListener('click', (ev) => {
           ev.stopPropagation();
           waehle('marker', id);
