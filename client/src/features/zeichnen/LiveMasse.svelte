@@ -25,7 +25,8 @@
     pointer-events: none;
     padding: 4px 8px;
     border-radius: 6px;
-    background: rgb(22 27 31 / 0.9);
+    background: var(--karte-bg);
+    color: var(--karte-text);
     border: 1px solid var(--line);
     font-size: 12px;
     line-height: 1.45;

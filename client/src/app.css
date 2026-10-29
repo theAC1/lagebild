@@ -1,30 +1,42 @@
-/* Dunkles taktisches Schema: gedämpftes Schiefergrau, Sand als Akzent, gut lesbar draussen. */
+/* Farb- und Typo-Tokens. Zwei Themen, gewählt nach Sonnenstand (lib/thema.ts → data-thema):
+   «Nacht» dunkel-taktisch mit gedeckten Oliv-/Sandtönen, «Tag» hell mit hohem Kontrast für Sonnenlicht. */
 :root {
   color-scheme: dark;
-  --bg: #161b1f;
-  --surface: #1f262b;
-  --surface-2: #2a3238;
+  --bg: #12140e;
+  --surface: #1b1e16;
+  --surface-2: #272b20;
   /* für randständige Leisten/Sheets über der Karte: nicht ganz deckend, sonst verwirft Chromium (headless)
      bei opaker Überdeckung den oberen statt den unteren Streifen des WebGL-Canvas */
-  --surface-glas: rgb(31 38 43 / 0.99);
-  --line: #3b464d;
-  --text: #e8eae4;
-  --text-2: #a9b2ab;
-  --accent: #c8b46a;
-  --accent-text: #161b1f;
-  --ok: #7cc47f;
-  --warn: #e3b450;
+  --surface-glas: rgb(27 30 22 / 0.99);
+  --line: #3b4030;
+  --text: #ece8d5;
+  --text-2: #a9a58d;
+  --accent: #d4b66a;
+  --accent-text: #14160e;
+  --ok: #8fc36a;
+  --warn: #e5b04a;
   --danger: #e2553f;
   --friend: #8fbcd4;
+  --alarm: #a3271a;
+  --alarm-rand: #ff8a78;
+  /* Beschriftungen direkt auf der Karte (Rufnamen, Massstab) */
+  --karte-bg: rgb(18 20 14 / 0.84);
+  --karte-text: #ece8d5;
+  --kopf-bg: rgb(18 20 14 / 0.93);
+  --schatten: 0 2px 10px rgb(0 0 0 / 0.45);
   --radius: 12px;
   --touch: 48px;
+  --haupt: 56px; /* Hauptaktionen */
+  --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, Consolas, monospace;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --oben: calc(52px + var(--safe-top)); /* Höhe Kopfleiste */
   --unten: calc(76px + var(--safe-bottom)); /* Werkzeugleiste (+ Koordinatenzeile, siehe unten) */
-  /* Querformat: --links = Breite offener Seitenpanels, --rechts = Werkzeugleiste; die Karte liegt dazwischen */
+  /* Querformat: --links = Breite offener Seitenpanels (+ linker Rand), --rechts = Werkzeugleiste; die Karte liegt dazwischen */
   --links: 0px;
   --rechts: 0px;
+  --rand-l: 0px; /* Daumen-Ränder quer: Melde-Spalte links */
+  --rand-b: calc(84px + env(safe-area-inset-left, 0px));
   --panel-b: clamp(320px, 30vw, 420px);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 16px;
@@ -32,6 +44,26 @@
   color: var(--text);
   background: var(--bg);
   -webkit-tap-highlight-color: transparent;
+}
+:root[data-thema='tag'] {
+  color-scheme: light;
+  --bg: #e9e8de;
+  --surface: #fbfaf4;
+  --surface-2: #dedccd;
+  --surface-glas: rgb(251 250 244 / 0.99);
+  --line: #8c886f;
+  --text: #0f110b;
+  --text-2: #44473a;
+  --accent: #46550f;
+  --accent-text: #fbfaf4;
+  --ok: #2b7a2f;
+  --warn: #8f5a00;
+  --danger: #b3261e;
+  --friend: #1d6a93;
+  --karte-bg: rgb(251 250 244 / 0.92);
+  --karte-text: #0f110b;
+  --kopf-bg: rgb(251 250 244 / 0.96);
+  --schatten: 0 2px 10px rgb(0 0 0 / 0.28);
 }
 
 /* Die Variablen folgen dem, was App gerade zeigt (Koordinatenzeile, Panels, eingeklappte Leiste) */
@@ -44,6 +76,24 @@
   /* zwei Panels: schmaler, damit die Karte auch auf dem Tablet sichtbar bleibt */
   :root:has(.panels > .sheet + .sheet) { --panel-b: clamp(320px, 22vw, 380px); --links: calc(2 * var(--panel-b)); }
 }
+/* Daumen-Ränder (components/Daumen): hoch Dock unten; quer Melde-Spalte links, Karten-Spalte rechts, Panels dazwischen */
+:root:has(.daumen) { --oben: calc(48px + var(--safe-top)); --unten: calc(76px + var(--safe-bottom)); }
+:root:has(.daumen footer .leiste) { --unten: calc(116px + var(--safe-bottom)); }
+@media (orientation: landscape) {
+  :root:has(.daumen) {
+    --oben: calc(44px + var(--safe-top));
+    --unten: var(--safe-bottom);
+    --rand-l: var(--rand-b);
+    --links: var(--rand-l);
+    --rechts: calc(84px + env(safe-area-inset-right, 0px));
+  }
+  :root:has(.daumen footer .leiste) { --unten: calc(40px + var(--safe-bottom)); }
+  :root:has(.daumen):has(.panels > .sheet) { --links: calc(var(--rand-l) + var(--panel-b)); }
+  :root:has(.daumen):has(.panels > .sheet + .sheet) { --links: calc(var(--rand-l) + 2 * var(--panel-b)); }
+}
+/* Nordung hat bei den Daumen-Rändern einen eigenen Knopf bei den Kartenknöpfen; hoch sitzt links unten der Alarm */
+:root:has(.daumen) .maplibregl-ctrl-top-right { display: none; }
+@media (orientation: portrait) { :root:has(.daumen) .maplibregl-ctrl-bottom-left { left: 90px; } }
 
 * { box-sizing: border-box; }
 html, body, #app { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
@@ -77,13 +127,78 @@ input, select, textarea {
 }
 label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
 
-.mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .leise { color: var(--text-2); font-size: 0.9rem; }
 
 /* Segmentierte Auswahl (z.B. Intervall, Zugehörigkeit); bricht um, statt Wörter über den Rand laufen zu lassen */
 .segmente { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: var(--bg); border-radius: var(--radius); }
 .segmente button { flex: 1 0 auto; border: 0; background: transparent; padding: 0 6px; }
 .segmente button[aria-pressed='true'] { background: var(--surface-2); color: var(--accent); font-weight: 600; }
+
+/* Chips: ein Tipp wählt (Meldungen ohne Tastatur). aria-pressed = gewählt. */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button {
+  min-height: var(--touch);
+  padding: 0 13px;
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.chips button[aria-pressed='true'] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+
+/* Hauptaktion der Daumen-Ränder: Kachel mit Zeichen und Beschriftung in Versalien */
+.rand-knopf {
+  position: relative;
+  min-width: 0;
+  min-height: var(--haupt);
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  padding: 6px 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.1;
+}
+.rand-knopf[aria-pressed='true'], .rand-knopf[aria-expanded='true'] { border-color: var(--accent); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.rand-knopf > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rand-knopf .badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  line-height: 20px;
+}
+
+/* Gruppen-Überschrift in Panels («GRÖSSE», «TÄTIGKEIT») */
+.gruppe-titel {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+/* Verbindungsanzeige in der Kopfzeile (beide Bedienungen) */
+.verbindung { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-2); }
+.lampe { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--danger); }
+.verbunden .lampe { background: var(--ok); }
+.verbinde .lampe { background: var(--warn); animation: blinken 1s infinite; }
+@keyframes blinken { 50% { opacity: 0.3; } }
 
 /* Teilnehmer-/Symbolmarker auf der Karte */
 .bft { cursor: pointer; }
@@ -92,7 +207,7 @@ label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
   padding: 2px;
   border: 3px solid var(--status, transparent);
   border-radius: 7px;
-  background: rgb(22 27 31 / 0.35);
+  background: rgb(18 20 14 / 0.35);
   line-height: 0;
 }
 .bft-label {
@@ -104,8 +219,8 @@ label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
   margin-top: 2px;
   padding: 1px 6px;
   border-radius: 6px;
-  background: rgb(22 27 31 / 0.82);
-  color: var(--text);
+  background: var(--karte-bg);
+  color: var(--karte-text);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
@@ -116,7 +231,9 @@ label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
 .bft.stale { filter: grayscale(1); opacity: 0.7; }
 .bft.geist { filter: grayscale(1); opacity: 0.42; }
 .bft.geist .bft-sym { border-style: dashed; }
-.bft.ich .bft-sym { box-shadow: 0 0 0 2px var(--text); }
+/* eigene Position: Akzent-Halo und Rufname auf Akzentfarbe, unverwechselbar mit anderen */
+.bft.ich .bft-sym { box-shadow: 0 0 0 2px var(--accent), 0 0 0 6px color-mix(in srgb, var(--accent) 35%, transparent); }
+.bft.ich .bft-label { background: var(--accent); color: var(--accent-text); border-left-color: var(--accent-text); }
 .bft.emcon .bft-label::after { content: ' · EMCON'; color: var(--warn); }
 .bft.kein-gps .bft-label::after { content: ' · kein GPS'; color: var(--warn); }
 /* offline/abgelaufen: grau – das eigene Symbol bei GPS-Fehler nur gedämpft */
@@ -125,9 +242,9 @@ label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
 /* MapLibre-Bedienelemente nicht unter Kopf-/Werkzeugleiste */
 .maplibregl-ctrl-top-right { top: calc(var(--oben) + 4px + var(--banner-h, 0px)); }
 .maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right { bottom: var(--unten); }
-.maplibregl-ctrl-attrib { background: rgb(22 27 31 / 0.7) !important; color: var(--text-2); font-size: 11px; }
-.maplibregl-ctrl-attrib a { color: var(--text-2); }
-.maplibregl-ctrl-scale { background: rgb(22 27 31 / 0.7); color: var(--text); border-color: var(--text); }
+.maplibregl-ctrl-attrib { background: var(--karte-bg) !important; color: var(--karte-text); font-size: 11px; opacity: 0.85; }
+.maplibregl-ctrl-attrib a { color: var(--karte-text); }
+.maplibregl-ctrl-scale { background: var(--karte-bg); color: var(--karte-text); border-color: var(--karte-text); font-family: var(--mono); }
 .maplibregl-ctrl-group { background: var(--surface); }
 .maplibregl-ctrl-group button { min-height: 0; width: 44px; height: 44px; border-radius: 0; border: 0; background: transparent; }
 .maplibregl-ctrl-compass .maplibregl-ctrl-icon { filter: invert(0.9); }

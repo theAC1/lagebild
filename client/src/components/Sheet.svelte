@@ -37,6 +37,13 @@
       transform: translateX(-50%);
     }
   }
+  /* Daumen-Ränder hoch: das Dock bleibt unter dem Sheet sichtbar und bedienbar */
+  @media (orientation: portrait) {
+    :global(:root:has(.daumen)) .sheet {
+      bottom: var(--unten);
+      padding-bottom: 0;
+    }
+  }
   /* Querformat: Seitenpanel neben der Karte (App legt die Panels in eine Zeile links) */
   @media (orientation: landscape) {
     .sheet {

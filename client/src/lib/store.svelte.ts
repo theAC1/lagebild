@@ -41,6 +41,8 @@ export interface Einstellungen {
   ausrichtung: 'auto' | 'hoch' | 'quer';
   /** Koordinatenzeile unten (Tippen aufs eigene Symbol schaltet) */
   koordLeiste: boolean;
+  /** Anordnung der Bedienelemente (Testbetrieb v3): heutige Leiste oder «Daumen-Ränder» */
+  bedienung: 'klassisch' | 'daumen';
 }
 const STANDARD_EINST: Einstellungen = {
   intervallS: 10,
@@ -51,6 +53,7 @@ const STANDARD_EINST: Einstellungen = {
   overlays: [],
   ausrichtung: 'auto',
   koordLeiste: false,
+  bedienung: 'daumen',
 };
 
 function ladeEinstellungen(): Einstellungen {

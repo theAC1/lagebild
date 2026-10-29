@@ -10,6 +10,10 @@
     { id: 'hoch', label: 'Hoch' },
     { id: 'quer', label: 'Quer' },
   ];
+  const BEDIENUNGEN: { id: Einstellungen['bedienung']; label: string }[] = [
+    { id: 'daumen', label: 'Daumen-Ränder' },
+    { id: 'klassisch', label: 'Klassisch' },
+  ];
   const staleS = $derived(staleNachFuer(store.einstellungen.intervallS * 1000) / 1000);
   let verlassenFragen = $state(false);
 
@@ -20,6 +24,16 @@
 </script>
 
 <div class="gruppen">
+  <div>
+    <div class="titel">Bedienung</div>
+    <div class="segmente" role="group" aria-label="Bedienung">
+      {#each BEDIENUNGEN as b (b.id)}
+        <button aria-pressed={store.einstellungen.bedienung === b.id} onclick={() => setzeEinstellung('bedienung', b.id)}>{b.label}</button>
+      {/each}
+    </div>
+    <p class="leise">Daumen-Ränder: Melden links, Karte rechts. Wird pro Gerät gemerkt.</p>
+  </div>
+
   <label class="schalter">
     <span>
       <strong>Position senden</strong>

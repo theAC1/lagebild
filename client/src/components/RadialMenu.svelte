@@ -72,7 +72,8 @@
     width: 44px;
     min-height: 44px;
     border-radius: 50%;
-    background: rgb(22 27 31 / 0.85);
+    background: var(--karte-bg);
+    color: var(--karte-text);
   }
   /* Symbol (nicht der ganze Knopf mit Beschriftung) sitzt auf dem Ring */
   .ring .knopf {
@@ -102,7 +103,8 @@
     max-width: 132px;
     padding: 0 5px;
     border-radius: 6px;
-    background: rgb(22 27 31 / 0.88);
+    background: var(--karte-bg);
+    color: var(--karte-text);
     font-size: 0.72rem;
     font-weight: 600;
     line-height: 1.35;

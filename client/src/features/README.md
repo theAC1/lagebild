@@ -13,8 +13,20 @@ const feature: Feature = {
   Detail, detailArt: 'marker', // Detail-Sheet bei ui.auswahl = { art: detailArt, id }
   nurLeitung,   // Knopf nur für die Leitung
   badge: () => n, // Zähler am Knopf, reaktiv gelesen (z.B. ungelesen)
+  haupt: { aktion?, Knopf? }, // Bedienung «Daumen-Ränder»: fest sichtbare Hauptaktion statt Eintrag im Mehr-Menü
 };
 ```
+
+## Bedienung «Klassisch» / «Daumen-Ränder» (Spec v3)
+
+`store.einstellungen.bedienung` wählt die Anordnung; App rendert die klassische Leiste oder `components/Daumen.svelte`.
+Panels, Details, Radial-Menü und Fadenkreuz sind in beiden gleich.
+
+- Hauptaktionen (Status, Marker, Sichtung, Chat, Alarm) setzen `haupt`. Ohne `aktion` schaltet der Knopf das Panel;
+  `aktion` ersetzt das Öffnen (Marker/Sichtung: Fadenkreuz zuerst), `Knopf` den ganzen Knopf (Status mit Farbe, Alarm halten).
+  Wo die Knöpfe sitzen (quer links/rechts, hoch im Dock), legt `Daumen.svelte` fest.
+- Alle übrigen Features mit `Panel` landen im Mehr-Menü, dazu Teilnehmende und Einstellungen.
+- Melden geht ohne Tastatur: Chips (`.chips`, `aria-pressed`) mit Vorgaben, Freitext eingeklappt hinter «+ Text».
 
 ## lib/store.svelte.ts – Lage und Verbindung
 
@@ -33,13 +45,13 @@ const feature: Feature = {
 - `waehle(art, id)`: Detail-Panel (`DETAIL`, params `{ art, id }`), es gibt höchstens eines.
 - `schliesse(id?)`: ohne ID das oberste Panel (das, in dem zuletzt getippt wurde), `schliesseAlle()`.
 - `istOffen(id)` statt `ui.panel?.id === id` (ein Panel kann auch das zweite sein). `ui.panel` (oberstes Feature-Panel) und `ui.auswahl` (Detail) bleiben als Nur-Lese-Getter für v1-Code.
-- `ui.folgen` (eigene Position), `ui.folgtTeilnehmer`, `ui.radial`, `ui.kontext`, `toast(text, ms?)`, `ikon(svgInhalt)`, `lies/schreibe` (localStorage, fehlertolerant).
+- `ui.folgen` (eigene Position), `ui.folgtTeilnehmer`, `ui.radial`, `ui.kontext`, `toast(text, ms?, { label, aktion }?)` (optional mit Knopf), `ikon(svgInhalt)`, `lies/schreibe` (localStorage, fehlertolerant).
 
 Konventionen für `params`: Chat `{ an: ChatZiel }`, Range & Bearing `{ ziel: { art: 'teilnehmer' | 'marker' | 'sichtung' | 'punkt', id?, punkt? } }`.
 
 ## lib/map.ts – Karte
 
-`getMap()` (in MapLayer sicher), `onMapReady(cb)`, `zentriere(p, zoom?)`, `folgeMir()`, `folgeTeilnehmer(id)`, `waehlePunkt(hinweis): Promise<Punkt | null>` (Fadenkreuz, Panels werden ausgeblendet), `registriereKontextAktion({ label, aktion(p), nurLeitung? })` → Abmeldefunktion (Langdruck/Rechtsklick auf leere Karte).
+`getMap()` (in MapLayer sicher), `onMapReady(cb)`, `kartenMitte()`, `zentriere(p, zoom?)`, `folgeMir()`, `folgeTeilnehmer(id)`, `waehlePunkt(hinweis, knopf = 'Übernehmen'): Promise<Punkt | null>` (Fadenkreuz, Panels werden ausgeblendet), `registriereKontextAktion({ label, aktion(p), nurLeitung? })` → Abmeldefunktion (Langdruck/Rechtsklick auf leere Karte).
 
 ### Radial-Menü (Langdruck/Rechtsklick auf ein Symbol)
 
@@ -67,4 +79,4 @@ onDestroy(ab);
 - `lib/team.ts`: `teamFarbe(einheit)` (ATAK-Teamfarbe, z.B. für Spuren je Einheit).
 - `lib/Platzhalter.svelte`: Stub-Panel.
 
-Stil: globale Klassen aus `app.css` (`button.primaer`, `button.gefahr`, `button.icon`, `.segmente`, `label.feld`, `.mono`, `.leise`), Farben über `var(--accent)`, `--danger`, `--warn`, `--ok`, `--surface`, `--line`. Touch-Ziele ≥ 44 px (`--touch`).
+Stil: globale Klassen aus `app.css` (`button.primaer`, `button.gefahr`, `button.icon`, `.segmente`, `.chips`, `.gruppe-titel`, `.rand-knopf`, `label.feld`, `.mono`, `.leise`), Farben nur über Tokens (`--accent`, `--danger`, `--warn`, `--ok`, `--surface`, `--line`, `--text`; auf der Karte `--karte-bg`/`--karte-text`), weil `data-thema` nach Sonnenstand zwischen Nacht (dunkel-taktisch) und Tag (hell) wechselt. Touch-Ziele ≥ 48 px (`--touch`), Hauptaktionen ≥ 56 px (`--haupt`).

@@ -1,6 +1,8 @@
 <script lang="ts">
   import Ausrichtung from './components/Ausrichtung.svelte';
   import BftLayer from './components/BftLayer.svelte';
+  import Daumen from './components/Daumen.svelte';
+  import EbenenListe from './components/EbenenListe.svelte';
   import EigenePosition from './components/EigenePosition.svelte';
   import Einstellungen from './components/Einstellungen.svelte';
   import Fadenkreuz from './components/Fadenkreuz.svelte';
@@ -12,14 +14,14 @@
   import Sheet from './components/Sheet.svelte';
   import TeilnehmerDetail from './components/TeilnehmerDetail.svelte';
   import TeilnehmerListe from './components/TeilnehmerListe.svelte';
-  import { untrack } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import Nachbereitung from './features/leitung/Nachbereitung.svelte';
   import { features } from './features/registry.ts';
-  import { folgeMir } from './lib/map.ts';
+  import { folgeMir, onMapReady } from './lib/map.ts';
   import './lib/radialKern.ts';
   import { aktualisiereWachhalten, starteGps, stoppeGps } from './lib/position.svelte.ts';
-  import { BASISKARTEN, OVERLAYS, type Overlay } from './lib/karten.ts';
-  import { setzeEinstellung, store, verbinde } from './lib/store.svelte.ts';
+  import { store, verbinde } from './lib/store.svelte.ts';
+  import { pruefeThema } from './lib/thema.ts';
   import { neuLaden, update } from './lib/update.svelte.ts';
   import { begrenzePanels, DETAIL, ikon, istOffen, maxPanels, merkeQuelle, oeffne, schliesse, setzeLeisteZu, ui, type PanelZustand } from './lib/ui.svelte.ts';
 
@@ -35,6 +37,7 @@
     return EINGEBAUT[p.id] ?? featureVon(p.id)?.label ?? p.id;
   }
   const koordLeiste = $derived(store.einstellungen.koordLeiste || !store.meinePos); // ohne Fix ist sie die einzige GPS-Anzeige
+  const daumen = $derived(store.einstellungen.bedienung === 'daumen');
 
   // Unter 1100 px (oder nach dem Drehen ins Hochformat) bleibt nur das oberste Panel
   $effect(() => {
@@ -64,10 +67,17 @@
     return stoppeGps;
   });
 
-  function umschalten(o: Overlay) {
-    const aktiv = store.einstellungen.overlays;
-    setzeEinstellung('overlays', aktiv.includes(o) ? aktiv.filter((x) => x !== o) : [...aktiv, o]);
-  }
+  // Tag/Nacht nach Sonnenstand: minütlich, sobald die Karte steht und wenn das GPS (wieder) einen Fix hat
+  const hatGps = $derived(store.meinePos !== null);
+  $effect(() => {
+    void hatGps;
+    untrack(pruefeThema);
+  });
+  onMount(() => {
+    onMapReady(pruefeThema);
+    const iv = setInterval(pruefeThema, 60_000);
+    return () => clearInterval(iv);
+  });
 
   const VERBINDUNG = { verbunden: 'verbunden', verbinde: 'verbinde …', getrennt: 'getrennt' } as const;
 </script>
@@ -83,7 +93,7 @@
       {#if f.MapLayer}<f.MapLayer />{/if}
     {/each}
     {#if ui.kontext}<KontextMenu punkt={ui.kontext} />{/if}
-    {#if ui.punktWahl}<Fadenkreuz hinweis={ui.punktWahl.hinweis} />{/if}
+    {#if ui.punktWahl}<Fadenkreuz hinweis={ui.punktWahl.hinweis} knopf={ui.punktWahl.knopf} />{/if}
   {/if}
 </MapView>
 
@@ -91,6 +101,8 @@
   <Login />
 {:else if store.beendet}
   <Nachbereitung />
+{:else if daumen}
+  <Daumen />
 {:else}
   <header class="kopf">
     <div class="lage">
@@ -114,18 +126,7 @@
       {@html ikon('<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>')}
     </button>
     {#if basisOffen}
-      <div class="basis-wahl" role="group" aria-label="Karte">
-        <div class="gruppe">Karte</div>
-        {#each BASISKARTEN as b (b.id)}
-          <button aria-pressed={store.einstellungen.basiskarte === b.id} onclick={() => setzeEinstellung('basiskarte', b.id)}>{b.label}</button>
-        {/each}
-        <div class="gruppe">Ebenen</div>
-        {#each OVERLAYS as o (o.id)}
-          <button class="ebene" aria-pressed={store.einstellungen.overlays.includes(o.id)} onclick={() => umschalten(o.id)}>
-            <span class="haken" aria-hidden="true"></span>{o.label}
-          </button>
-        {/each}
-      </div>
+      <div class="basis-wahl" role="group" aria-label="Karte"><EbenenListe /></div>
     {/if}
     <button class="icon rund" class:aktiv={ui.folgen} aria-label="Eigener Position folgen" aria-pressed={ui.folgen} onclick={folgeMir}>
       {@html ikon('<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>')}
@@ -158,7 +159,9 @@
       </button>
     </nav>
   </footer>
+{/if}
 
+{#if store.token && !store.beendet}
   {#if !ui.punktWahl && ui.panels.length}
     <div class="panels">
       {#each ui.panels as p (p.id)}
@@ -187,7 +190,19 @@
     <button class="toast neu" onclick={() => neuLaden(true)}>Neue Version bereit · <u>Neu laden</u></button>
   {/if}
   {#each ui.toasts as t (t.id)}
-    <div class="toast">{t.text}</div>
+    <div class="toast">
+      {t.text}
+      {#if t.knopf}
+        {@const k = t.knopf}
+        <button
+          class="toast-knopf"
+          onclick={() => {
+            ui.toasts = ui.toasts.filter((x) => x.id !== t.id);
+            k.aktion();
+          }}>{k.label}</button
+        >
+      {/if}
+    </div>
   {/each}
 </div>
 
@@ -203,7 +218,7 @@
     align-items: center;
     gap: 4px;
     padding: var(--safe-top) 6px 0 14px;
-    background: rgb(22 27 31 / 0.9);
+    background: var(--kopf-bg);
     border-bottom: 1px solid var(--line);
   }
   .kopf button {
@@ -221,26 +236,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  .verbindung {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.75rem;
-    color: var(--text-2);
-  }
-  .lampe {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--danger);
-  }
-  .verbunden .lampe {
-    background: var(--ok);
-  }
-  .verbinde .lampe {
-    background: var(--warn);
-    animation: blinken 1s infinite;
   }
   .zahl {
     position: absolute;
@@ -281,15 +276,6 @@
     border: 1px solid var(--line);
     border-radius: var(--radius);
   }
-  .basis-wahl button {
-    border: 0;
-    text-align: left;
-    background: transparent;
-  }
-  .basis-wahl button[aria-pressed='true'] {
-    color: var(--accent);
-    font-weight: 600;
-  }
   .basis-wahl {
     max-height: max(160px, calc(100dvh - var(--oben) - var(--unten) - 72px - var(--banner-h, 0px)));
     overflow-y: auto;
@@ -307,31 +293,6 @@
       left: calc(var(--links, 0px) + 10px);
       max-height: calc(100dvh - var(--oben) - var(--unten) - 16px);
     }
-  }
-  .gruppe {
-    padding: 6px 12px 2px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-2);
-  }
-  .ebene {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .haken {
-    width: 18px;
-    height: 18px;
-    flex: none;
-    border: 2px solid var(--line);
-    border-radius: 4px;
-  }
-  .ebene[aria-pressed='true'] .haken {
-    border-color: var(--accent);
-    background: var(--accent);
-    box-shadow: inset 0 0 0 3px var(--surface);
   }
   .unten {
     position: fixed;
@@ -467,7 +428,7 @@
     .panels {
       position: fixed;
       top: calc(var(--oben) + var(--banner-h, 0px));
-      left: 0;
+      left: var(--rand-l);
       bottom: 0;
       z-index: 20;
       display: flex;
@@ -481,14 +442,17 @@
     box-shadow: 0 6px 18px rgb(0 0 0 / 0.45);
     text-align: center;
   }
+  .toast-knopf {
+    pointer-events: auto;
+    min-height: var(--touch);
+    margin-left: 10px;
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 700;
+  }
   .neu {
     pointer-events: auto;
     color: var(--text);
     border-color: var(--accent);
-  }
-  @keyframes blinken {
-    50% {
-      opacity: 0.3;
-    }
   }
 </style>

@@ -33,7 +33,7 @@
     padding: 0 12px;
     border: 0;
     border-radius: 0;
-    background: rgb(22 27 31 / 0.9);
+    background: var(--kopf-bg);
     text-align: left;
     font-size: 0.95rem;
   }

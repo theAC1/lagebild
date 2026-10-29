@@ -66,7 +66,7 @@
     display: grid;
     gap: 4px;
     padding: 6px 8px 6px 12px;
-    background: rgb(22 27 31 / 0.92);
+    background: var(--kopf-bg);
     border: 1px solid var(--line);
     border-left: 5px solid var(--farbe);
     border-radius: var(--radius);
@@ -120,7 +120,7 @@
   }
   @keyframes bh-blinken {
     50% {
-      background: color-mix(in srgb, var(--farbe) 45%, rgb(22 27 31));
+      background: color-mix(in srgb, var(--farbe) 45%, var(--surface));
     }
   }
   @media (max-height: 500px) {
