@@ -39,3 +39,8 @@ E2E braucht einmalig `npx playwright install chromium`. Die Tests (`e2e/*.e2e.ts
 | Status | Fester Satz + Freitext; Juan: «und aber auch Von der Leitung pro Lage definiert» → Leitung kann die Liste je Lage anpassen |
 | Datenhaltung | Spuren für Nachbesprechung (Export GPX/GeoJSON), Löschen manuell durch Leitung |
 | TAK-Vorbilder | Juan: «ja, bau die Punkte gleich mit ein» → Abschnitt A der Recherche in v1 (siehe Spec-Nachtrag) |
+| Querformat (29.10.) | Werkzeugleiste rechts, einklappbar; Panels seitlich neben der Karte; zwei Panels nebeneinander auf breiten Bildschirmen; Koordinatenzeile per Tippen aufs eigene Symbol; Einstellung Ausrichtung hoch/quer/auto (Juan: «muss aber in der Einstellung aktiviert werden (fix portrait, fix landscape oder automatisch beim drehen)») |
+| Desktop (29.10.) | Rechtsklick = langes Tippen, Mausrad zoomt, Doppelklick auf Symbol = Details; zwei Panels (Juan: «so das wie besprochen auch chat und Statusübersicht der Tn separat offen bleiben kann») |
+| v2-Umfang (29.10.) | Radial-Menü, Zeichnen, Bloodhound in einem Durchgang; Geofence und ATAK-Anbindung später |
+| Zeichnen (29.10.) | Alle zeichnen, Ersteller+Leitung bearbeiten; Desktop voller Umfang inkl. taktischer Linien, Räume, Messen, Lasso, Snapping, Koordinateneingabe in mehreren Systemen, Ebenen; Juan: «auf dem Mobilen gerät soll es stark reduziert sein. denn in der aktion wird da nicht viel gezeichnet» → mobil nur Ansehen + Linie/Pfeil/Kreis |
+| Bloodhound (29.10.) | Luftlinie mit Restzeit und Farbstufen; Leitung kann Ziele als Auftrag an Personen schicken |

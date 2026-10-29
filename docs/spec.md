@@ -56,3 +56,53 @@ Neuer Homelab-LXC (Debian, Node 22) mit systemd-Dienst. Öffentlich über den be
   - Zusätzliche Basiskarte: Landeskarte Winter.
   - Attribution pro Layer.
 - Lizenz: aus ATAK/TAK (GPL-3.0) nur Werte und Abläufe übernommen, kein Code und keine Assets.
+
+## Spec v2 (29.10.2026, vier Frage-Runden mit Juan)
+
+Umfang: Querformat, Desktop-Bedienung, Radial-Menü, Zeichnen, Bloodhound. In einem Durchgang gebaut. Später: Geofence, ATAK Data Package, CoT-Bridge, Offline-Gebietsdownload, Hintergrund-GPS.
+
+### 1. Ausrichtung & Layout
+
+- Manifest: `orientation: 'any'`. Neue Einstellung **Ausrichtung**: `hoch` | `quer` | `auto` (Standard `auto`). `screen.orientation.lock()` nur dort, wo es geht (Android, installiert/Vollbild); scheitert der Lock (iOS, Browser-Tab), zeigt die App bei falscher Lage einen Hinweis «Gerät drehen». Kein Absturz, keine Endlos-Meldung.
+- **Querformat** (Breite > Höhe): Werkzeuge als schmale **Leiste rechts**, einklappbar (Zustand in `localStorage`). Kopfzeile kompakt (eine Zeile, niedrig). Karte bekommt die volle Resthöhe.
+- **Panels** (Chat, Teilnehmer, Details, Feature-Panels) öffnen im Querformat als **Seitenpanel** neben der Karte (ca. 1/3 Breite, min. 320 px), die Karte bleibt sichtbar und bedienbar. Hochformat: wie heute von unten.
+- **Zwei Panels gleichzeitig** ab genügend Breite (≥ 1100 px): z. B. Chat und Teilnehmer-/Statusübersicht nebeneinander offen. Ein zweites Panel öffnet sich neben dem ersten statt es zu ersetzen; jedes hat einen eigenen Schliessen-Knopf. Darunter nur ein Panel.
+- **Koordinatenzeile** standardmässig ausgeblendet; Tippen/Klick auf das eigene Symbol blendet sie ein/aus (Zustand gemerkt). Gilt in beiden Ausrichtungen.
+- Ziel-Grössen: Handy quer (z. B. 844×390), Tablet (1180×820, 820×1180), Desktop (1440×900, 1920×1080). Bedienelemente ≥ 44 px Trefferfläche auf Touch.
+
+### 2. Desktop-Bedienung
+
+- **Rechtsklick** = langes Tippen (Kontextmenü auf der Karte, Radial-Menü auf Symbolen). Browser-Kontextmenü auf der Karte unterdrückt.
+- **Mausrad** zoomt. **Doppelklick** auf ein Symbol öffnet dessen Details, Doppelklick auf leere Karte zoomt hinein.
+- Tastatur: `Esc` schliesst das oberste Panel / bricht das aktive Werkzeug ab; Zeichen-Kürzel siehe 4.
+
+### 3. Radial-Menü
+
+Langes Tippen / Rechtsklick auf ein Symbol öffnet einen Ring um das Symbol (max. 8 Knöpfe, Beschriftung sichtbar, Tippen ausserhalb schliesst):
+- **Teilnehmer:** Details, R&B von hier, Bloodhound, Folgen, Spur ein/aus, Chat; Leitung zusätzlich: Bloodhound-Auftrag.
+- **Marker / Sichtung:** Details, R&B, Bloodhound, Bearbeiten, Löschen (nur Ersteller/Leitung).
+- **Eigenes Symbol:** Details, Koordinaten ein/aus, Folgen, Spur, Marker hier setzen.
+- **Zeichnung:** Bearbeiten, Stil, Ebene, Kopieren, Löschen (nur Ersteller/Leitung).
+
+### 4. Zeichnen
+
+Rechte: alle dürfen zeichnen; bearbeiten/löschen nur Ersteller und Leitung (wie Marker). Alles live für alle sichtbar, im Meldungslog, im GeoJSON-/GPX-Export der Leitung enthalten, mit der Lage gelöscht.
+
+**Desktop (Maus/Tastatur, Breite ≥ 1024 px und feiner Zeiger) – voller Umfang:**
+- Formen: Linie/Polylinie, Pfeil, Fläche (Polygon), Rechteck, Kreis (Mittelpunkt + Radius), Freihand, Text.
+- Taktische Linien: Phasenlinie, Grenze/Abschnittsgrenze, Stossrichtung (breiter Pfeil), Sperre – je mit eigener Darstellung und Bezeichnung; Darstellung angelehnt an APP-6D, so weit ohne fremden Code machbar.
+- Räume: Bereitstellungs-, Ziel-, Sperr-, Verantwortungsraum als beschriftete Flächen mit Schraffur bzw. Randstil.
+- Messen: Strecke und Fläche, temporär (nicht gespeichert).
+- Bearbeiten: Stützpunkte ziehen/einfügen/löschen, Form verschieben, Mehrfachauswahl (Shift-Klick), **Lasso** (Auswahl mehrerer Elemente → gemeinsam verschieben, kopieren, löschen), Kopieren/Einfügen (Ctrl+C/V), Rückgängig/Wiederholen (Ctrl+Z/Ctrl+Y bzw. Ctrl+Shift+Z) für die eigene Sitzung.
+- Stil: Farbe, Strichstärke, Strichart (durchgezogen/gestrichelt/gepunktet), Füllung + Transparenz, Beschriftung an der Linie bzw. in der Fläche.
+- Fang/Snapping an bestehende Stützpunkte, Marker und Liniensegmente (abschaltbar, z. B. mit gedrückter Alt-Taste aussetzen).
+- Koordinaten eingeben: Punkte per Eingabe statt Klick, Formate **LV95, LV03, WGS84 dezimal, WGS84 G/M/S, MGRS, UTM** (Erkennung des Formats aus der Eingabe, mit Vorschau).
+- **Ebenen:** benannte Ebenen pro Lage (z. B. «Phase 1», «Sperren»), Zeichnung gehört zu genau einer Ebene, Ebenen ein-/ausblenden (lokal) und sperren (nur Leitung, gesperrt = nicht bearbeitbar). Ebenen anlegen/umbenennen/löschen: Leitung; alle dürfen in nicht gesperrte Ebenen zeichnen.
+- Kürzel: L Linie, P Fläche, R Rechteck, K Kreis, F Freihand, T Text, M Messen, S Auswahl, Entf löschen.
+
+**Mobil – stark reduziert:** alle Zeichnungen und Ebenen ansehen (Sichtbarkeit lokal schalten), Details lesen; zeichnen nur Linie, Pfeil, Kreis mit Standardfarbe; nur eigene Formen bearbeiten (Punkte ziehen, löschen). Kein Stil, kein Lasso, keine Ebenenverwaltung.
+
+### 5. Bloodhound
+
+- Luftlinie von mir zu Ziel (Teilnehmer, Marker, Sichtung, Kartenpunkt), keine Strassenroute. Anzeige: Distanz, Azimut (Grad und ‰), Restzeit aus geglätteter eigener Geschwindigkeit (ohne Bewegung: «—»). Linienfarbe nach Restzeit: > 360 s neutral, ≤ 360 s grün, ≤ 180 s gelb, ≤ 60 s rot. Aktualisiert sich, wenn sich Ziel oder ich bewegen. Ein aktives Bloodhound pro Person, beenden jederzeit.
+- **Auftrag durch die Leitung:** Die Leitung schickt einer Person ein Ziel; bei ihr startet Bloodhound automatisch mit Hinweis «Auftrag von Leitung». Die Leitung sieht pro Auftrag Distanz/Restzeit der Person (aus deren gesendeten Positionen, serverseitig nichts Neues zu rechnen nötig) und kann ihn aufheben. Die Person kann ihn quittieren und beenden; Beenden wird der Leitung gemeldet. Erreicht (≤ 25 m) wird automatisch gemeldet.
