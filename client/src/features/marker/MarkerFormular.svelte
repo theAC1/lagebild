@@ -1,9 +1,3 @@
-<script lang="ts" module>
-  import { MARKER_STANDARD_SIDC } from './logik.ts';
-  /** Zuletzt für einen neuen Marker gewähltes Zeichen (nur diese Sitzung). */
-  const letztesZeichen = { sidc: MARKER_STANDARD_SIDC };
-</script>
-
 <script lang="ts">
   import type { Marker, Punkt } from '../../../../shared/protocol.ts';
   import { formatLv95, formatMgrs } from '../../lib/coords.ts';
@@ -11,13 +5,14 @@
   import { send } from '../../lib/store.svelte.ts';
   import { oeffne, schliesse, toast, waehle } from '../../lib/ui.svelte.ts';
   import { setzenNachricht } from './logik.ts';
+  import { letztesZeichen, merkeZeichen } from './schnell.ts';
 
   /** Entweder bestehender Marker (bearbeiten) oder Punkt (neu). */
   let { alt, punkt }: { alt?: Marker; punkt: Punkt } = $props();
 
   // Startwerte einmalig aus den Props; Panel setzt bei neuen Params einen {#key}.
   const start = (() => alt)();
-  let sidc = $state(start?.sidc ?? letztesZeichen.sidc);
+  let sidc = $state(start?.sidc ?? letztesZeichen());
   let bezeichnung = $state(start?.bezeichnung ?? '');
   let notiz = $state(start?.notiz ?? '');
 
@@ -25,7 +20,7 @@
     ev.preventDefault();
     if (!send(setzenNachricht({ id: alt?.id, sidc, lat: punkt.lat, lon: punkt.lon, bezeichnung, notiz })))
       return toast('Keine Verbindung – Marker nicht gespeichert.');
-    if (!alt) letztesZeichen.sidc = sidc; // Serien (z.B. mehrere Feindmarker) ohne erneute Symbolwahl
+    if (sidc !== alt?.sidc) merkeZeichen(sidc); // Serien (z.B. mehrere Feindmarker) und der Schnellablauf nehmen es wieder
     toast(alt ? 'Marker geändert' : 'Marker gesetzt');
     if (alt) waehle('marker', alt.id);
     else schliesse();

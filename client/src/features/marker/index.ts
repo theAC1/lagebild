@@ -3,6 +3,7 @@ import { ikon } from '../../lib/ui.svelte.ts';
 import MarkerPanel from './MarkerPanel.svelte';
 import MarkerLayer from './MarkerLayer.svelte';
 import MarkerDetail from './MarkerDetail.svelte';
+import { markerSchnell } from './schnell.ts';
 
 const feature: Feature = {
   id: 'marker',
@@ -12,6 +13,7 @@ const feature: Feature = {
   MapLayer: MarkerLayer,
   Detail: MarkerDetail,
   detailArt: 'marker',
+  haupt: { aktion: markerSchnell },
 };
 
 export default feature;
