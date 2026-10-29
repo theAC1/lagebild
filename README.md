@@ -44,3 +44,6 @@ E2E braucht einmalig `npx playwright install chromium`. Die Tests (`e2e/*.e2e.ts
 | v2-Umfang (29.10.) | Radial-Menü, Zeichnen, Bloodhound in einem Durchgang; Geofence und ATAK-Anbindung später |
 | Zeichnen (29.10.) | Alle zeichnen, Ersteller+Leitung bearbeiten; Desktop voller Umfang inkl. taktischer Linien, Räume, Messen, Lasso, Snapping, Koordinateneingabe in mehreren Systemen, Ebenen; Juan: «auf dem Mobilen gerät soll es stark reduziert sein. denn in der aktion wird da nicht viel gezeichnet» → mobil nur Ansehen + Linie/Pfeil/Kreis |
 | Bloodhound (29.10.) | Luftlinie mit Restzeit und Farbstufen; Leitung kann Ziele als Auftrag an Personen schicken |
+| Bedienung v3 (29.10.) | Juan: «sehr prototypmäßig … nicht da, wo dann auch wirklich ein Button oder so logisch wäre». Störfaktoren: Wege zu lang, Knöpfe verstreut, Optik roh. Entscheid: Karte zuerst, Variante «Daumen-Ränder» (Melden links, Karte rechts), optimiert fürs Querformat, Test in echter Lage per Einstellung «Bedienung» |
+| Hauptaktionen (29.10.) | Status, Marker, Sichtung, Chat mit einem Tipp; Rest im Mehr-Menü |
+| Abläufe (29.10.) | Marker per Fadenkreuz mit letztem Symbol, Details danach; Alarm 1,5 s gedrückt halten; Tag/Nacht automatisch nach Sonnenstand; Optik dunkel-taktisch + heller Tagmodus |

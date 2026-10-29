@@ -106,3 +106,33 @@ Rechte: alle dürfen zeichnen; bearbeiten/löschen nur Ersteller und Leitung (wi
 
 - Luftlinie von mir zu Ziel (Teilnehmer, Marker, Sichtung, Kartenpunkt), keine Strassenroute. Anzeige: Distanz, Azimut (Grad und ‰), Restzeit aus geglätteter eigener Geschwindigkeit (ohne Bewegung: «—»). Linienfarbe nach Restzeit: > 360 s neutral, ≤ 360 s grün, ≤ 180 s gelb, ≤ 60 s rot. Aktualisiert sich, wenn sich Ziel oder ich bewegen. Ein aktives Bloodhound pro Person, beenden jederzeit.
 - **Auftrag durch die Leitung:** Die Leitung schickt einer Person ein Ziel; bei ihr startet Bloodhound automatisch mit Hinweis «Auftrag von Leitung». Die Leitung sieht pro Auftrag Distanz/Restzeit der Person (aus deren gesendeten Positionen, serverseitig nichts Neues zu rechnen nötig) und kann ihn aufheben. Die Person kann ihn quittieren und beenden; Beenden wird der Leitung gemeldet. Erreicht (≤ 25 m) wird automatisch gemeldet.
+
+## Spec v3: Bedienung «Daumen-Ränder» (29.10.2026, drei Frage-Runden mit Juan)
+
+Anlass: Juan beim Test auf dem Handy: «die Bedienung [ist] sehr prototypmäßig … nicht da, wo dann auch wirklich ein Button oder so logisch wäre». Störfaktoren laut Juan: Wege zu lang, Knöpfe verstreut, Optik wirkt roh. Dass die Karte verdeckt ist, stört ihn nicht.
+
+### Grundsatz
+- **Karte zuerst.** Aktionen löst man am Ort aus, per Tippen, Langdruck oder Radial-Menü. Fest sichtbar sind nur vier Hauptaktionen: **Status, Marker, Sichtung, Chat**.
+- Alles Übrige kommt ins **Mehr-Menü**: Range & Bearing, Spuren, Zeichnen, Leitung, Teilnehmende, Einstellungen.
+- Optimiert wird für das **Querformat**: Handy oder Tablet mit zwei Händen, im Fahrzeug oder am Tisch. Das Hochformat übernimmt das Konzept.
+- **Testbetrieb:** Unter Einstellungen gibt es «Bedienung: Klassisch / Daumen-Ränder», pro Gerät gemerkt. Getestet wird in einer echten Lage. Die Variante, die verliert, wird danach entfernt.
+
+### Layout «Daumen-Ränder»
+- **Querformat:**
+  - Linker Rand für das Melden: oben Status mit dem aktuellen Status als Farbe und Text, darunter Sichtung, ganz unten Alarm.
+  - Rechter Rand: oben die Kartenknöpfe (Ebenen, Folgen, Nordung), unten Marker, Chat und Mehr.
+  - Die Kopfzeile ist schlank: Lage, Verbindung, Zahl der Teilnehmenden.
+- **Hochformat:** Ein Dock unten mit Status, Marker, Sichtung, Chat und Mehr. Die Kartenknöpfe liegen rechts, der Alarm-Knopf links unten über dem Dock.
+- Panels öffnen wie in v2: im Querformat als Seitenpanel, im Hochformat als Sheet unten.
+
+### Abläufe
+- **Status:** Ein Tipp öffnet die Auswahl, ein Tipp auf einen Status meldet ihn. Freitext bleibt optional. Das sind höchstens zwei Tipps.
+- **Marker:** Ein Tipp blendet das Fadenkreuz in der Kartenmitte ein. Man schiebt die Karte und tippt «Setzen». Der Marker entsteht mit dem zuletzt benutzten Symbol und der automatischen Bezeichnung (siehe unten). Danach kann man ihn bearbeiten (Symbol, Name, Notiz), muss aber nicht.
+- **Alarm:** 1,5 s gedrückt halten, dabei füllt sich ein Ring. Danach wählt man Notfall oder Feindkontakt. Loslassen vor Ablauf bricht ab. Der Alarm ist ohne Hinsehen auslösbar, versehentliches Auslösen ist ausgeschlossen.
+- **Tag/Nacht automatisch nach Sonnenstand:** Liegt die Sonne über dem Horizont, gilt der Tagmodus (hell), sonst der dunkle Modus. Gerechnet wird mit der eigenen Position, ohne GPS mit der Kartenmitte. Die App prüft minütlich. Es gibt keinen Schalter.
+
+### Optik
+- Neues Farb- und Typo-System mit Tokens: «Dunkel-taktisch» (gedeckte Oliv-/Sandtöne) und ein heller Tagmodus mit hohem Kontrast für Sonnenlicht.
+- Koordinaten und Messwerte in Monospace.
+- Eigene Position deutlich von anderen unterscheidbar.
+- Ziel ist ein Werkzeug-Look statt eines Prototyps: klare Hierarchie, ruhige Flächen, grosse Touch-Ziele (≥ 48 px, Hauptaktionen ≥ 56 px).
