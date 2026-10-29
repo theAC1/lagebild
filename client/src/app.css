@@ -21,13 +21,28 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --oben: calc(52px + var(--safe-top)); /* Höhe Kopfleiste */
-  --unten: calc(116px + var(--safe-bottom)); /* Koordinatenleiste + Werkzeugleiste */
+  --unten: calc(76px + var(--safe-bottom)); /* Werkzeugleiste (+ Koordinatenzeile, siehe unten) */
+  /* Querformat: --links = Breite offener Seitenpanels, --rechts = Werkzeugleiste; die Karte liegt dazwischen */
+  --links: 0px;
+  --rechts: 0px;
+  --panel-b: clamp(320px, 30vw, 420px);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 16px;
   line-height: 1.4;
   color: var(--text);
   background: var(--bg);
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Die Variablen folgen dem, was App gerade zeigt (Koordinatenzeile, Panels, eingeklappte Leiste) */
+:root:has(footer.unten .leiste) { --unten: calc(116px + var(--safe-bottom)); }
+@media (orientation: landscape) {
+  :root { --oben: calc(44px + var(--safe-top)); --unten: var(--safe-bottom); }
+  :root:has(footer.unten .leiste) { --unten: calc(40px + var(--safe-bottom)); }
+  :root:has(nav.werkzeuge:not(.zu)) { --rechts: calc(76px + env(safe-area-inset-right, 0px)); }
+  :root:has(.panels > .sheet) { --links: var(--panel-b); }
+  /* zwei Panels: schmaler, damit die Karte auch auf dem Tablet sichtbar bleibt */
+  :root:has(.panels > .sheet + .sheet) { --panel-b: clamp(320px, 22vw, 380px); --links: calc(2 * var(--panel-b)); }
 }
 
 * { box-sizing: border-box; }

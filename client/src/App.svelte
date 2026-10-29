@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Ausrichtung from './components/Ausrichtung.svelte';
   import BftLayer from './components/BftLayer.svelte';
   import EigenePosition from './components/EigenePosition.svelte';
   import Einstellungen from './components/Einstellungen.svelte';
@@ -7,25 +8,50 @@
   import KoordLeiste from './components/KoordLeiste.svelte';
   import Login from './components/Login.svelte';
   import MapView from './components/MapView.svelte';
+  import RadialMenu from './components/RadialMenu.svelte';
   import Sheet from './components/Sheet.svelte';
   import TeilnehmerDetail from './components/TeilnehmerDetail.svelte';
   import TeilnehmerListe from './components/TeilnehmerListe.svelte';
   import { untrack } from 'svelte';
   import Nachbereitung from './features/leitung/Nachbereitung.svelte';
   import { features } from './features/registry.ts';
-  import { zentriere } from './lib/map.ts';
+  import { folgeMir } from './lib/map.ts';
+  import './lib/radialKern.ts';
   import { aktualisiereWachhalten, starteGps, stoppeGps } from './lib/position.svelte.ts';
   import { BASISKARTEN, OVERLAYS, type Overlay } from './lib/karten.ts';
   import { setzeEinstellung, store, verbinde } from './lib/store.svelte.ts';
-  import { ikon, oeffne, schliesse, toast, ui } from './lib/ui.svelte.ts';
+  import { begrenzePanels, DETAIL, ikon, istOffen, maxPanels, merkeQuelle, oeffne, schliesse, setzeLeisteZu, ui, type PanelZustand } from './lib/ui.svelte.ts';
 
   const EINGEBAUT: Record<string, string> = { teilnehmer: 'Teilnehmende', einstellungen: 'Einstellungen' };
 
   let basisOffen = $state(false);
 
   const sichtbar = $derived(features.filter((f) => !f.nurLeitung || store.istLeitung));
-  const panelFeature = $derived(ui.panel ? features.find((f) => f.id === ui.panel!.id) : undefined);
-  const detailFeature = $derived(ui.auswahl ? features.find((f) => f.detailArt === ui.auswahl!.art) : undefined);
+  const featureVon = (id: string) => features.find((f) => f.id === id);
+  const detailVon = (art: string) => features.find((f) => f.detailArt === art);
+  function titelVon(p: PanelZustand): string {
+    if (p.id === DETAIL) return p.params.art === 'teilnehmer' ? 'Teilnehmer' : (detailVon(p.params.art)?.label ?? 'Detail');
+    return EINGEBAUT[p.id] ?? featureVon(p.id)?.label ?? p.id;
+  }
+  const koordLeiste = $derived(store.einstellungen.koordLeiste || !store.meinePos); // ohne Fix ist sie die einzige GPS-Anzeige
+
+  // Unter 1100 px (oder nach dem Drehen ins Hochformat) bleibt nur das oberste Panel
+  $effect(() => {
+    void maxPanels();
+    untrack(begrenzePanels);
+  });
+
+  // Esc: zuerst Menüs, dann Werkzeug (Punktwahl), dann das oberste Panel
+  function taste(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    if (ui.radial) ui.radial = null;
+    else if (ui.kontext) ui.kontext = null;
+    else if (ui.punktWahl) ui.punktWahl.fertig(null);
+    else if (basisOffen) basisOffen = false;
+    else if (ui.panels.length) schliesse();
+    else return;
+    e.preventDefault();
+  }
 
   // Angemeldet: Verbindung + GPS + Wakelock; abgemeldet oder Lage beendet: alles stoppen.
   // Wachhalten ungetrackt: es liest store.einstellungen, sonst startet jede Einstellung GPS und Verbindung neu.
@@ -42,14 +68,11 @@
     setzeEinstellung('overlays', aktiv.includes(o) ? aktiv.filter((x) => x !== o) : [...aktiv, o]);
   }
 
-  function folgen() {
-    if (!store.meinePos) return toast(store.gpsFehler ?? 'Noch keine eigene Position.');
-    zentriere(store.meinePos, 16);
-    ui.folgen = true;
-  }
-
   const VERBINDUNG = { verbunden: 'verbunden', verbinde: 'verbinde …', getrennt: 'getrennt' } as const;
 </script>
+
+<svelte:window onkeydown={taste} onpointerdowncapture={(e) => merkeQuelle((e.target as Element).closest?.<HTMLElement>('[data-panel]')?.dataset.panel ?? null)} />
+<Ausrichtung />
 
 <MapView>
   {#if store.token && !store.beendet}
@@ -103,7 +126,7 @@
         {/each}
       </div>
     {/if}
-    <button class="icon rund" class:aktiv={ui.folgen} aria-label="Eigener Position folgen" aria-pressed={ui.folgen} onclick={folgen}>
+    <button class="icon rund" class:aktiv={ui.folgen} aria-label="Eigener Position folgen" aria-pressed={ui.folgen} onclick={folgeMir}>
       {@html ikon('<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>')}
     </button>
     {#each sichtbar as f (f.id)}
@@ -112,41 +135,50 @@
   </div>
 
   <footer class="unten">
-    <KoordLeiste />
-    <nav class="werkzeuge" aria-label="Werkzeuge">
+    {#if koordLeiste}<KoordLeiste />{/if}
+    <nav class="werkzeuge" class:zu={ui.leisteZu} aria-label="Werkzeuge">
       <!-- Features mit eigenem Schnellknopf (Status, Alarm) nicht doppelt: sonst passt die Leiste nicht auf ein Handy -->
       {#each sichtbar.filter((f) => f.Panel && !f.Toolbar && !f.Kopf) as f (f.id)}
         {@const badge = f.badge?.() ?? 0}
-        <button class="werkzeug" aria-pressed={ui.panel?.id === f.id} onclick={() => (ui.panel?.id === f.id ? schliesse() : oeffne(f.id))}>
+        <button class="werkzeug" aria-pressed={istOffen(f.id)} onclick={() => (istOffen(f.id) ? schliesse(f.id) : oeffne(f.id))}>
           {#if typeof f.icon === 'string'}{@html f.icon}{:else}<f.icon />{/if}
           <span>{f.label}</span>
           {#if badge > 0}<span class="badge">{badge > 99 ? '99+' : badge}</span>{/if}
         </button>
       {/each}
+      <!-- nur im Querformat sichtbar: Leiste rechts ein-/ausklappen -->
+      <button
+        class="werkzeug einklappen"
+        aria-label={ui.leisteZu ? 'Werkzeugleiste ausklappen' : 'Werkzeugleiste einklappen'}
+        aria-expanded={!ui.leisteZu}
+        onclick={() => setzeLeisteZu(!ui.leisteZu)}
+      >
+        {@html ikon(ui.leisteZu ? '<path d="M15 6l-6 6 6 6"/>' : '<path d="M9 6l6 6-6 6"/>')}
+      </button>
     </nav>
   </footer>
 
-  {#if !ui.punktWahl}
-    {#if ui.panel}
-      <Sheet titel={EINGEBAUT[ui.panel.id] ?? panelFeature?.label ?? ui.panel.id} onclose={schliesse}>
-        {#if ui.panel.id === 'teilnehmer'}
-          <TeilnehmerListe />
-        {:else if ui.panel.id === 'einstellungen'}
-          <Einstellungen />
-        {:else if panelFeature?.Panel}
-          <panelFeature.Panel params={ui.panel.params} />
-        {/if}
-      </Sheet>
-    {:else if ui.auswahl}
-      <Sheet titel={ui.auswahl.art === 'teilnehmer' ? 'Teilnehmer' : (detailFeature?.label ?? 'Detail')} onclose={schliesse}>
-        {#if ui.auswahl.art === 'teilnehmer'}
-          <TeilnehmerDetail id={ui.auswahl.id} />
-        {:else if detailFeature?.Detail}
-          <detailFeature.Detail id={ui.auswahl.id} />
-        {/if}
-      </Sheet>
-    {/if}
+  {#if !ui.punktWahl && ui.panels.length}
+    <div class="panels">
+      {#each ui.panels as p (p.id)}
+        {@const f = p.id === DETAIL ? detailVon(p.params.art) : featureVon(p.id)}
+        <Sheet titel={titelVon(p)} panelId={p.id} onclose={() => schliesse(p.id)}>
+          {#if p.id === 'teilnehmer'}
+            <TeilnehmerListe />
+          {:else if p.id === 'einstellungen'}
+            <Einstellungen />
+          {:else if p.id === DETAIL && p.params.art === 'teilnehmer'}
+            <TeilnehmerDetail id={p.params.id} />
+          {:else if p.id === DETAIL && f?.Detail}
+            <f.Detail id={p.params.id} />
+          {:else if p.id !== DETAIL && f?.Panel}
+            <f.Panel params={p.params} />
+          {/if}
+        </Sheet>
+      {/each}
+    </div>
   {/if}
+  {#if ui.radial}<RadialMenu {...ui.radial} />{/if}
 {/if}
 
 <div class="toasts" aria-live="polite">
@@ -216,7 +248,7 @@
   }
   .schwebend {
     position: fixed;
-    right: 10px;
+    right: calc(var(--rechts, 0px) + 10px);
     /* --banner-h: Höhe des Alarm-Banners (AlarmLayer), sonst 0 */
     top: calc(var(--oben) + 60px + var(--banner-h, 0px));
     z-index: 9;
@@ -237,7 +269,7 @@
   .basis-wahl {
     position: fixed;
     top: calc(var(--oben) + 60px + var(--banner-h, 0px));
-    right: 68px;
+    right: calc(var(--rechts, 0px) + 68px);
     display: grid;
     gap: 4px;
     padding: 6px;
@@ -268,7 +300,7 @@
     .basis-wahl {
       top: calc(var(--oben) + 8px);
       right: auto;
-      left: 10px;
+      left: calc(var(--links, 0px) + 10px);
       max-height: calc(100dvh - var(--oben) - var(--unten) - 16px);
     }
   }
@@ -349,15 +381,93 @@
   }
   .toasts {
     position: fixed;
-    /* unter dem Alarm-Banner statt dahinter */
+    /* unter dem Alarm-Banner statt dahinter; mittig über der Karte, nicht über Panels/Leiste */
     top: calc(var(--oben) + 8px + var(--banner-h, 0px));
-    left: 50%;
+    left: calc(var(--links, 0px) + (100vw - var(--links, 0px) - var(--rechts, 0px)) / 2);
     translate: -50% 0;
     z-index: 29; /* über Sheets/Fadenkreuz, unter dem Alarm-Banner (30) */
     display: grid;
     gap: 6px;
     width: min(92vw, 420px);
     pointer-events: none;
+  }
+  .einklappen {
+    display: none;
+  }
+  .panels {
+    display: contents;
+  }
+  /* Querformat: kompakte Kopfzeile, Werkzeuge als Leiste rechts, Panels als Spalten links neben der Karte */
+  @media (orientation: landscape) {
+    .kopf button {
+      min-height: 44px;
+    }
+    .lage {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+    .unten {
+      left: var(--links, 0px);
+      right: var(--rechts, 0px);
+      background: transparent;
+      border-top: 0;
+    }
+    .werkzeuge {
+      position: fixed;
+      top: var(--oben);
+      right: 0;
+      bottom: 0;
+      width: var(--rechts);
+      height: auto;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 0 env(safe-area-inset-right, 0px) var(--safe-bottom) 0;
+      background: var(--surface-glas);
+      border-left: 1px solid var(--line);
+    }
+    .werkzeug {
+      flex: 1 1 0;
+      min-height: 44px;
+      max-height: 76px;
+      min-width: 0;
+      font-size: 0.68rem;
+    }
+    .einklappen {
+      display: grid;
+      flex: none;
+      border-top: 1px solid var(--line);
+    }
+    /* eingeklappt: nur ein runder Knopf unten rechts, die Karte bekommt die volle Breite */
+    .werkzeuge.zu {
+      top: auto;
+      right: 10px;
+      bottom: calc(var(--unten) + 26px);
+      width: auto;
+      padding: 0;
+      overflow: visible;
+      background: transparent;
+      border: 0;
+    }
+    .werkzeuge.zu .werkzeug:not(.einklappen) {
+      display: none;
+    }
+    .werkzeuge.zu .einklappen {
+      width: var(--touch);
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 2px 8px rgb(0 0 0 / 0.4);
+    }
+    .panels {
+      position: fixed;
+      top: calc(var(--oben) + var(--banner-h, 0px));
+      left: 0;
+      bottom: 0;
+      z-index: 20;
+      display: flex;
+    }
   }
   .toast {
     padding: 10px 14px;

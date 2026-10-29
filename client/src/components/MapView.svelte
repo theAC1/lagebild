@@ -3,15 +3,14 @@
   // MapLibre 6 sucht den Worker relativ zu import.meta.url – im Bundle existiert der nicht, darum explizit als Asset.
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
   import { onMount, type Snippet } from 'svelte';
-  import { setzeKarte } from '../lib/map.ts';
+  import { oeffneRadial, setzeKarte, zielUnter } from '../lib/map.ts';
+  import { zeigeDetails } from '../lib/radialKern.ts';
   import { ABDECKUNG, BASISKARTEN, kachelUrl, OVERLAYS, type Overlay } from '../lib/karten.ts';
   import { store } from '../lib/store.svelte.ts';
   import { ui } from '../lib/ui.svelte.ts';
 
   let { children }: { children?: Snippet } = $props();
   setWorkerUrl(workerUrl);
-
-  const LANGDRUCK_MS = 550;
 
   let el: HTMLDivElement;
   let karte: MapLibreMap | undefined;
@@ -60,39 +59,45 @@
     m.addControl(new AttributionControl({ compact: false }), 'bottom-right');
     m.touchZoomRotate.enable();
 
-    // Langdruck (Touch) bzw. Rechtsklick → Kontextmenü mit Koordinate
-    let zuletzt = 0;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let start: { x: number; y: number } | null = null;
-    const kontext = (lat: number, lon: number) => {
-      if (Date.now() - zuletzt < 800 || ui.punktWahl) return; // Android feuert zusätzlich contextmenu
-      zuletzt = Date.now();
-      ui.kontext = { lat, lon };
+    // Langdruck (Touch) bzw. Rechtsklick → Radial-Menü auf einem Symbol, sonst Kontextmenü mit Koordinate
+    let zuletzt = { t: 0, x: 0, y: 0 };
+    const langdruck = (x: number, y: number) => {
+      // Langdruck erkennt MapLibre selbst (auch iOS); Android feuert zusätzlich ein natives contextmenu an derselben Stelle
+      const doppelt = Date.now() - zuletzt.t < 500 && Math.hypot(x - zuletzt.x, y - zuletzt.y) < 10;
+      if (doppelt || ui.punktWahl) return;
+      zuletzt = { t: Date.now(), x, y };
+      const z = zielUnter(x, y);
+      if (z) return oeffneRadial(z.ziel, z.x, z.y);
+      const r = el.getBoundingClientRect();
+      const p = m.unproject([x - r.left, y - r.top]);
+      ui.radial = null;
+      ui.kontext = { lat: p.lat, lon: p.lng };
       navigator.vibrate?.(15);
     };
-    const abbrechen = () => {
-      clearTimeout(timer);
-      start = null;
-    };
-    m.on('touchstart', (e) => {
-      abbrechen();
-      if (e.points.length !== 1) return;
-      start = e.point;
-      timer = setTimeout(() => kontext(e.lngLat.lat, e.lngLat.lng), LANGDRUCK_MS);
+    m.on('contextmenu', (e) => langdruck(e.originalEvent.clientX, e.originalEvent.clientY));
+    // Browser-Menü nie über der Karte (auch nicht auf Symbolen, die MapLibre nicht abdeckt)
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+    // Doppelklick auf ein Symbol = Details statt Zoom; auf leerer Karte zoomt MapLibre selbst
+    m.on('dblclick', (e) => {
+      const z = zielUnter(e.originalEvent.clientX, e.originalEvent.clientY);
+      if (!z) return;
+      e.preventDefault();
+      zeigeDetails(z.ziel);
     });
-    m.on('touchmove', (e) => {
-      if (start && Math.hypot(e.point.x - start.x, e.point.y - start.y) > 10) abbrechen();
-    });
-    m.on('touchend', abbrechen);
-    m.on('touchcancel', abbrechen);
-    m.on('contextmenu', (e) => kontext(e.lngLat.lat, e.lngLat.lng));
     m.on('click', () => (ui.kontext = null));
-    m.on('dragstart', () => (ui.folgen = false));
+    m.on('dragstart', () => {
+      ui.folgen = false;
+      ui.folgtTeilnehmer = null;
+    });
+    // Container ändert die Grösse ohne Fenster-Resize (Seitenpanels, Werkzeugleiste im Querformat)
+    const beobachter = new ResizeObserver(() => m.resize());
+    beobachter.observe(el);
     m.on('load', () => {
       setzeKarte(m);
       bereit = true;
     });
     return () => {
+      beobachter.disconnect();
       setzeKarte(null);
       m.remove();
     };
@@ -113,6 +118,9 @@
   .karte {
     position: fixed;
     inset: 0;
+    /* Querformat: Platz für Seitenpanels links und Werkzeugleiste rechts (app.css) */
+    left: var(--links, 0px);
+    right: var(--rechts, 0px);
     background: #2b3136;
   }
 </style>

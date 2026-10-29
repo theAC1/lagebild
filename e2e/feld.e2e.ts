@@ -90,7 +90,7 @@ test('GPS-Verlust: alter Fix wird nicht weitergesendet, Leiste zeigt «kein GPS�
   const l = await neueLage(browser, 'GPS-Verlust');
   const gesendet: number[] = [];
   const p = await seite(browser, l.teilnehmerCode, 'Bravo', {
-    einstellungen: { intervallS: 5 },
+    einstellungen: { intervallS: 5, koordLeiste: true },
     vorher: async (x) => {
       await x.addInitScript(fakeGps);
       x.on('websocket', (ws) => ws.on('framesent', (f) => String(f.payload).includes('"typ":"pos"') && gesendet.push(Date.now())));
@@ -113,7 +113,7 @@ test('GPS-Verlust: alter Fix wird nicht weitergesendet, Leiste zeigt «kein GPS�
 
 test('Standort zuerst verweigert, später erlaubt: GPS startet wieder', async ({ browser }) => {
   const l = await neueLage(browser, 'Standort');
-  const p = await seite(browser, l.teilnehmerCode, 'Charlie', { permissions: [], geolocation: ADLER });
+  const p = await seite(browser, l.teilnehmerCode, 'Charlie', { permissions: [], geolocation: ADLER, einstellungen: { koordLeiste: true } });
   await expect(p.locator('footer .leiste')).toContainText('verweigert');
   await p.context().grantPermissions(['geolocation']);
   await p.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); // zurück aus den Einstellungen

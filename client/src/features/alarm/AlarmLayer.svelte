@@ -117,7 +117,7 @@
   }
   @media (min-width: 640px) {
     .banner {
-      left: 50%;
+      left: calc(var(--links, 0px) + (100vw - var(--links, 0px) - var(--rechts, 0px)) / 2);
       right: auto;
       width: 520px;
       transform: translateX(-50%);
@@ -127,8 +127,8 @@
   @media (min-width: 640px) and (max-height: 500px) {
     .banner {
       left: auto;
-      right: 8px;
-      width: min(520px, calc(100vw - 300px));
+      right: calc(var(--rechts, 0px) + 8px);
+      width: min(520px, calc(100vw - 300px - var(--rechts, 0px)));
       transform: none;
     }
   }

@@ -18,7 +18,7 @@ import {
   type Teilnehmer,
   type Zeichnung,
 } from '../../../shared/protocol.ts';
-import { lies, schliesse, schreibe, toast, ui } from './ui.svelte.ts';
+import { lies, schliesseAlle, schreibe, toast, ui } from './ui.svelte.ts';
 import type { KoordFormat } from './coords.ts';
 import type { Basiskarte, Overlay } from './karten.ts';
 import { frischeAus, sollSenden, STILLSTAND_INTERVALL_MS, STILLSTAND_MS, type Frische } from './senden.ts';
@@ -37,6 +37,10 @@ export interface Einstellungen {
   koordFormat: KoordFormat;
   basiskarte: Basiskarte;
   overlays: Overlay[];
+  /** Bildschirmausrichtung: fix oder dem Gerät folgend */
+  ausrichtung: 'auto' | 'hoch' | 'quer';
+  /** Koordinatenzeile unten (Tippen aufs eigene Symbol schaltet) */
+  koordLeiste: boolean;
 }
 const STANDARD_EINST: Einstellungen = {
   intervallS: 10,
@@ -45,6 +49,8 @@ const STANDARD_EINST: Einstellungen = {
   koordFormat: 'lv95',
   basiskarte: 'farbe',
   overlays: [],
+  ausrichtung: 'auto',
+  koordLeiste: false,
 };
 
 function ladeEinstellungen(): Einstellungen {
@@ -381,8 +387,9 @@ function setzeZurueck() {
   store.alarme.clear();
   store.chat = [];
   store.meldungen = [];
-  schliesse();
+  schliesseAlle();
   ui.kontext = null;
+  ui.radial = null;
 }
 
 /** Lage beendet, ich bin Leitung: Verbindung zu, Token behalten (Export/Löschen per REST). */

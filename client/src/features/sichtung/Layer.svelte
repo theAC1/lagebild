@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Marker } from 'maplibre-gl';
   import { onDestroy } from 'svelte';
-  import { getMap, registriereKontextAktion } from '../../lib/map.ts';
+  import { getMap, markiereZiel, registriereKontextAktion } from '../../lib/map.ts';
   import { beiNachricht, store } from '../../lib/store.svelte.ts';
   import { symbolElement } from '../../lib/symbol.ts';
   import { oeffne, toast, waehle } from '../../lib/ui.svelte.ts';
@@ -17,6 +17,7 @@
       if (eintraege.has(s.id)) continue;
       const { element, offset } = symbolElement(s.sidc, { size: 26 });
       element.classList.add('sichtung-symbol');
+      markiereZiel(element, { art: 'sichtung', id: s.id });
       if (s.fotoId) element.insertAdjacentHTML('beforeend', `<span class="sichtung-kamera">${KAMERA_SVG}</span>`);
       element.title = 'Sichtung';
       element.addEventListener('click', (ev) => {

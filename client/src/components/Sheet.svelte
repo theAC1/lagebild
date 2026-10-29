@@ -1,10 +1,11 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
-  let { titel, onclose, children }: { titel: string; onclose: () => void; children: Snippet } = $props();
+  let { titel, onclose, children, panelId }: { titel: string; onclose: () => void; children: Snippet; panelId?: string } = $props();
 </script>
 
-<section class="sheet" aria-label={titel}>
+<!-- data-panel: App merkt sich, in welchem Panel zuletzt getippt wurde (Esc, Drill-down) -->
+<section class="sheet" aria-label={titel} data-panel={panelId}>
   <header>
     <h2>{titel}</h2>
     <button class="icon schliessen" onclick={onclose} aria-label="Schliessen">✕</button>
@@ -36,6 +37,25 @@
       transform: translateX(-50%);
     }
   }
+  /* Querformat: Seitenpanel neben der Karte (App legt die Panels in eine Zeile links) */
+  @media (orientation: landscape) {
+    .sheet {
+      position: relative;
+      left: auto;
+      right: auto;
+      bottom: auto;
+      transform: none;
+      width: var(--panel-b);
+      flex: none;
+      max-height: none;
+      height: 100%;
+      border-top: 0;
+      border-right: 1px solid var(--line);
+      border-radius: 0;
+      box-shadow: 4px 0 18px rgb(0 0 0 / 0.35);
+      animation-name: rein;
+    }
+  }
   header {
     display: flex;
     align-items: center;
@@ -57,6 +77,12 @@
     overflow-y: auto;
     padding: 4px 16px 16px;
     overscroll-behavior: contain;
+  }
+  @keyframes rein {
+    from {
+      translate: -24px 0;
+      opacity: 0;
+    }
   }
   @keyframes hoch {
     from {

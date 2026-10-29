@@ -1,6 +1,6 @@
 // Chat-Zustand: Lesestand (localStorage je Lage), offener Kanal, Toast bei neuer Nachricht.
 import { beiNachricht, store } from '../../lib/store.svelte.ts';
-import { lies, schreibe, toast, ui } from '../../lib/ui.svelte.ts';
+import { istOffen, lies, schreibe, toast } from '../../lib/ui.svelte.ts';
 import { kanalVon, parseGelesen, startGelesen, uebersicht, type Gelesen } from './kanaele.ts';
 
 const speicherKey = (lageId: string) => `lagebild.chat.gelesen.${lageId}`;
@@ -34,7 +34,7 @@ beiNachricht((m) => {
   if (m.typ !== 'chat' || m.chat.von === store.ich) return;
   const key = kanalVon(m.chat, store.ich ?? '');
   // Panel offen und Kanalliste oder genau dieser Kanal sichtbar → kein Toast nötig
-  if (ui.panel?.id === 'chat' && (chat.aktiv === null || chat.aktiv === key)) return;
+  if (istOffen('chat') && (chat.aktiv === null || chat.aktiv === key)) return;
   const rufname = store.teilnehmer.get(m.chat.von)?.rufname ?? 'Unbekannt';
   const wohin = m.chat.an.art === 'einheit' ? ` → ${m.chat.an.einheit}` : m.chat.an.art === 'person' ? ' (direkt)' : '';
   toast(`${rufname}${wohin}: ${kurz(m.chat.text, 60)}`, 5000);
