@@ -9,6 +9,7 @@ const feature: Feature = {
   icon: ikon('<path d="M4 5h16v11H9l-5 4z"/>'),
   Panel,
   badge: () => chat.gesamt,
+  haupt: {},
 };
 
 export default feature;

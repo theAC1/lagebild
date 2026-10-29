@@ -21,15 +21,23 @@
 
   // Gegenüber nicht mehr in der Lage → Server lehnt ab; nicht beschreibbar machen statt Text zu verlieren
   const weg = $derived(kanal.weg === true);
+  const gesperrt = $derived(weg || store.verbindung !== 'verbunden');
+
+  /** Ein Tipp sendet sofort (Spec v3), das Textfeld ist zweitrangig. */
+  const SCHNELL = ['Verstanden', 'Wiederholen', 'Warten', 'Bereit', 'Ziel erreicht', 'Brauche Unterstützung', 'Negativ'];
+
+  async function sende(t: string): Promise<boolean> {
+    const z = await sendeBestaetigt({ typ: 'chat', an: kanal.ziel, text: t }, (m) => m.typ === 'chat' && m.chat.von === store.ich && m.chat.text === t);
+    if (z === 'unbestaetigt') toast(`Nachricht ${OHNE_QUITTUNG}`, 8000);
+    return z === 'bestaetigt';
+  }
 
   /** Text erst leeren, wenn die eigene Nachricht vom Server zurückkommt. */
   async function senden(e: SubmitEvent) {
     e.preventDefault();
     const t = text.trim();
     if (!t || weg) return;
-    const z = await sendeBestaetigt({ typ: 'chat', an: kanal.ziel, text: t }, (m) => m.typ === 'chat' && m.chat.von === store.ich && m.chat.text === t);
-    if (z === 'bestaetigt' && text.trim() === t) text = '';
-    else if (z === 'unbestaetigt') toast(`Nachricht ${OHNE_QUITTUNG}`, 8000);
+    if ((await sende(t)) && text.trim() === t) text = '';
   }
 </script>
 
@@ -57,6 +65,11 @@
 </ol>
 
 <form onsubmit={senden}>
+  <div class="chips schnell" role="group" aria-label="Schnellmeldungen">
+    {#each SCHNELL as t (t)}
+      <button type="button" disabled={gesperrt} onclick={() => sende(t)}>{t}</button>
+    {/each}
+  </div>
   <input
     bind:value={text}
     maxlength="1000"
@@ -66,7 +79,7 @@
     placeholder={weg ? 'Nicht mehr in der Lage – keine Nachrichten möglich' : `Nachricht an ${kanal.label}`}
     aria-label="Nachricht"
   />
-  <button class="primaer icon" type="submit" aria-label="Senden" disabled={weg || !text.trim() || store.verbindung !== 'verbunden'}>➤</button>
+  <button class="primaer icon" type="submit" aria-label="Senden" disabled={gesperrt || !text.trim()}>➤</button>
 </form>
 <div bind:this={ende}></div>
 
@@ -121,9 +134,16 @@
     position: sticky;
     bottom: 0;
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 10px 0 2px;
     background: var(--surface-glas);
+  }
+  .schnell {
+    flex-basis: 100%;
+  }
+  .schnell button {
+    padding: 0 12px;
   }
   form input {
     flex: 1;
