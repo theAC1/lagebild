@@ -138,6 +138,8 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
       teilnehmer: db.teilnehmerListe(lage.id, true),
       marker: db.eintraege(lage.id, 'marker'),
       sichtungen: db.eintraege(lage.id, 'sichtung'),
+      ebenen: db.ebenenSicherstellen(lage.id),
+      zeichnungen: db.eintraege(lage.id, 'zeichnung'),
       spuren: db.spuren(lage.id),
     };
   }
@@ -151,6 +153,7 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
       const lage: Lage = { id: randomUUID(), name: e.name, statusSet: STANDARD_STATUS, erstelltAm: Date.now(), beendetAm: null };
       const r: LageErstellt = { lageId: lage.id, teilnehmerCode: neuerCode(8), leitungCode: neuerCode(10) };
       db.lageErstellen(lage, sha256(r.teilnehmerCode), sha256(r.leitungCode));
+      db.ebenenSicherstellen(lage.id);
       log('info', 'lage erstellt', { lageId: lage.id });
       return antwort(res, 201, r);
     }

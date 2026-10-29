@@ -93,6 +93,114 @@ export const Marker = z.object({
 });
 export type Marker = z.infer<typeof Marker>;
 
+// --- Zeichnen & Ebenen (v2) ---------------------------------------------------
+
+export const Ebene = z.object({
+  id: Id,
+  name: Text(60).min(1),
+  gesperrt: z.boolean(), // gesperrt: nur Leitung darf in der Ebene zeichnen, ändern, löschen
+  reihenfolge: z.number().int().min(0).max(1000),
+  erstelltVon: Id,
+  erstelltAm: z.number(),
+});
+export type Ebene = z.infer<typeof Ebene>;
+
+/** Pro Lage automatisch angelegte Ebene «Allgemein»; die ID ist aus der Lage-ID abgeleitet. Nicht löschbar. */
+export const standardEbeneId = (lageId: string): string => `${lageId}-allgemein`;
+export const STANDARD_EBENE_NAME = 'Allgemein';
+
+export const ZeichnungArt = z.enum(['linie', 'pfeil', 'flaeche', 'rechteck', 'kreis', 'freihand', 'text', 'phasenlinie', 'grenze', 'stossrichtung', 'sperre', 'raum']);
+export type ZeichnungArt = z.infer<typeof ZeichnungArt>;
+export const RaumArt = z.enum(['bereitstellung', 'ziel', 'sperr', 'verantwortung']);
+export type RaumArt = z.infer<typeof RaumArt>;
+
+export const Farbe = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+export const Stil = z.object({
+  farbe: Farbe,
+  breite: z.number().min(1).max(12),
+  strich: z.enum(['voll', 'gestrichelt', 'gepunktet']),
+  fuellung: Farbe.optional(),
+  deckkraft: z.number().min(0).max(1), // Deckkraft der Füllung
+});
+export type Stil = z.infer<typeof Stil>;
+export const STANDARD_STIL: Stil = { farbe: '#d32f2f', breite: 3, strich: 'voll', deckkraft: 0.25 };
+
+/** Punkte je Art: [min, max]. Kreis: Mittelpunkt (+ radiusM). Rechteck: zwei gegenüberliegende Ecken. Text: Ankerpunkt. */
+export const MAX_PUNKTE = 500;
+export const MAX_PUNKTE_LANG = 2000; // Grenze, Freihand
+export const PUNKTE_JE_ART: Record<ZeichnungArt, [number, number]> = {
+  linie: [2, MAX_PUNKTE],
+  pfeil: [2, MAX_PUNKTE],
+  flaeche: [3, MAX_PUNKTE],
+  rechteck: [2, 2],
+  kreis: [1, 1],
+  freihand: [2, MAX_PUNKTE_LANG],
+  text: [1, 1],
+  phasenlinie: [2, MAX_PUNKTE],
+  grenze: [2, MAX_PUNKTE_LANG],
+  stossrichtung: [2, MAX_PUNKTE],
+  sperre: [2, MAX_PUNKTE],
+  raum: [3, MAX_PUNKTE],
+};
+export const MAX_RADIUS_M = 2_000_000;
+
+const ZeichnungKern = z.object({
+  ebeneId: Id,
+  art: ZeichnungArt,
+  raumArt: RaumArt.optional(), // nur bei art 'raum', dort Pflicht
+  punkte: z.array(Punkt).min(1).max(MAX_PUNKTE_LANG),
+  radiusM: z.number().positive().max(MAX_RADIUS_M).optional(), // nur bei 'kreis', dort Pflicht
+  text: Text(200), // Inhalt bei art 'text' (Pflicht), sonst leer lassen
+  bezeichnung: Text(200),
+  stil: Stil,
+});
+
+type ZeichnungPruefbar = z.infer<typeof ZeichnungKern>;
+/** Form je Art: Punktzahl, raumArt, radiusM, text. */
+function pruefeZeichnung(z_: ZeichnungPruefbar, ctx: z.RefinementCtx): void {
+  const [min, max] = PUNKTE_JE_ART[z_.art];
+  const n = z_.punkte.length;
+  const f = (path: string, message: string) => ctx.addIssue({ code: 'custom', path: [path], message });
+  if (n < min || n > max) f('punkte', min === max ? `${z_.art}: genau ${min} Punkt(e)` : `${z_.art}: ${min} bis ${max} Punkte`);
+  if (z_.art === 'raum' ? !z_.raumArt : z_.raumArt !== undefined) f('raumArt', 'raumArt genau bei art raum');
+  if (z_.art === 'kreis' ? z_.radiusM === undefined : z_.radiusM !== undefined) f('radiusM', 'radiusM genau bei art kreis');
+  if (z_.art === 'text' && !z_.text.length) f('text', 'Text fehlt');
+}
+
+/** Zeichnung ohne Server-Felder. `id` optional (Server vergibt sie sonst), z. B. für Kopieren/Einfügen. */
+export const ZeichnungInput = ZeichnungKern.extend({ id: Id.optional() }).superRefine(pruefeZeichnung);
+export type ZeichnungInput = z.infer<typeof ZeichnungInput>;
+/** Änderung: vollständiger neuer Inhalt (ersetzt), `id` Pflicht. Ebene darf wechseln. */
+export const ZeichnungAenderung = ZeichnungKern.extend({ id: Id }).superRefine(pruefeZeichnung);
+export type ZeichnungAenderung = z.infer<typeof ZeichnungAenderung>;
+
+export const Zeichnung = ZeichnungKern.extend({ id: Id, von: Id, erstelltAm: z.number(), geaendertAm: z.number() }).superRefine(pruefeZeichnung);
+export type Zeichnung = z.infer<typeof Zeichnung>;
+export const MAX_ZEICHNUNGEN_JE_MSG = 100;
+
+// --- Bloodhound-Aufträge (v2) -------------------------------------------------
+
+/** Wie bei Range & Bearing. teilnehmer/marker/sichtung: `id` Pflicht; punkt: `punkt` Pflicht. */
+export const BloodhoundZiel = z
+  .object({ art: z.enum(['teilnehmer', 'marker', 'sichtung', 'punkt']), id: Id.optional(), punkt: Punkt.optional() })
+  .refine((z_) => (z_.art === 'punkt' ? z_.punkt !== undefined && z_.id === undefined : z_.id !== undefined && z_.punkt === undefined), 'Ziel: id bzw. punkt passt nicht zur Art');
+export type BloodhoundZiel = z.infer<typeof BloodhoundZiel>;
+
+export const BloodhoundEnde = z.enum(['aufgehoben', 'beendet', 'erreicht']);
+export type BloodhoundEnde = z.infer<typeof BloodhoundEnde>;
+/** Offen = `ende === null`. Pro Empfänger höchstens ein offener Auftrag (ein neuer beendet den alten als 'aufgehoben'). */
+export const BloodhoundAuftrag = z.object({
+  id: Id,
+  von: Id, // Leitung
+  an: Id,
+  ziel: BloodhoundZiel,
+  erstelltAm: z.number(),
+  quittiertAm: z.number().nullable(),
+  ende: BloodhoundEnde.nullable(),
+  endeAm: z.number().nullable(),
+});
+export type BloodhoundAuftrag = z.infer<typeof BloodhoundAuftrag>;
+
 export const ChatZiel = z.discriminatedUnion('art', [
   z.object({ art: z.literal('alle') }),
   z.object({ art: z.literal('einheit'), einheit: Text(32).min(1) }),
@@ -158,6 +266,21 @@ export const ClientMsg = z.discriminatedUnion('typ', [
   z.object({ typ: z.literal('status'), status: z.string().max(32), text: Text(200) }),
   z.object({ typ: z.literal('marker.setzen'), marker: Marker.pick({ sidc: true, lat: true, lon: true, bezeichnung: true, notiz: true }).extend({ id: Id.optional() }) }),
   z.object({ typ: z.literal('marker.loeschen'), id: Id }),
+  // Zeichnen: alle dürfen; ändern/löschen nur Ersteller oder Leitung; gesperrte Ebene nur Leitung. Mehrere auf einmal (Lasso,
+  // Einfügen) sind alles-oder-nichts: ein Fehler lehnt die ganze Nachricht ab.
+  z.object({ typ: z.literal('zeichnung.neu'), zeichnungen: z.array(ZeichnungInput).min(1).max(MAX_ZEICHNUNGEN_JE_MSG) }),
+  z.object({ typ: z.literal('zeichnung.aendern'), zeichnungen: z.array(ZeichnungAenderung).min(1).max(MAX_ZEICHNUNGEN_JE_MSG) }),
+  z.object({ typ: z.literal('zeichnung.loeschen'), ids: z.array(Id).min(1).max(MAX_ZEICHNUNGEN_JE_MSG) }),
+  // Ebenen verwalten: nur Leitung. Löschen entfernt auch die Zeichnungen der Ebene; die Standard-Ebene ist nicht löschbar.
+  z.object({ typ: z.literal('ebene.neu'), name: Text(60).min(1), gesperrt: z.boolean().optional() }),
+  z.object({ typ: z.literal('ebene.aendern'), id: Id, name: Text(60).min(1).optional(), gesperrt: z.boolean().optional(), reihenfolge: z.number().int().min(0).max(1000).optional() }),
+  z.object({ typ: z.literal('ebene.loeschen'), id: Id }),
+  // Bloodhound-Auftrag: auftrag/aufheben nur Leitung; quittieren/beendet/erreicht nur der Empfänger.
+  z.object({ typ: z.literal('bloodhound.auftrag'), an: Id, ziel: BloodhoundZiel }),
+  z.object({ typ: z.literal('bloodhound.aufheben'), id: Id }),
+  z.object({ typ: z.literal('bloodhound.quittieren'), id: Id }),
+  z.object({ typ: z.literal('bloodhound.beendet'), id: Id }),
+  z.object({ typ: z.literal('bloodhound.erreicht'), id: Id }),
   z.object({ typ: z.literal('chat'), an: ChatZiel, text: Text(1000).min(1) }),
   z.object({ typ: z.literal('sichtung'), sichtung: SichtungInput }),
   // Position immer mitsenden, auch bei sendetPos=false (wie ATAK-Notruf). Pro Person nur ein aktiver Alarm:
@@ -185,6 +308,9 @@ export type ServerMsg =
       marker: Marker[];
       chat: Chat[]; // nur für mich sichtbare
       sichtungen: Sichtung[];
+      ebenen: Ebene[]; // nach reihenfolge; enthält immer die Standard-Ebene
+      zeichnungen: Zeichnung[];
+      bloodhound: BloodhoundAuftrag[]; // offene Aufträge: Leitung alle, sonst nur die an mich
       alarme: Alarm[]; // nicht aufgehobene
       meldungen: Meldung[]; // letzte 200
       serverZeit: number;
@@ -194,6 +320,12 @@ export type ServerMsg =
   | { typ: 'pos'; id: string; pos: Position }
   | { typ: 'marker'; marker: Marker }
   | { typ: 'marker.geloescht'; id: string }
+  | { typ: 'ebene'; ebene: Ebene } // neu oder geändert
+  | { typ: 'ebene.geloescht'; id: string; zeichnungIds: string[] } // inkl. der mitgelöschten Zeichnungen
+  | { typ: 'zeichnungen'; zeichnungen: Zeichnung[] } // neu oder geändert (nach id ersetzen)
+  | { typ: 'zeichnungen.geloescht'; ids: string[] }
+  // Auftrag neu oder geändert (quittiert/beendet/aufgehoben/erreicht, `ende` gesetzt). Nur an Leitung und Empfänger.
+  | { typ: 'bloodhound'; auftrag: BloodhoundAuftrag }
   | { typ: 'chat'; chat: Chat }
   | { typ: 'sichtung'; sichtung: Sichtung }
   | { typ: 'alarm'; alarm: Alarm }

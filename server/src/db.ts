@@ -1,8 +1,9 @@
 // SQLite-Zugriff (node:sqlite). Entitäten werden als JSON gespeichert; der Vertrag ist die Struktur.
 import { DatabaseSync } from 'node:sqlite';
-import type { Alarm, Chat, Lage, Marker, Meldung, Position, Rolle, Sichtung, Spuren, Teilnehmer } from '../../shared/protocol.ts';
+import { STANDARD_EBENE_NAME, standardEbeneId } from '../../shared/protocol.ts';
+import type { Alarm, BloodhoundAuftrag, Chat, Ebene, Lage, Marker, Meldung, Position, Rolle, Sichtung, Spuren, Teilnehmer, Zeichnung } from '../../shared/protocol.ts';
 
-type Eintraege = { marker: Marker; chat: Chat; sichtung: Sichtung; alarm: Alarm; meldung: Meldung };
+type Eintraege = { marker: Marker; chat: Chat; sichtung: Sichtung; alarm: Alarm; meldung: Meldung; ebene: Ebene; zeichnung: Zeichnung; bloodhound: BloodhoundAuftrag };
 export type Art = keyof Eintraege;
 
 const SCHEMA = `
@@ -140,6 +141,17 @@ export function oeffneDb(pfad: string) {
     foto(id: string): { lageId: string; ext: string } | undefined {
       const z = q.foto.get(id);
       return z && { lageId: z.lage_id as string, ext: z.ext as string };
+    },
+
+    /** Legt die Standard-Ebene an, falls sie fehlt (neue Lage, ältere Lagen beim ersten Verbinden). Gibt alle Ebenen zurück. */
+    ebenenSicherstellen(lageId: string): Ebene[] {
+      const id = standardEbeneId(lageId);
+      if (!q.e.get(lageId, 'ebene', id)) {
+        const jetzt = Date.now();
+        const e: Ebene = { id, name: STANDARD_EBENE_NAME, gesperrt: false, reihenfolge: 0, erstelltVon: 'system', erstelltAm: jetzt };
+        q.eNeu.run('ebene', id, lageId, jetzt, JSON.stringify(e));
+      }
+      return this.eintraege(lageId, 'ebene').sort((a, b) => a.reihenfolge - b.reihenfolge || a.erstelltAm - b.erstelltAm);
     },
 
     schliessen: (): void => db.close(),

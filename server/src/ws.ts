@@ -4,11 +4,13 @@ import type { IncomingMessage, Server } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { ClientMsg, PING_MS, type Alarm, type Chat, type Lage, type Meldung, type Position, type ServerMsg, type Teilnehmer } from '../../shared/protocol.ts';
 import type { Db } from './db.ts';
+import { sichtbareAuftraege, verarbeiteZeichnen } from './zeichnen.ts';
 import { log, neuerCode, rateLimiter, sha256 } from './sicherheit.ts';
 
 const HALLO_TIMEOUT_MS = 5000;
 const POS_MIN_ABSTAND_MS = 1000;
-const MAX_NACHRICHT = 64 * 1024;
+// Grenze/Freihand mit 2000 Punkten sind ~75 KB; bis zu 100 Zeichnungen je Nachricht
+const MAX_NACHRICHT = 256 * 1024;
 /** Je Teilnehmer gleichzeitig (Tabs, Reconnect-Überlappung); eine neue Verbindung schliesst die älteste. */
 const MAX_VERBINDUNGEN_JE_TEILNEHMER = 3;
 /** Je IP gleichzeitig offene Verbindungen ohne hallo. */
@@ -81,6 +83,9 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
       // ponytail: nur die letzten CHAT_SNAPSHOT_ROH der Lage; wer viele fremde Einheits-/Direktchats verpasst, sieht weniger als 500
       chat: db.eintraege(lage.id, 'chat', CHAT_SNAPSHOT_ROH).filter((c) => sichtbar(c, ich)).slice(-500),
       sichtungen: db.eintraege(lage.id, 'sichtung'),
+      ebenen: db.ebenenSicherstellen(lage.id),
+      zeichnungen: db.eintraege(lage.id, 'zeichnung'),
+      bloodhound: sichtbareAuftraege(db, lage.id, v),
       alarme: db.eintraege(lage.id, 'alarm').filter((a) => a.aufgehobenAm === null),
       meldungen: db.eintraege(lage.id, 'meldung', 200),
       serverZeit: Date.now(),
@@ -145,6 +150,16 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
     const { v, t, lage } = ich;
     const leitung = t.rolle === 'leitung';
     const jetzt = Date.now();
+    const u = {
+      db,
+      anAlle,
+      anLeitungUnd: (lageId: string, id: string, msg: ServerMsg) => {
+        for (const e of verbindungen(lageId)) if (e.rolle === 'leitung' || e.id === id) senden(e.ws, msg);
+      },
+      fehler: (text: string) => fehler(v, text),
+      meldung: (lageId: string, von: string, text: string) => meldung(lageId, von, null, text),
+    };
+    if (verarbeiteZeichnen(u, t, lage, m)) return;
     switch (m.typ) {
       case 'hallo':
         return fehler(v, 'Bereits angemeldet');

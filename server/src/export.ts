@@ -1,10 +1,39 @@
 // Export einer Lage als GPX 1.1 (trk je Teilnehmer, wpt für Marker/Sichtungen) und GeoJSON.
-import type { Lage, Marker, Sichtung, Spuren, Teilnehmer } from '../../shared/protocol.ts';
+import type { Ebene, Lage, Marker, Punkt, Sichtung, Spuren, Teilnehmer, Zeichnung } from '../../shared/protocol.ts';
 
-export type ExportDaten = { lage: Lage; teilnehmer: Teilnehmer[]; marker: Marker[]; sichtungen: Sichtung[]; spuren: Spuren };
+export type ExportDaten = { lage: Lage; teilnehmer: Teilnehmer[]; marker: Marker[]; sichtungen: Sichtung[]; ebenen: Ebene[]; zeichnungen: Zeichnung[]; spuren: Spuren };
 
 const xml = (s: string): string =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]!);
+const ERDRADIUS = 6371008.8;
+/** Kreis als Ring (geschlossen) für GeoJSON. */
+function kreisRing(m: Punkt, radiusM: number, n = 48): number[][] {
+  const d = radiusM / ERDRADIUS;
+  const la = (m.lat * Math.PI) / 180;
+  const ring = Array.from({ length: n + 1 }, (_, i) => {
+    const az = (2 * Math.PI * (i % n)) / n;
+    const lat2 = Math.asin(Math.sin(la) * Math.cos(d) + Math.cos(la) * Math.sin(d) * Math.cos(az));
+    const lon2 = (m.lon * Math.PI) / 180 + Math.atan2(Math.sin(az) * Math.sin(d) * Math.cos(la), Math.cos(d) - Math.sin(la) * Math.sin(lat2));
+    return [(lon2 * 180) / Math.PI, (lat2 * 180) / Math.PI];
+  });
+  return ring;
+}
+const schliesse = (r: number[][]): number[][] => [...r, r[0]];
+const koord = (p: Punkt): number[] => [p.lon, p.lat];
+/** Ecken eines Rechtecks aus zwei gegenüberliegenden Punkten (geschlossen). */
+const rechteckRing = ([a, b]: Punkt[]): number[][] => schliesse([[a.lon, a.lat], [b.lon, a.lat], [b.lon, b.lat], [a.lon, b.lat]]);
+
+function zeichnungGeometrie(z: Zeichnung): object {
+  switch (z.art) {
+    case 'kreis': return { type: 'Polygon', coordinates: [kreisRing(z.punkte[0], z.radiusM!)] };
+    case 'text': return { type: 'Point', coordinates: koord(z.punkte[0]) };
+    case 'rechteck': return { type: 'Polygon', coordinates: [rechteckRing(z.punkte)] };
+    case 'flaeche':
+    case 'raum': return { type: 'Polygon', coordinates: [schliesse(z.punkte.map(koord))] };
+    default: return { type: 'LineString', coordinates: z.punkte.map(koord) };
+  }
+}
+
 const iso = (t: number): string => new Date(t).toISOString();
 
 const salute = (s: Sichtung): string =>
@@ -29,6 +58,27 @@ export function gpx(d: ExportDaten): string {
   s += `  <metadata><name>${xml(d.lage.name)}</name><time>${iso(d.lage.erstelltAm)}</time></metadata>\n`;
   for (const m of d.marker) s += wpt(m.lat, m.lon, m.erstelltAm, m.bezeichnung || 'Marker', m.notiz, `marker ${m.sidc}`);
   for (const x of d.sichtungen) s += wpt(x.lat, x.lon, x.zeit, sichtungName(x), salute(x), `sichtung ${x.sidc}`);
+  const ebeneName = (id: string): string => d.ebenen.find((e) => e.id === id)?.name ?? '';
+  const zname = (z: Zeichnung): string => z.bezeichnung || z.text || z.art;
+  // Linienartige als Route, Freihand als Track, Flächen als geschlossene Route, Text und Kreismittelpunkt als Wegpunkt
+  for (const z of d.zeichnungen) {
+    const typ = `zeichnung ${z.art}${z.raumArt ? ` ${z.raumArt}` : ''}`;
+    const desc = [z.text, ebeneName(z.ebeneId) && `Ebene: ${ebeneName(z.ebeneId)}`, z.radiusM !== undefined && `Radius: ${Math.round(z.radiusM)} m`].filter(Boolean).join('\n');
+    if (z.art === 'text' || z.art === 'kreis') {
+      s += wpt(z.punkte[0].lat, z.punkte[0].lon, z.erstelltAm, zname(z), desc, typ);
+      continue;
+    }
+    const pts = z.art === 'rechteck' ? rechteckRing(z.punkte).map(([lon, lat]) => ({ lat, lon })) : z.art === 'flaeche' || z.art === 'raum' ? [...z.punkte, z.punkte[0]] : z.punkte;
+    if (z.art === 'freihand') {
+      s += `  <trk><name>${xml(zname(z))}</name><desc>${xml(desc)}</desc><type>${typ}</type><trkseg>\n`;
+      for (const p of pts) s += `    <trkpt lat="${p.lat}" lon="${p.lon}"/>\n`;
+      s += `  </trkseg></trk>\n`;
+    } else {
+      s += `  <rte><name>${xml(zname(z))}</name><desc>${xml(desc)}</desc><type>${typ}</type>\n`;
+      for (const p of pts) s += `    <rtept lat="${p.lat}" lon="${p.lon}"/>\n`;
+      s += `  </rte>\n`;
+    }
+  }
   for (const t of d.teilnehmer) {
     const punkte = d.spuren[t.id];
     if (!punkte?.length) continue;
@@ -56,11 +106,16 @@ export function geojson(d: ExportDaten): object {
   const punkt = (lat: number, lon: number, properties: object) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties });
   return {
     type: 'FeatureCollection',
-    properties: { lage: d.lage.name, erstelltAm: d.lage.erstelltAm, beendetAm: d.lage.beendetAm },
+    properties: { lage: d.lage.name, erstelltAm: d.lage.erstelltAm, beendetAm: d.lage.beendetAm, ebenen: d.ebenen },
     features: [
       ...spuren,
       ...d.marker.map(({ lat, lon, ...m }) => punkt(lat, lon, { art: 'marker', ...m })),
       ...d.sichtungen.map(({ lat, lon, ...s }) => punkt(lat, lon, { art: 'sichtung', ...s })),
+      ...d.zeichnungen.map((z) => ({
+        type: 'Feature',
+        geometry: zeichnungGeometrie(z),
+        properties: { art: 'zeichnung', form: z.art, raumArt: z.raumArt, radiusM: z.radiusM, mittelpunkt: z.art === 'kreis' ? z.punkte[0] : undefined, text: z.text, bezeichnung: z.bezeichnung, stil: z.stil, ebeneId: z.ebeneId, ebene: d.ebenen.find((e) => e.id === z.ebeneId)?.name, id: z.id, von: z.von, erstelltAm: z.erstelltAm, geaendertAm: z.geaendertAm },
+      })),
     ],
   };
 }
