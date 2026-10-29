@@ -1,5 +1,6 @@
 <script lang="ts">
   import { azimut, distanz, formatDistanz, formatLv95, formatMgrs, formatRichtung } from '../lib/coords.ts';
+  import { starte } from '../features/bloodhound/zustand.svelte.ts';
   import { zentriere } from '../lib/map.ts';
   import { alterMs, formatAlter, frische, keinGps, statusDef, store } from '../lib/store.svelte.ts';
   import { teamFarbe } from '../lib/team.ts';
@@ -60,6 +61,8 @@
     {#if !istIch}
       <button onclick={() => oeffne('chat', { an: { art: 'person', id } })}>Chat</button>
       <button onclick={() => oeffne('rangebearing', { ziel: { art: 'teilnehmer', id } })}>Range &amp; Bearing</button>
+      <button onclick={() => starte({ art: 'teilnehmer', id })}>Bloodhound</button>
+      {#if store.istLeitung}<button onclick={() => oeffne('leitung', { tab: 'auftraege', an: id })}>Auftrag: Bloodhound</button>{/if}
     {/if}
   </div>
 {/if}

@@ -2,6 +2,7 @@
   import { untrack } from 'svelte';
   import type { PanelProps } from '../registry.ts';
   import { statusDef, store } from '../../lib/store.svelte.ts';
+  import Auftraege from '../bloodhound/Auftraege.svelte';
   import Alarme from './Alarme.svelte';
   import Export from './Export.svelte';
   import LageVerwalten from './LageVerwalten.svelte';
@@ -17,6 +18,7 @@
     { id: 'teilnehmer', label: 'Teilnehmer' },
     { id: 'status', label: 'Status-Set' },
     { id: 'alarme', label: 'Alarme' },
+    { id: 'auftraege', label: 'Aufträge' },
     { id: 'log', label: 'Log' },
     { id: 'export', label: 'Export' },
     { id: 'lage', label: 'Lage' },
@@ -24,6 +26,10 @@
   type Tab = (typeof TABS)[number]['id'];
 
   let tab = $state<Tab>(untrack(() => (TABS.some((t) => t.id === params.tab) ? params.tab : 'zugang')));
+  // erneutes oeffne('leitung', { tab }) (z.B. Radial-Menü «Auftrag: Bloodhound») springt zum Tab
+  $effect(() => {
+    if (TABS.some((t) => t.id === params.tab)) tab = params.tab;
+  });
   const aktiveAlarme = $derived([...store.alarme.values()].filter((a) => a.aufgehobenAm === null).length);
   const log = $derived([...store.meldungen].reverse());
 </script>
@@ -34,7 +40,7 @@
   <div class="tabs" role="tablist" aria-label="Leitung">
     {#each TABS as t (t.id)}
       <button role="tab" aria-selected={tab === t.id} onclick={() => (tab = t.id)}>
-        {t.label}{#if t.id === 'alarme' && aktiveAlarme}<span class="zahl">{aktiveAlarme}</span>{/if}
+        {t.label}{#if t.id === 'alarme' && aktiveAlarme}<span class="zahl">{aktiveAlarme}</span>{:else if t.id === 'auftraege' && store.bloodhound.size}<span class="zahl">{store.bloodhound.size}</span>{/if}
       </button>
     {/each}
   </div>
@@ -44,6 +50,7 @@
     {:else if tab === 'teilnehmer'}<Teilnehmende />
     {:else if tab === 'status'}<StatusSet />
     {:else if tab === 'alarme'}<Alarme />
+    {:else if tab === 'auftraege'}<Auftraege {params} />
     {:else if tab === 'export'}<Export />
     {:else if tab === 'lage'}<LageVerwalten />
     {:else}
