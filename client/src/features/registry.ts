@@ -8,6 +8,7 @@ import alarm from './alarm/index.ts';
 import rangebearing from './rangebearing/index.ts';
 import spuren from './spuren/index.ts';
 import leitung from './leitung/index.ts';
+import zeichnen from './zeichnen/index.ts';
 
 /** Props jedes Panels: was `oeffne(id, params)` mitgegeben hat. */
 export type PanelProps = { params: Record<string, any> };
@@ -34,4 +35,4 @@ export interface Feature {
   badge?: () => number;
 }
 
-export const features: Feature[] = [marker, status, chat, sichtung, alarm, rangebearing, spuren, leitung];
+export const features: Feature[] = [marker, status, chat, sichtung, alarm, rangebearing, spuren, zeichnen, leitung];
