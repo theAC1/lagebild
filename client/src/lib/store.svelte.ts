@@ -5,8 +5,10 @@ import {
   STILLE_MS,
   type Alarm,
   type Beigetreten,
+  type BloodhoundAuftrag,
   type Chat,
   type ClientMsg,
+  type Ebene,
   type Lage,
   type Marker,
   type Meldung,
@@ -14,6 +16,7 @@ import {
   type ServerMsg,
   type Sichtung,
   type Teilnehmer,
+  type Zeichnung,
 } from '../../../shared/protocol.ts';
 import { lies, schliesse, schreibe, toast, ui } from './ui.svelte.ts';
 import type { KoordFormat } from './coords.ts';
@@ -60,6 +63,10 @@ class LageStore {
   teilnehmer = new SvelteMap<string, Teilnehmer>();
   marker = new SvelteMap<string, Marker>();
   sichtungen = new SvelteMap<string, Sichtung>();
+  ebenen = new SvelteMap<string, Ebene>();
+  zeichnungen = new SvelteMap<string, Zeichnung>();
+  /** nur offene Bloodhound-Aufträge (Leitung: alle, sonst die an mich) */
+  bloodhound = new SvelteMap<string, BloodhoundAuftrag>();
   /** inkl. aufgehobener seit dem Snapshot (aufgehobenAm != null) */
   alarme = new SvelteMap<string, Alarm>();
   chat = $state<Chat[]>([]);
@@ -138,6 +145,9 @@ export function wende(m: ServerMsg): void {
       ersetze(store.teilnehmer, m.teilnehmer);
       ersetze(store.marker, m.marker);
       ersetze(store.sichtungen, m.sichtungen);
+      ersetze(store.ebenen, m.ebenen);
+      ersetze(store.zeichnungen, m.zeichnungen);
+      ersetze(store.bloodhound, m.bloodhound);
       ersetze(store.alarme, m.alarme);
       store.chat = m.chat;
       store.meldungen = m.meldungen;
@@ -172,6 +182,23 @@ export function wende(m: ServerMsg): void {
       break;
     case 'chat':
       if (!store.chat.some((c) => c.id === m.chat.id)) store.chat = [...store.chat, m.chat].slice(-MAX_LOG);
+      break;
+    case 'ebene':
+      store.ebenen.set(m.ebene.id, m.ebene);
+      break;
+    case 'ebene.geloescht':
+      store.ebenen.delete(m.id);
+      for (const id of m.zeichnungIds) store.zeichnungen.delete(id);
+      break;
+    case 'zeichnungen':
+      for (const z of m.zeichnungen) store.zeichnungen.set(z.id, z);
+      break;
+    case 'zeichnungen.geloescht':
+      for (const id of m.ids) store.zeichnungen.delete(id);
+      break;
+    case 'bloodhound':
+      if (m.auftrag.ende === null) store.bloodhound.set(m.auftrag.id, m.auftrag);
+      else store.bloodhound.delete(m.auftrag.id);
       break;
     case 'sichtung':
       store.sichtungen.set(m.sichtung.id, m.sichtung);
@@ -348,6 +375,9 @@ function setzeZurueck() {
   store.teilnehmer.clear();
   store.marker.clear();
   store.sichtungen.clear();
+  store.ebenen.clear();
+  store.zeichnungen.clear();
+  store.bloodhound.clear();
   store.alarme.clear();
   store.chat = [];
   store.meldungen = [];
