@@ -1,17 +1,14 @@
 <script lang="ts">
   import { formatKoord } from '../lib/coords.ts';
-  import { getMap } from '../lib/map.ts';
+  import { getMap, kartenMitte } from '../lib/map.ts';
   import { store } from '../lib/store.svelte.ts';
   import { ui } from '../lib/ui.svelte.ts';
   import type { Punkt } from '../../../shared/protocol.ts';
 
-  let { hinweis }: { hinweis: string } = $props();
+  let { hinweis, knopf = 'Übernehmen' }: { hinweis: string; knopf?: string } = $props();
 
   const m = getMap();
-  const mitte = (): Punkt => {
-    const c = m.getCenter();
-    return { lat: c.lat, lon: c.lng };
-  };
+  const mitte = (): Punkt => kartenMitte()!; // Fadenkreuz gibt es nur mit geladener Karte
   let punkt = $state(mitte());
 
   $effect(() => {
@@ -27,7 +24,7 @@
   <div class="mono leise">{formatKoord(punkt, store.einstellungen.koordFormat)}</div>
   <div class="knoepfe">
     <button onclick={() => ui.punktWahl?.fertig(null)}>Abbrechen</button>
-    <button class="primaer" onclick={() => ui.punktWahl?.fertig(mitte())}>Übernehmen</button>
+    <button class="primaer" onclick={() => ui.punktWahl?.fertig(mitte())}>{knopf}</button>
   </div>
 </div>
 
@@ -75,5 +72,14 @@
   }
   .knoepfe button {
     flex: 1;
+    min-height: var(--haupt);
+  }
+  /* Daumen-Ränder quer: Leiste nur über der Karte, die Ränder (Alarm!) bleiben frei */
+  @media (orientation: landscape) {
+    :global(:root:has(.daumen)) .leiste {
+      left: var(--links);
+      right: var(--rechts);
+      padding-top: 8px;
+    }
   }
 </style>

@@ -22,9 +22,9 @@ class UiZustand {
   panels = $state<PanelZustand[]>([]);
   /** ID des obersten Panels: zuletzt geöffnet oder bedient. Esc und schliesse() ohne ID treffen dieses. */
   oben = $state<string | null>(null);
-  toasts = $state<{ id: number; text: string }[]>([]);
-  /** Aktiver Fadenkreuz-Modus (siehe map.ts waehlePunkt). */
-  punktWahl = $state<{ hinweis: string; fertig: (p: Punkt | null) => void } | null>(null);
+  toasts = $state<{ id: number; text: string; knopf?: ToastKnopf }[]>([]);
+  /** Aktiver Fadenkreuz-Modus (siehe map.ts waehlePunkt); `knopf` beschriftet die Bestätigung. */
+  punktWahl = $state<{ hinweis: string; knopf: string; fertig: (p: Punkt | null) => void } | null>(null);
   /** Langdruck-Punkt → Kontextmenü. */
   kontext = $state<Punkt | null>(null);
   /** Langdruck/Rechtsklick auf ein Symbol → Radial-Menü um (x, y) in Bildschirmpixeln. */
@@ -108,10 +108,13 @@ export function setzeLeisteZu(zu: boolean): void {
   schreibe(LEISTE_KEY, zu ? '1' : null);
 }
 
+/** Optionaler Knopf im Toast, z.B. «Bearbeiten» nach dem schnellen Marker. */
+export type ToastKnopf = { label: string; aktion: () => void };
+
 let toastId = 0;
-export function toast(text: string, dauerMs = 3500): void {
+export function toast(text: string, dauerMs = 3500, knopf?: ToastKnopf): void {
   const id = ++toastId;
-  ui.toasts = [...ui.toasts.slice(-2), { id, text }];
+  ui.toasts = [...ui.toasts.slice(-2), { id, text, knopf }];
   setTimeout(() => (ui.toasts = ui.toasts.filter((t) => t.id !== id)), dauerMs);
 }
 

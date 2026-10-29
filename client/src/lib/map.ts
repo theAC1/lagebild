@@ -37,15 +37,22 @@ export function zentriere(p: Punkt, zoom?: number): void {
   m.easeTo({ center: [p.lon, p.lat], zoom: zoom ?? Math.max(m.getZoom(), 14) });
 }
 
+/** Mitte der Karte; null, solange die Karte nicht geladen ist. */
+export function kartenMitte(): Punkt | null {
+  const c = karte?.getCenter();
+  return c ? { lat: c.lat, lon: c.lng } : null;
+}
+
 /**
  * Fadenkreuz-Modus: blendet das Sheet aus, zeigt ein Fadenkreuz in der Kartenmitte mit Hinweis.
- * Liefert die Kartenmitte bei «Übernehmen», null bei «Abbrechen».
+ * Liefert die Kartenmitte bei der Bestätigung (`knopf`, z.B. «Hier», «Setzen»), null bei «Abbrechen».
  */
-export function waehlePunkt(hinweis: string): Promise<Punkt | null> {
+export function waehlePunkt(hinweis: string, knopf = 'Übernehmen'): Promise<Punkt | null> {
   ui.punktWahl?.fertig(null);
   return new Promise((resolve) => {
     ui.punktWahl = {
       hinweis,
+      knopf,
       fertig: (p) => {
         ui.punktWahl = null;
         resolve(p);
