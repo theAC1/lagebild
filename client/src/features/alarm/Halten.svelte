@@ -22,6 +22,12 @@
     ausloesen(art);
   }
 
+  /** Wahl an <body> hängen: der Rand (position: fixed) ist ein eigener Stapelkontext unter Toasts und Panels. */
+  function nachBody(el: HTMLElement) {
+    document.body.append(el);
+    return () => el.remove();
+  }
+
   function taste(e: KeyboardEvent) {
     if (e.key !== 'Escape' || !wahl) return;
     wahl = false;
@@ -61,8 +67,8 @@
 </button>
 
 {#if wahl}
-  <div class="hintergrund" aria-hidden="true" onclick={() => (wahl = false)}></div>
-  <div class="wahl" role="dialog" aria-label="Alarm auslösen">
+  <div class="hintergrund" aria-hidden="true" onclick={() => (wahl = false)} {@attach nachBody}></div>
+  <div class="wahl" role="dialog" aria-label="Alarm auslösen" {@attach nachBody}>
     <div class="titel">Alarm auslösen</div>
     {#each Object.entries(ARTEN) as [id, a] (id)}
       <button class="art {id}" onclick={() => los(id as AlarmArt)}>{a.label}</button>
