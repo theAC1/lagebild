@@ -117,6 +117,27 @@ Anlass: Juan beim Test auf dem Handy: «die Bedienung [ist] sehr prototypmäßig
 - Optimiert wird für das **Querformat**: Handy oder Tablet mit zwei Händen, im Fahrzeug oder am Tisch. Das Hochformat übernimmt das Konzept.
 - **Testbetrieb:** Unter Einstellungen gibt es «Bedienung: Klassisch / Daumen-Ränder», pro Gerät gemerkt. Getestet wird in einer echten Lage. Die Variante, die verliert, wird danach entfernt.
 
+### Grundsatz «Wenig Tipps» (Juan, 29.10.)
+Juan: «Im Gefecht oder im Einsatz selber hat man keine Zeit, um groß dann mit der Tastatur Texte zu versenden … So wenig Touches und Tipps wie möglich, damit die Zeit gespart werden kann.»
+- Jede Meldung lässt sich nur durch Antippen absetzen. Die Tastatur ist die Ausnahme: Freitext liegt eingeklappt hinter «+ Text».
+- Ort, Zeit und Absender werden automatisch ausgefüllt. Jede Auswahl hat eine sinnvolle Vorgabe, sodass «Senden» sofort geht.
+- Auswahl erfolgt über grosse Chips oder Knöpfe statt über Dropdowns und Textfelder. Ein Tipp wählt, Senden schickt ab.
+- Das gilt für beide Varianten (Klassisch und Daumen-Ränder). Die Einstellung «Bedienung» betrifft nur die Anordnung.
+
+### Meldungen mit Chips
+- **Sichtung (SALUTE):** Der Ablauf ist Tipp auf «Sichtung», dann Fadenkreuz (oder der Langdruck-Punkt), dann «Hier», dann die Chips, dann «Senden». Im Minimum sind das drei Tipps.
+  - Art (setzt das Symbol, Vorgabe Feind): Infanterie · Schützenpanzer · Panzer · Rad-Fahrzeug · Drohne · Scharfschütze · Unbekannt (Vorgabe). Ein Chip wechselt die Zugehörigkeit auf Unbekannt oder Neutral.
+  - Grösse: 1 Person · Trupp (2–4) · Gruppe (~10) · Zug (~30) · Kompanie+ · unbekannt (Vorgabe).
+  - Tätigkeit: bewegt sich · in Stellung · beobachtet · schiesst · sperrt/baut · ruht · unbekannt (Vorgabe). Bei «bewegt sich» erscheint eine Zeile mit der Richtung: N NO O SO S SW W NW.
+  - Ausrüstung (Mehrfachwahl): Handwaffen · Mg · Panzerabwehr · Fahrzeuge · Drohne.
+  - Zeit: jetzt (Vorgabe) · vor 5 · vor 15 · vor 30 min.
+  - Vertrauen: bestätigt · wahrscheinlich (Vorgabe) · unsicher.
+  - Foto über einen grossen Kameraknopf. Die Bemerkung liegt eingeklappt.
+  - Die Chips füllen die bestehenden Textfelder von `SichtungInput`. Der Vertrag ändert sich nicht.
+- **Chat:** In jedem Gespräch stehen Schnellmeldungen über dem Eingabefeld. Ein Tipp sendet sofort: Verstanden · Wiederholen · Warten · Bereit · Ziel erreicht · Brauche Unterstützung · Negativ. Das Textfeld ist zweitrangig.
+- **Status:** Ein Tipp auf einen Status sendet ihn. Der Freitext liegt eingeklappt, das Meldungslog steht nicht mehr im Melde-Panel, sondern unter «Mehr» bzw. bei der Leitung.
+- **Marker und Alarm:** siehe Abläufe unten.
+
 ### Layout «Daumen-Ränder»
 - **Querformat:**
   - Linker Rand für das Melden: oben Status mit dem aktuellen Status als Farbe und Text, darunter Sichtung, ganz unten Alarm.
