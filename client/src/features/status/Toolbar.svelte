@@ -1,6 +1,6 @@
 <script lang="ts">
   import { beiNachricht, statusDef, store } from '../../lib/store.svelte.ts';
-  import { oeffne, schliesse, toast, ui } from '../../lib/ui.svelte.ts';
+  import { istOffen, oeffne, schliesse, toast } from '../../lib/ui.svelte.ts';
   import { meldungText, textFarbeAuf } from './logik.ts';
 
   const ich = $derived(store.ichSelbst);
@@ -24,8 +24,8 @@
     style:background={farbe}
     style:color={textFarbeAuf(farbe)}
     aria-label="Eigener Status: {def?.label ?? ich.status}. Status ändern"
-    aria-pressed={ui.panel?.id === 'status'}
-    onclick={() => (ui.panel?.id === 'status' ? schliesse() : oeffne('status'))}
+    aria-pressed={istOffen('status')}
+    onclick={() => (istOffen('status') ? schliesse('status') : oeffne('status'))}
   >
     {def?.label ?? ich.status}
   </button>

@@ -34,7 +34,8 @@
 <style>
   .kreuz {
     position: fixed;
-    left: 50%;
+    /* Mitte der Karte, nicht des Fensters (Querformat: Werkzeugleiste rechts) */
+    left: calc(var(--links, 0px) + (100vw - var(--links, 0px) - var(--rechts, 0px)) / 2);
     top: 50%;
     width: 56px;
     height: 56px;

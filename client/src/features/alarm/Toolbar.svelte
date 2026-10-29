@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { schliesse, oeffne, ui } from '../../lib/ui.svelte.ts';
+  import { istOffen, oeffne, schliesse } from '../../lib/ui.svelte.ts';
 </script>
 
-<button class="alarm-knopf" aria-label="Alarm auslösen" onclick={() => (ui.panel?.id === 'alarm' ? schliesse() : oeffne('alarm'))}>ALARM</button>
+<button class="alarm-knopf" aria-label="Alarm auslösen" onclick={() => (istOffen('alarm') ? schliesse('alarm') : oeffne('alarm'))}>ALARM</button>
 
 <style>
   /* in der Kopfleiste: liegt nie unter Sheets, Ebenen-Menü oder der Werkzeugleiste */

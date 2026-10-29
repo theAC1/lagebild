@@ -62,9 +62,11 @@
 <style>
   .karte-menu {
     position: fixed;
-    left: 8px;
-    right: 8px;
+    left: calc(var(--links, 0px) + 8px);
+    right: calc(var(--rechts, 0px) + 8px);
     bottom: calc(var(--unten) + 8px);
+    max-height: calc(100dvh - var(--oben) - var(--unten) - 16px);
+    overflow-y: auto;
     z-index: 15;
     display: grid;
     /* sonst wächst die Spalte auf die nowrap-Breite der Koordinaten und läuft rechts aus dem Bild */
@@ -78,9 +80,9 @@
   }
   @media (min-width: 640px) {
     .karte-menu {
-      left: 50%;
+      left: calc(var(--links, 0px) + (100vw - var(--links, 0px) - var(--rechts, 0px)) / 2);
       right: auto;
-      width: 460px;
+      width: min(460px, calc(100vw - var(--links, 0px) - var(--rechts, 0px) - 16px));
       transform: translateX(-50%);
     }
   }

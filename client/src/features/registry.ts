@@ -17,7 +17,7 @@ export interface Feature {
   label: string;
   /** SVG-Markup (siehe `ikon()` in lib/ui.svelte.ts) oder Komponente */
   icon: string | Component;
-  /** Inhalt des Bottom-Sheets, wenn `ui.panel.id === id`. Ohne Panel kein Knopf in der Werkzeugleiste. */
+  /** Inhalt des Panels, wenn `istOffen(id)` (hoch: Sheet unten, quer: Seitenpanel). Ohne Panel kein Knopf in der Werkzeugleiste. */
   Panel?: Component<PanelProps>;
   /** Wird nach dem Laden der Karte gemountet; zeichnet eigene Quellen/Layer/Marker via getMap(). */
   MapLayer?: Component;
