@@ -157,3 +157,43 @@ Juan: «Im Gefecht oder im Einsatz selber hat man keine Zeit, um groß dann mit 
 - Koordinaten und Messwerte in Monospace.
 - Eigene Position deutlich von anderen unterscheidbar.
 - Ziel ist ein Werkzeug-Look statt eines Prototyps: klare Hierarchie, ruhige Flächen, grosse Touch-Ziele (≥ 48 px, Hauptaktionen ≥ 56 px).
+
+## Spec v4: Führungsraster (30.10.2026, nach Juans Vorlage)
+
+Zweck: ein für die Aktion fixiertes Gitter, damit auch Leute nur mit Funk präzise melden («Hotel 09 Charlie»). Entscheide im README («Geländetaufe & Führungsraster», «Führungsraster-Details»), Vorlage in `docs/recherche/gelaendetaufe.md` (Nachtrag 30.10.).
+
+### Schema
+- Pro Lage höchstens ein **Grande** (Area of Interest: Achsen, Anfahrten) und ein **Piccolo** (Area of Operation: Objekt), beide gleichzeitig möglich. In der Ansprache unterscheidbar: «Grande H 09 C», «Piccolo B 03 A».
+- Zeilen Buchstaben ab **A von oben** (bis Z, also höchstens 26), Spalten zweistellig **01, 02 … von links** (bis 99). Vorgabe 21 Spalten × 15 Zeilen; Zellgrösse Grande 80 m, Piccolo 10 m. Zeilen, Spalten und Zellgrösse frei wählbar, Ausdehnung höchstens 100 km.
+- Nordausgerichtet, Linien parallel zum **LV95-Gitter**, keine Drehung. Gespeichert wird die LV95-Ecke oben links (`e`, `n`, ganze Meter). Rahmen ohne Seitenfarben.
+- **Quadranten** je Zelle: A oben links, B oben rechts, C unten links, D unten rechts (Juans Vorlage; KADAS zählt C/D andersherum). Ein Punkt genau auf einer Grenze gehört zur Zelle bzw. zum Viertel rechts/unten.
+- Geometrie und Ansprache (Punkt ↔ Zelle, Mitte von Zelle/Viertel, Rahmen, Linien, «Hotel 09 Charlie») liegen rein in `shared/raster.ts`; Client, GeoJSON-Export und später der PDF-Export nutzen dasselbe Modul.
+
+### Darstellung (`client/src/features/raster`)
+- Rahmen kräftig schwarz mit weissem Saum (Landeskarte und Luftbild), Zelllinien dünn, ab ca. 6 px Zellgrösse; Viertellinien gestrichelt erst ab ca. 110 px Zellgrösse. Nicht fixiert: Rahmen und Köpfe gestrichelt, Name mit «· Vorschau».
+- **Köpfe rundum** wie in der Vorlage: Zahlen oben und unten, Buchstaben links und rechts, als kräftige Kästchen aussen am Rahmen (Farben nach Tag/Nacht). Liegt ein Rand ausserhalb des freien Kartenbereichs (ohne Kopfzeile, Leisten, Seitenpanels, im Hochformat über dem offenen Sheet), heften sich die Köpfe an dessen Rand. Bei kleinen Zellen nur jede k-te Spalte/Zeile, damit nichts überlappt; Name («GRANDE»/«PICCOLO») über der Ecke oben links, sonst in die freie Ecke geschoben. Überdecken sich Köpfe von Grande und Piccolo, hat Piccolo Vorrang.
+- **Ebenen-Auswahl:** Abschnitt «Führungsraster» mit je einem Schalter für Grande und Piccolo (nur vorhandene), pro Gerät gemerkt (`lagebild.raster.aus`). Features melden solche Schalter über `Feature.ebenen`.
+
+### Ablauf und Rechte
+- Panel «Führungsraster» (im Mehr-Menü bzw. in der Werkzeugleiste) für alle. «Grande auflegen» / «Piccolo auflegen» legt die Vorgabe in die Kartenmitte, als **Vorschau**.
+- Vorschau anpassen ohne Tastatur: Zellgrösse per Chips (Grande 25–250 m, Piccolo 5–50 m), Spalten und Zeilen per Stufen −/+, «In Kartenmitte»; verschieben durch **Ziehen** des Rasters auf der Karte (nur solange das Panel offen ist; sonst schiebt Ziehen die Karte). Grössenänderungen behalten die Mitte. Danach «Fixieren».
+- **Rechte** (Juan, 30.10.: auch Teilnehmende dürfen auflegen):
+  - Erstellen (auflegen): alle, solange es in der Lage noch kein Raster dieser Art gibt.
+  - Nicht fixiert: Erstellerin bzw. Ersteller und Leitung dürfen es verschieben, ändern, fixieren und löschen.
+  - Fixiert: für alle fest. Nur die Leitung darf es lösen oder löschen; verschieben und ändern geht erst nach dem Lösen (auch für die Leitung). Nach dem Lösen dürfen wieder Ersteller und Leitung anpassen.
+- Server prüft das (`server/src/raster.ts`) und verteilt jede Änderung an alle. Meldungslog: aufgelegt, fixiert, gelöst, gelöscht (verschieben nicht, sonst flutet es das Log).
+
+### Ansprache in der App
+- **Koordinatenleiste:** zusätzlich die eigene Rasterzelle samt Quadrant, z.B. «Grande H 09 C», bei beiden Rastern beide. Es zählen nur fixierte Raster (eine Vorschau kann sich noch bewegen). Auf schmalen Handys rutscht die Ansprache in eine zweite Zeile.
+- **Marker- und Sichtungs-Detail:** Zeile «Raster» mit der Zelle.
+- Für andere Anzeigen (Radial-Menü «Koordinate») stellt `rasterAnsprache(punkt)` in `features/raster/zustand.svelte.ts` den Text bereit («Grande H 09 C · Piccolo B 03 A» oder `null`).
+- **Melden per Rasterposition:** «Melden» → «Marker» → im Fadenkreuz «Rasterposition» (nur sichtbar, wenn ein Raster fixiert ist) → Raster (bei zweien), Zeile, Spalte, Quadrant (A B / C D wie die Legende der Vorlage, oder «Ganze Zelle») per Chips → «Marker setzen». Vorgabe ist die Zelle unter der Kartenmitte. Die Auswahl wird auf der Karte gelb hervorgehoben, die Funkansprache («Hotel 09 Charlie») steht daneben. Der Marker landet mit dem zuletzt benutzten Zeichen in der Mitte der Zelle bzw. des Viertels, Bezeichnung = Ansprache.
+
+### Vertrag (`shared/protocol.ts`)
+- `RasterDef { art: 'grande'|'piccolo', e, n, zeilen 1–26, spalten 1–99, zellM }`, `Raster = RasterDef + { id = rasterId(lageId, art), fixiert, von, geaendertAm }`.
+- Client → Server: `raster.setzen { raster }` (neu oder ersetzen, setzt `fixiert: false`), `raster.fixieren { art, fixiert }`, `raster.loeschen { art }`.
+- Server → Client: `snapshot.raster`, `raster { raster }`, `raster.geloescht { art }`.
+- GeoJSON-Export der Leitung: je Raster ein Feature `art: 'fuehrungsraster'` mit dem Rahmen als Polygon und `raster`, `lv95 {e, n}`, `zeilen`, `spalten`, `zellM`, `fixiert`.
+
+### Später
+PDF je Raster (Luftbild und SpotMap mit Raster, Layout der Vorlage), Offline-Gebiet aus dem Raster vorschlagen.
