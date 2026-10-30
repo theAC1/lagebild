@@ -20,13 +20,25 @@
 
   const stopp = starte();
 
+  // Jede Position ändert die Daten; setData kachelt alle Spuren neu. Höchstens einmal je TAKT_MS zeichnen, mit dem
+  // jüngsten Stand: bei 50 Geräten (je bis 1 Pos/s) sonst 50 Neuaufbauten pro Sekunde.
+  const TAKT_MS = 1000;
+  let zeichne: (() => void) | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let zuletzt = 0;
   $effect(() => {
     const jetzt = store.jetzt; // tickt alle 5 s → Fenster und «alt» wandern mit
-    const linien = spurLinien(spuren.daten, spuren.sichtbar, spurFarbe, seitFuer(spuren.fenster, jetzt), jetzt - ALT_MS);
-    (m.getSource(QUELLE) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: linien });
+    const [daten, ids, seit] = [spuren.daten, [...spuren.sichtbar], seitFuer(spuren.fenster, jetzt)];
+    zeichne = () => (m.getSource(QUELLE) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: spurLinien(daten, ids, spurFarbe, seit, jetzt - ALT_MS) });
+    timer ??= setTimeout(() => {
+      timer = undefined;
+      zuletzt = Date.now();
+      zeichne?.();
+    }, Math.max(0, zuletzt + TAKT_MS - Date.now()));
   });
 
   onDestroy(() => {
+    clearTimeout(timer);
     stopp();
     try {
       for (const id of LAYER) if (m.getLayer(id)) m.removeLayer(id);
