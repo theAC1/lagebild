@@ -254,9 +254,9 @@ describe('WebSocket', () => {
     expect(b.empfangen.filter((m) => m.typ === 'fehler')).toHaveLength(0);
   });
 
-  it('Foto über 8 MB wird abgelehnt', async () => {
+  it('Foto über 2 MB wird abgelehnt', async () => {
     const { aB } = await szenario();
-    const gross = Buffer.concat([JPEG, Buffer.alloc(8 * 1024 * 1024)]);
+    const gross = Buffer.concat([JPEG, Buffer.alloc(2 * 1024 * 1024)]);
     const r = await s.api('/api/foto', { method: 'POST', token: aB.token, body: gross, headers: { 'content-type': 'image/jpeg' } }).catch(() => undefined);
     expect(r?.status).toBe(413);
   });
