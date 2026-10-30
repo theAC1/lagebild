@@ -33,7 +33,7 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         globPatterns: ['**/*.{js,mjs,css,html,png,svg,webmanifest}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // App-Hülle inkl. MapLibre/milsymbol offline
-        navigateFallbackDenylist: [/^\/api\//, /^\/ws/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/ws/, /^\/app\//], // /app/: APK-Download, nicht die PWA ausliefern
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/wmts\.geo\.admin\.ch\/.*/,
