@@ -169,7 +169,7 @@ Zweck: ein für die Aktion fixiertes Gitter, damit auch Leute nur mit Funk präz
 - Zeilen Buchstaben ab **A von oben** (bis Z, also höchstens 26), Spalten zweistellig **01, 02 … von links** (bis 99). Vorgabe 21 Spalten × 15 Zeilen; Zellgrösse Grande 80 m, Piccolo 10 m. Zeilen, Spalten und Zellgrösse frei wählbar, Ausdehnung höchstens 100 km.
 - Nordausgerichtet, Linien parallel zum **LV95-Gitter**, keine Drehung. Gespeichert wird die LV95-Ecke oben links (`e`, `n`, ganze Meter). Rahmen ohne Seitenfarben.
 - **Quadranten** je Zelle: A oben links, B oben rechts, C unten links, D unten rechts (Juans Vorlage; KADAS zählt C/D andersherum). Ein Punkt genau auf einer Grenze gehört zur Zelle bzw. zum Viertel rechts/unten.
-- Geometrie und Ansprache (Punkt ↔ Zelle, Mitte von Zelle/Viertel, Rahmen, Linien, «Hotel 09 Charlie») liegen rein in `shared/raster.ts`; Client, GeoJSON-Export und später der PDF-Export nutzen dasselbe Modul.
+- Geometrie und Ansprache (Punkt ↔ Zelle, Mitte von Zelle/Viertel, Rahmen, Linien, «Hotel 09 Charlie») liegen rein in `shared/raster.ts`; Client, GeoJSON-Export und der PDF-Export nutzen dasselbe Modul.
 
 ### Darstellung (`client/src/features/raster`)
 - Rahmen kräftig schwarz mit weissem Saum (Landeskarte und Luftbild), Zelllinien dünn, ab ca. 6 px Zellgrösse; Viertellinien gestrichelt erst ab ca. 110 px Zellgrösse. Nicht fixiert: Rahmen und Köpfe gestrichelt, Name mit «· Vorschau».
@@ -197,8 +197,17 @@ Zweck: ein für die Aktion fixiertes Gitter, damit auch Leute nur mit Funk präz
 - Server → Client: `snapshot.raster`, `raster { raster }`, `raster.geloescht { art }`.
 - GeoJSON-Export der Leitung: je Raster ein Feature `art: 'fuehrungsraster'` mit dem Rahmen als Polygon und `raster`, `lv95 {e, n}`, `zeilen`, `spalten`, `zellM`, `fixiert`.
 
+### PDF-Ausdruck (`features/raster/ausdruck.ts`, Logik in `druck.ts`, `pdf.ts`)
+- Panel «Führungsraster» › je Raster «Als PDF» (ein Tipp, für alle, die das Raster sehen; auch eine Vorschau). Während es entsteht: «PDF entsteht …».
+- Ein PDF je Raster, A4 quer, zwei Seiten: **Luftbild** mit Raster und **SpotMap** (Luftbild mit Taufen, Fassadenlinien, Stosspfeilen und Namen wie auf der Karte) mit Raster. Keine Einstufung.
+- Blatt nordausgerichtet in LV95: Raster achsparallel, mittig, im kleinsten runden Massstab (Mantisse auf 0,5 gerundet, z.B. Grande 21 × 15 à 80 m → 1:7'000, Piccolo à 10 m → 1:900), Luftbild bis zum Blattrand. Zelllinien dünn, Viertel gestrichelt ab ca. 8 mm Zellgrösse, Rahmen kräftig, alles mit weissem Saum, ohne Seitenfarben. Köpfe rundum wie auf der Karte (`koepfe()` aus `beschriftung.ts`).
+- Titelzeile: «PICCOLO · SpotMap», Lagename; rechts Massstab, Zellgrösse, Spalten × Zeilen, Datum, Quadranten-Legende A B / C D, Nordpfeil.
+- Gezeichnet auf ein Canvas (200 dpi), keine zweite Karte: Luftbild-Kacheln (Web-Mercator, Stufe passend zur Auflösung, höchstens z19) per affiner Abbildung aufs LV95-Blatt. Kacheln zuerst aus den Offline-Gebieten, sonst aus dem Netz mit der Drossel der Offline-Gebiete (in der PWA über den Kachel-Cache). Fehlende Kacheln bleiben grau, Hinweis «… Luftbild-Kacheln fehlen».
+- PDF selbst geschrieben (je Seite ein JPEG, keine neue Abhängigkeit). Dateiname `<lage>-<art>-<datum>.pdf`.
+- Browser/PWA: Download. Android-App: `window.LagebildDatei.teile()` aus `MainActivity` legt die Datei in den Cache und öffnet den Teilen-Dialog (speichern, senden, drucken); der WebView selbst kennt weder Downloads noch `window.print()`. Ältere App ohne diese Brücke: Hinweis, im Browser zu öffnen.
+
 ### Später
-PDF je Raster (Luftbild und SpotMap mit Raster, Layout der Vorlage), Offline-Gebiet aus dem Raster vorschlagen.
+Offline-Gebiet aus dem Raster vorschlagen; A3 im PDF (in `druck.ts` nur ein anderes Format, bräuchte eine Auswahl); Landeskarte als dritte Seite (Vorlage hat je ein Blatt Luftbild und Landeskarte).
 
 ## Geländetaufe (30.10.2026, Entscheide im README «Geländetaufe & Führungsraster», «Stossrichtung/Fassaden», «Taufe-Details»)
 
@@ -234,7 +243,7 @@ Feature `client/src/features/taufe`, Server `server/src/taufe.ts`, Vertrag `Tauf
 ### Layer «Geländetaufe»
 - In der Ebenen-Auswahl ein-/ausschaltbar (`einstellungen.taufe`, pro Gerät), im Taufmodus immer an.
 - Darstellung nach Juans SpotMap: Gebäude weiss umrandet (dunkler Saum) mit weissem Namenskästchen, das bei Platzmangel mit Führungslinie daneben steht; Strassennamen rot entlang der Achse; Wald braun getönt mit Namen; Gewässer blau; Flächen dezent gelb getönt mit Namen. Beschriftungen als HTML-Kästchen mit Greedy-Platzierung (Zielobjekte, Gebäude, Strassen, Gewässer, Wald, Flächen), was keinen Platz findet, entfällt; unter Zoom 13 nur Zielobjekte.
-- `darstellung.ts` ist rein rechnerisch (Features, Anker, Platzierung), damit der spätere PDF-Export (SpotMap) sie wiederverwenden kann.
+- `darstellung.ts` ist rein rechnerisch (Features, Anker, Platzierung), der PDF-Export (SpotMap) nutzt sie mit.
 
 ### Server
 - `taufe.neu`, `taufe.aendern` (nur gesetzte Felder), `taufe.loeschen`, `lage.taufListen` (Leitung). Antworten `taufe`, `taufe.geloescht`, `lage`; Snapshot `taufen`.

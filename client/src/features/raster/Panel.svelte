@@ -7,6 +7,7 @@
   import { oeffne, toast } from '../../lib/ui.svelte.ts';
   import type { PanelProps } from '../registry.ts';
   import Melden from './Melden.svelte';
+  import { rasterPdf, speichere } from './ausdruck.ts';
   import { zeigeRaster } from './karte.ts';
   import { angezeigt, ARTEN, darfAendern, darfFixieren, fixierte } from './zustand.svelte.ts';
 
@@ -47,6 +48,20 @@
     if (mitte) setze({ art: r.art, ...rasterUm(zuLv95(mitte), r) });
   }
   const passt = (r: Raster, zeilen: number, spalten: number, zellM = r.zellM) => Math.max(zeilen, spalten) * zellM <= RASTER_MAX_AUSDEHNUNG_M;
+  /** Art, deren PDF gerade entsteht */
+  let pdfLaeuft = $state<RasterArt | null>(null);
+  async function alsPdf(r: Raster) {
+    pdfLaeuft = r.art;
+    try {
+      const { blob, name: datei, fehlen } = await rasterPdf(r, store.lage?.name ?? 'Lage', [...store.taufen.values()]);
+      if (!(await speichere(blob, datei))) toast('PDF braucht eine neuere App-Version – im Browser öffnen.', 5000);
+      else if (fehlen) toast(`PDF erstellt, ${fehlen} Luftbild-Kacheln fehlen (offline?).`, 5000);
+    } catch (e) {
+      toast(`PDF fehlgeschlagen: ${(e as Error).message}`);
+    } finally {
+      pdfLaeuft = null;
+    }
+  }
   const name = (id: string) => store.teilnehmer.get(id)?.rufname ?? 'nicht mehr in der Lage';
 </script>
 
@@ -103,6 +118,7 @@
         {:else}
           <div class="aktionen">
             <button onclick={() => zeigeRaster(r)}>Zeigen</button>
+            <button disabled={pdfLaeuft !== null} onclick={() => alsPdf(r)}>{pdfLaeuft === art ? 'PDF entsteht …' : 'Als PDF'}</button>
             {#if r.fixiert && darfFixieren(r)}<button onclick={() => ok({ typ: 'raster.fixieren', art, fixiert: false })}>Lösen</button>{/if}
             {#if darfFixieren(r)}<button class="gefahr" onclick={() => (loeschenFragen = art)}>Löschen</button>{/if}
           </div>
