@@ -137,6 +137,9 @@ test('Teilnehmerin legt Grande auf, zieht und fixiert es; Leitung sieht es', asy
 test('fixiert: Teilnehmerin kann es nicht mehr verschieben, die Leitung nach dem Lösen schon', async () => {
   const p = bravo.page;
   const fix = (await raster('grande'))!;
+  // Die Aktionsreihe (Zeigen, Als PDF, Offline-Gebiet …) macht das Sheet höher; das Raster erst wieder ins Bild holen
+  await abschnitt(p, 'Grande').getByRole('button', { name: 'Zeigen' }).click();
+  await p.waitForTimeout(900);
   const m = await rasterMitte(p);
   await ziehe(p, m, 60, 0); // verschiebt nur die Karte
   await p.waitForTimeout(500);
