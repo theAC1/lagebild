@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { staleNachFuer } from '../../../shared/protocol.ts';
+  import { PROTOKOLL_VERSION, staleNachFuer } from '../../../shared/protocol.ts';
   import { KOORD_FORMATE } from '../lib/coords.ts';
   import { BEDIENGROESSEN } from '../lib/groesse.svelte.ts';
   import { aktualisiereHintergrund, aktualisiereWachhalten, setzeSendetPos } from '../lib/position.svelte.ts';
@@ -129,6 +129,11 @@
       {/each}
     </div>
     <p class="leise">Fest sperren klappt nur in der installierten App auf Android; sonst erscheint ein Hinweis, das Gerät zu drehen.</p>
+  </div>
+
+  <div>
+    <div class="titel">Über</div>
+    <p class="leise">Stand {__WEB_CODE__ || 'Entwicklung'} · Protokoll {PROTOKOLL_VERSION}</p>
   </div>
 
   <div class="lage">
