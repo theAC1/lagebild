@@ -1,11 +1,11 @@
 <script lang="ts">
-  // Bedienung «Daumen-Ränder» (Spec v3). Quer: links Melden (Status, Sichtung, unten Alarm), rechts oben die
-  // Kartenknöpfe (Ebenen, Folgen, Nordung), rechts unten Marker, Chat, Mehr. Hoch: Dock unten, Alarm links darüber.
+  // Bedienung «Daumen-Ränder» (Spec v3). Die Karte läuft randlos unter allem durch; Kopf, Knöpfe und Koordinaten
+  // schweben darüber. Quer: links Melden (Status, Sichtung, unten Alarm), rechts oben die Kartenknöpfe (Ebenen, Folgen,
+  // Nordung) als Reihe, rechts unten Marker, Chat, Mehr. Hoch: Dock unten, Alarm links darüber, Kartenknöpfe rechts.
   // Was ein Hauptknopf tut, bestimmt das Feature (Feature.haupt); wo er sitzt, steht hier.
   import { MediaQuery } from 'svelte/reactivity';
   import { features, type Feature } from '../features/registry.ts';
-  import { groesse } from '../lib/groesse.svelte.ts';
-  import { folgeMir, getMap, onMapReady } from '../lib/map.ts';
+    import { folgeMir, getMap, onMapReady } from '../lib/map.ts';
   import { store } from '../lib/store.svelte.ts';
   import { ikon, istOffen, oeffne, schliesse, ui } from '../lib/ui.svelte.ts';
   import EbenenListe from './EbenenListe.svelte';
@@ -19,10 +19,6 @@
   const IKON_EINST = ikon('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9L7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>');
 
   const quer = new MediaQuery('(orientation: landscape)', false);
-  const niedrig = new MediaQuery('(max-height: 500px)', false);
-  // Handy quer mit Touch oder grosser Bediengrösse: sechs Knöpfe passen nicht übereinander in die rechte Spalte →
-  // Kartenknöpfe schweben wie im Hochformat rechts über der Karte, die Spalte behält Marker, Chat, Mehr.
-  const schwebend = $derived(!quer.current || (niedrig.current && groesse.ui > 1));
   const sichtbar = $derived(features.filter((f) => !f.nurLeitung || store.istLeitung));
   const haupt = $derived(new Map(sichtbar.filter((f) => f.haupt).map((f) => [f.id, f])));
   const mehr = $derived([
@@ -142,7 +138,6 @@
       {@render knopf('alarm')}
     </aside>
     <aside class="rand rechts" aria-label="Karte">
-      {#if !schwebend}{@render kartenKnoepfe()}{/if}
       <span class="luecke"></span>
       {#each RECHTS as id (id)}{@render knopf(id)}{/each}
       {@render mehrKnopf()}
@@ -159,14 +154,14 @@
     </footer>
   {/if}
 
-  {#if schwebend}<div class="schwebend">{@render kartenKnoepfe()}</div>{/if}
+  <div class="schwebend">{@render kartenKnoepfe()}</div>
 
   {#if ebenenOffen || mehrOffen}
     <!-- Tippen daneben schliesst das Menü -->
     <div class="hintergrund" aria-hidden="true" onclick={() => (mehrOffen = ebenenOffen = false)}></div>
   {/if}
   {#if ebenenOffen}
-    <div class="pop ebenen" class:neben-schwebend={schwebend} role="group" aria-label="Karte"><EbenenListe /></div>
+    <div class="pop ebenen" role="group" aria-label="Karte"><EbenenListe /></div>
   {/if}
   {#if mehrOffen}
     <div class="pop mehr" role="menu" aria-label="Mehr">
@@ -184,23 +179,25 @@
   .daumen {
     display: contents;
   }
+  /* Alles hier schwebt über der randlosen Karte: Flächen mit Schatten statt Leisten über die ganze Breite */
   .kopf {
     position: fixed;
-    top: 0;
-    left: var(--rand-l);
-    right: var(--rechts);
+    top: calc(var(--safe-top) + 8px);
+    left: calc(var(--links) + 8px);
     z-index: 10;
-    height: var(--oben);
+    max-width: calc(100vw - var(--links) - 16px);
+    height: 50px; /* Teilnehmer-Knopf innen 48 px */
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: var(--safe-top) 4px 0 14px;
+    gap: 10px;
+    padding: 0 2px 0 14px;
     background: var(--kopf-bg);
-    border-bottom: 1px solid var(--line);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    box-shadow: var(--schatten);
   }
   .lage {
-    flex: none;
-    max-width: 60%;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -208,7 +205,6 @@
   }
   /* bei grosser Schrift weicht zuerst «verbunden», die Lampe bleibt */
   .verbindung {
-    flex: 1;
     min-width: 8px; /* die Lampe */
   }
   .vtext {
@@ -222,9 +218,11 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    min-height: 44px;
-    padding: 0 10px;
+    min-height: 0;
+    height: 100%;
+    padding: 0 12px 0 6px;
     border: 0;
+    border-radius: 999px;
     background: transparent;
     color: var(--text-2);
     font-weight: 700;
@@ -234,7 +232,7 @@
     font-size: 1rem;
   }
 
-  /* --- Querformat: zwei Ränder über die volle Höhe --- */
+  /* --- Querformat: zwei schmale Spalten schwebender Knöpfe, dazwischen und darunter die Karte --- */
   .rand {
     position: fixed;
     top: 0;
@@ -243,26 +241,35 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: calc(6px + var(--safe-top)) 6px calc(6px + var(--safe-bottom));
+    padding: calc(8px + var(--safe-top)) 0 calc(8px + var(--safe-bottom));
     overflow-y: auto; /* Notnagel für sehr niedrige Fenster: Mehr bleibt erreichbar */
     scrollbar-width: none;
-    background: var(--surface-glas);
+    pointer-events: none; /* die Karte zwischen den Knöpfen bleibt verschiebbar */
+  }
+  .rand > :global(*) {
+    pointer-events: auto;
   }
   .rand.links {
     left: 0;
     width: var(--rand-l);
-    padding-left: calc(6px + env(safe-area-inset-left, 0px));
-    border-right: 1px solid var(--line);
+    padding-left: calc(8px + env(safe-area-inset-left, 0px));
   }
   .rand.rechts {
     right: 0;
     width: var(--rechts);
-    padding-right: calc(6px + env(safe-area-inset-right, 0px));
-    border-left: 1px solid var(--line);
+    padding-right: calc(8px + env(safe-area-inset-right, 0px));
   }
   .rand :global(.rand-knopf) {
     flex: none;
-    height: clamp(var(--haupt), 13dvh, 76px);
+    height: clamp(var(--haupt), 13dvh, 72px);
+    box-shadow: var(--schatten);
+    padding-inline: 0;
+    font-size: 0.58rem; /* «SICHTUNG» passt in die schmale Spalte */
+    letter-spacing: 0;
+  }
+  .rand :global(.alarm-halten) {
+    width: 64px;
+    height: 64px;
   }
   .rand-knopf.aktiv {
     color: var(--accent);
@@ -270,13 +277,13 @@
   .luecke {
     flex: 1;
     min-height: 4px;
+    pointer-events: none;
   }
 
-  /* --- Kartenknöpfe (quer in der rechten Spalte, hoch schwebend rechts) --- */
+  /* --- Kartenknöpfe: hoch eine Spalte rechts unter dem Kopf, quer eine Reihe rechts oben --- */
   .karten-knopf {
     flex: none;
-    width: 100%;
-    min-width: var(--touch);
+    width: var(--touch);
     height: var(--touch);
     padding: 0;
     display: grid;
@@ -295,54 +302,57 @@
   .karten-knopf:not(.gedreht) .nadel {
     opacity: 0.75;
   }
-  .rand .karten-knopf {
-    box-shadow: none;
-  }
-  /* niedrige Handys quer (360 px, Adressleiste): Kartenknöpfe etwas flacher, Hauptaktionen bleiben 56 px */
-  /* Kopfzeile quer flach (app.css begrenzt --oben): Teilnehmer-Knopf füllt sie, statt herauszuragen */
-  @media (orientation: landscape) and (max-height: 500px) {
-    .tn {
-      min-height: 0;
-      align-self: stretch;
-    }
-  }
-  @media (orientation: landscape) and (max-height: 400px) {
-    .rand {
-      gap: 4px;
-    }
-    .rand .karten-knopf {
-      height: 44px;
-    }
-  }
   .schwebend {
     position: fixed;
-    right: calc(var(--rechts) + 10px);
-    top: calc(var(--oben) + 10px + var(--banner-h, 0px));
+    right: 8px;
+    top: calc(var(--oben) + 8px + var(--banner-h, 0px));
     z-index: 9;
     display: grid;
     gap: 8px;
   }
+  @media (orientation: landscape) {
+    .schwebend {
+      top: calc(var(--safe-top) + 8px);
+      right: calc(8px + env(safe-area-inset-right, 0px));
+      grid-auto-flow: column;
+    }
+  }
 
-  /* --- Hochformat: Dock unten, Alarm links darüber --- */
+  /* --- Fuss: Koordinaten als Pille, hoch darunter das Dock --- */
   .fuss {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     z-index: 10;
+    display: grid;
+    justify-items: center;
+    gap: 6px;
     padding-bottom: var(--safe-bottom);
-    background: var(--surface-glas);
-    border-top: 1px solid var(--line);
+    pointer-events: none;
+  }
+  .fuss > :global(*) {
+    pointer-events: auto;
+  }
+  .fuss :global(.leiste) {
+    width: auto;
+    max-width: calc(100% - 16px);
+    min-height: 36px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    box-shadow: var(--schatten);
   }
   .dock {
+    width: 100%;
     display: flex;
     /* waagrecht nicht mitwachsen: die Breite gehört den fünf Knöpfen */
     gap: min(calc(6 * var(--u)), 6px);
-    height: 76px;
-    padding: 8px min(calc(8 * var(--u)), 8px) 6px;
+    height: 70px;
+    padding: 0 min(calc(8 * var(--u)), 8px) 8px;
   }
   .dock > :global(*) {
     flex: 1 1 0;
+    box-shadow: var(--schatten);
     /* fünf Knöpfe auf Handybreite: die Beschriftung wächst nur, solange «SICHTUNG» in den Knopf passt */
     font-size: min(0.6rem, 2.5vw);
     letter-spacing: 0.02em;
@@ -361,11 +371,14 @@
     z-index: 21;
   }
   @media (orientation: landscape) {
+    .kopf {
+      /* nicht unter die Reihe der Kartenknöpfe rechts oben */
+      max-width: calc(100vw - var(--links) - 3 * var(--touch) - 48px);
+    }
     .fuss {
       left: var(--links);
       right: var(--rechts);
-      border-top: 0;
-      background: transparent;
+      padding-bottom: calc(8px + var(--safe-bottom));
     }
   }
 
@@ -388,10 +401,11 @@
     border-radius: var(--radius);
     box-shadow: 0 8px 24px rgb(0 0 0 / 0.45);
   }
+  /* hoch links neben der Spalte der Kartenknöpfe, quer unter ihrer Reihe */
   .ebenen {
-    top: calc(var(--oben) + 10px + var(--banner-h, 0px));
-    right: 68px;
-    width: min(260px, calc(100vw - 80px));
+    top: calc(var(--oben) + 8px + var(--banner-h, 0px));
+    right: calc(var(--touch) + 18px);
+    width: min(260px, calc(100vw - var(--touch) - 28px));
   }
   .mehr {
     right: calc(var(--rechts) + 8px);
@@ -421,13 +435,10 @@
   }
   @media (orientation: landscape) {
     .ebenen {
-      top: calc(var(--oben) + 8px);
-      right: calc(var(--rechts) + 8px);
+      top: calc(var(--safe-top) + var(--touch) + 16px);
+      right: calc(8px + env(safe-area-inset-right, 0px));
+      width: min(260px, calc(100vw - var(--links) - 16px));
+      max-height: calc(100dvh - var(--safe-top) - var(--touch) - var(--unten) - 24px);
     }
-  }
-  /* schwebende Kartenknöpfe bleiben neben dem Menü sichtbar */
-  .ebenen.neben-schwebend {
-    right: calc(var(--rechts) + var(--touch) + 20px);
-    width: min(260px, calc(100vw - var(--links) - var(--rechts) - var(--touch) - 30px));
   }
 </style>

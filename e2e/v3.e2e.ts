@@ -78,10 +78,13 @@ test('Handy quer 844×390: Melden links, Karte rechts, grosse Ziele, schlanke Ko
   }
   for (const name of ['Karte und Ebenen wählen', 'Eigener Position folgen', 'Karte nach Norden ausrichten']) {
     const b = await box(leitung, name);
-    expect(b.x).toBeGreaterThan(QUER.width - 100);
-    expect(b.y).toBeLessThan(QUER.height / 2); // rechts oben
+    expect(b.x).toBeGreaterThan(QUER.width / 2);
+    expect(b.y).toBeLessThan(80); // Reihe rechts oben über der Karte
     expect(Math.min(b.width, b.height)).toBeGreaterThanOrEqual(48);
   }
+  // Karte randlos: ohne offenes Panel über die ganze Fläche, die Knöpfe schweben darüber
+  const karte = (await leitung.locator('.maplibregl-canvas').boundingBox())!;
+  expect(karte).toMatchObject({ x: 0, y: 0, width: QUER.width, height: QUER.height });
   expect(Math.min(status.width, status.height, sichtung.height)).toBeGreaterThanOrEqual(56);
 
   // Kopfzeile: Lage, Verbindung, Zahl der Teilnehmenden – keine weiteren Knöpfe

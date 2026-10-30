@@ -119,8 +119,8 @@
     position: fixed;
     inset: 0;
     /* Querformat: Platz für Seitenpanels links und Werkzeugleiste rechts (app.css) */
-    left: var(--links, 0px);
-    right: var(--rechts, 0px);
+    left: var(--karte-l, 0px);
+    right: var(--karte-r, 0px);
     background: #2b3136;
   }
 </style>

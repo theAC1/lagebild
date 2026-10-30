@@ -16,10 +16,11 @@ const KARTE: Record<Bediengroesse, number> = { normal: 1, gross: 1.15, sehrgross
 
 export type Faktoren = { ui: number; schrift: number; karte: number };
 
-/** Touch (Finger statt Maus): schon «Normal» grösser – Trefferflächen +25 %, Grundschrift 18 statt 16 px. */
+/** Touch (Finger statt Maus): Grundschrift 18 statt 16 px. Die Trefferflächen (48 px) sind schon fingergross;
+ *  früher +25 % auf Touch, das liess «Normal» auf dem Handy wie «Sehr gross» wirken (Rückmeldung 30.10.). */
 export function faktoren(stufe: Bediengroesse, touch: boolean): Faktoren {
   const s = STUFE[stufe] ?? 1;
-  return { ui: s * (touch ? 1.25 : 1), schrift: s * (touch ? 1.125 : 1), karte: KARTE[stufe] ?? 1 };
+  return { ui: s, schrift: s * (touch ? 1.125 : 1), karte: KARTE[stufe] ?? 1 };
 }
 
 const finger = typeof window === 'undefined' ? null : new MediaQuery('(pointer: coarse)', false);

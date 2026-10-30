@@ -93,9 +93,9 @@ for (const [ansicht, viewport] of [
   ['hoch', HOCH],
   ['quer', QUER],
 ] as const) {
-  test(`Touch ${ansicht} ${viewport.width}×${viewport.height}: Normal ist grösser als Desktop, alles ≥ 48 px ohne Überlappung`, async ({ browser }) => {
+  test(`Touch ${ansicht} ${viewport.width}×${viewport.height}: Normal mit grösserer Schrift, alles ≥ 48 px ohne Überlappung`, async ({ browser }) => {
     const p = await handy(browser, viewport, 'normal', `N-${ansicht}`);
-    expect(await ui(p)).toBe(1.25);
+    expect(await ui(p)).toBe(1);
     expect(await p.evaluate(() => getComputedStyle(document.documentElement).fontSize)).toBe('18px');
     await pruefe(p, viewport);
     await bild(p, `${ansicht}-normal`);
@@ -104,7 +104,7 @@ for (const [ansicht, viewport] of [
 
   test(`Touch ${ansicht} ${viewport.width}×${viewport.height}: Sehr gross bleibt bedienbar, Panel scrollt intern`, async ({ browser }) => {
     const p = await handy(browser, viewport, 'sehrgross', `S-${ansicht}`);
-    expect(await ui(p)).toBe(1.75);
+    expect(await ui(p)).toBe(1.4);
     await pruefe(p, viewport);
     await bild(p, `${ansicht}-sehrgross`);
 
@@ -135,11 +135,11 @@ test('Bediengrösse in den Einstellungen wählen: wirkt sofort und gilt nach Neu
   const gruppe = p.getByRole('group', { name: 'Bediengrösse' });
   await gruppe.getByRole('button', { name: 'Sehr gross' }).click();
   await expect(gruppe.getByRole('button', { name: 'Sehr gross' })).toHaveAttribute('aria-pressed', 'true');
-  expect(await ui(p)).toBe(1.75);
+  expect(await ui(p)).toBe(1.4);
   expect((await folgen.boundingBox())!.height).toBeCloseTo(vorher * 1.4, 0);
   await p.reload();
   await expect(p.locator('.verbindung.verbunden')).toBeVisible();
-  expect(await ui(p)).toBe(1.75);
+  expect(await ui(p)).toBe(1.4);
   await knopf(p, 'Mehr').click();
   await p.getByRole('menuitem', { name: 'Einstellungen' }).click();
   await expect(p.getByRole('group', { name: 'Bediengrösse' }).getByRole('button', { name: 'Sehr gross' })).toHaveAttribute('aria-pressed', 'true');
