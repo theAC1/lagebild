@@ -1,6 +1,6 @@
 // Spec v3: Bedienung «Daumen-Ränder» (Vorgabe) – Querformat Handy/Tablet, Hochformat, Meldungen mit wenig Tipps,
 // Marker per Fadenkreuz, Alarm halten, Tag/Nacht nach Sonnenstand.
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const NAH = { latitude: 46.9466, longitude: 7.4462 }; // ~150 m östlich
@@ -294,6 +294,40 @@ test('Niedriges Handy quer 740×360: alle Randknöpfe ganz sichtbar, Hauptaktion
   for (const name of [/^Eigener Status/, 'Melden', /^Alarm/, 'Karte nach Norden ausrichten', /^Chat/, 'Mehr']) await expect(knopf(leitung, name)).toBeInViewport({ ratio: 1 });
   expect((await box(leitung, 'Mehr')).height).toBeGreaterThanOrEqual(56);
   await leitung.setViewportSize(QUER);
+});
+
+test('Browser-Gesten: Text auf Knöpfen nicht markierbar, kein Browser-Menü auf Karte und Knöpfen; Eingaben und Chat bleiben kopierbar', async () => {
+  const markierung = (l: Locator) => l.evaluate((el) => getComputedStyle(el).userSelect);
+  // Ein später angehängter Zuhörer sieht, ob die App das Browser-Menü unterdrückt hat (true = unterdrückt)
+  await leitung.evaluate(() => addEventListener('contextmenu', (e) => ((window as unknown as { menuWeg: boolean }).menuWeg = e.defaultPrevented)));
+  const menue = async (l: Locator, position?: { x: number; y: number }) => {
+    if (position) await l.click({ button: 'right', position }); // echter Rechtsklick (Karte)
+    else await l.dispatchEvent('contextmenu'); // Element im Panel kann von Nachbarn halb verdeckt sein
+    return leitung.evaluate(() => (window as unknown as { menuWeg: boolean }).menuWeg);
+  };
+  const melden = knopf(leitung, 'Melden');
+  expect(await markierung(melden.getByText('Melden'))).toBe('none');
+  expect(await markierung(leitung.locator('header.kopf .lage'))).toBe('none');
+  expect(await menue(melden)).toBe(true);
+  await expect(leitung.getByRole('menu', { name: 'Melden' })).toHaveCount(0); // Rechtsklick ist kein Tipp
+  // Karte: Browser-Menü weg, der Rechtsklick (= Langdruck) der App wirkt weiter
+  expect(await menue(leitung.locator('.maplibregl-canvas'), { x: 300, y: 300 })).toBe(true);
+  await expect(leitung.getByRole('dialog', { name: 'Punkt' })).toBeVisible();
+  await leitung.keyboard.press('Escape');
+  expect(await leitung.locator('img').evaluateAll((els) => els.every((e) => getComputedStyle(e).getPropertyValue('-webkit-user-drag') === 'none'))).toBe(true);
+
+  await knopf(leitung, /^Chat/).click();
+  const chat = leitung.getByRole('region', { name: 'Chat' });
+  await chat.locator('button.zeile', { hasText: 'Alle' }).first().click();
+  const blase = chat.locator('.blase', { hasText: 'Verstanden' }).first();
+  expect(await markierung(blase)).toBe('text');
+  expect(await menue(blase)).toBe(false);
+  const eingabe = chat.locator('input, textarea').last();
+  expect(await markierung(eingabe)).toBe('text');
+  expect(await menue(eingabe)).toBe(false);
+  await leitung.keyboard.press('Escape');
+  await leitung.keyboard.press('Escape');
+  await expect(sheets(leitung)).toHaveCount(0);
 });
 
 test('Klassisch bleibt wählbar und gilt nach Neuladen', async () => {

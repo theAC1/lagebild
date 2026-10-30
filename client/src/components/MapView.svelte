@@ -74,9 +74,7 @@
       ui.kontext = { lat: p.lat, lon: p.lng };
       navigator.vibrate?.(15);
     };
-    m.on('contextmenu', (e) => langdruck(e.originalEvent.clientX, e.originalEvent.clientY));
-    // Browser-Menü nie über der Karte (auch nicht auf Symbolen, die MapLibre nicht abdeckt)
-    el.addEventListener('contextmenu', (e) => e.preventDefault());
+    m.on('contextmenu', (e) => langdruck(e.originalEvent.clientX, e.originalEvent.clientY)); // Browser-Menü sperrt App (keinBrowserMenu)
     // Doppelklick auf ein Symbol = Details statt Zoom; auf leerer Karte zoomt MapLibre selbst
     m.on('dblclick', (e) => {
       const z = zielUnter(e.originalEvent.clientX, e.originalEvent.clientY);
