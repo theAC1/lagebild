@@ -41,3 +41,13 @@ export const ABDECKUNG: [number, number, number, number] = [5.140242, 45.398181,
 
 export const kachelUrl = (l: KartenLayer<string>) =>
   `https://wmts.geo.admin.ch/1.0.0/${l.layer}/default/current/3857/{z}/{x}/{y}.${l.ext}`;
+
+/**
+ * swisstopo-Basiskarte als Vektorkacheln (Datenquelle der Geländetaufe, docs/recherche/gelaendetaufe.md 1.1).
+ * Offline-Gebiete legen sie unter dieser URL in den Kachelspeicher; eine Vektorquelle bekommt sie mit
+ * `tiles: [lokal(TAUFE_VT.vorlage)]` (lib/kachelspeicher.ts) zuerst von dort, dann aus dem Netz.
+ */
+export const TAUFE_VT = {
+  vorlage: 'https://vectortiles.geo.admin.ch/tiles/ch.swisstopo.base.vt/v1.0.0/{z}/{x}/{y}.pbf',
+  maxzoom: 14, // z15 → HTTP 404
+};

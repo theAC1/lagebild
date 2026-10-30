@@ -36,7 +36,9 @@ export default defineConfig(({ mode }) => ({
         navigateFallbackDenylist: [/^\/api\//, /^\/ws/, /^\/app\//], // /app/: APK-Download, nicht die PWA ausliefern
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/wmts\.geo\.admin\.ch\/.*/,
+            // Angezeigte Kacheln. Offline-Gebiete laden mit cache: 'no-store' an diesem Cache vorbei in ihren eigenen
+            // (lib/kachelspeicher.ts), sonst läge jede Kachel doppelt da.
+            urlPattern: ({ url, request }) => url.hostname === 'wmts.geo.admin.ch' && request.cache !== 'no-store',
             handler: 'CacheFirst',
             options: {
               cacheName: 'swisstopo-kacheln',
