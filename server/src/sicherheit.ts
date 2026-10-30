@@ -75,6 +75,19 @@ export function clientIp(req: IncomingMessage, vertraut: ReadonlySet<string>): s
   return ipSchluessel(ip) || 'unbekannt';
 }
 
+/** Ursprünge der Android-App (Capacitor-WebView: https://localhost, ältere Versionen capacitor://localhost). */
+export const APP_ORIGINS: ReadonlySet<string> = new Set(['https://localhost', 'capacitor://localhost']);
+
+/**
+ * CORS-Kopfzeilen für die Android-App. Nur diese Ursprünge, nie `*`: Die API nutzt einen Bearer-Token statt Cookies,
+ * ein fremder Ursprung bekäme also ohnehin nichts – er soll aber auch nicht lesen dürfen. Browser derselben Herkunft
+ * senden keinen Preflight und brauchen nichts davon.
+ */
+export function corsKopf(origin: string | undefined): Record<string, string> {
+  if (!origin || !APP_ORIGINS.has(origin)) return {};
+  return { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' };
+}
+
 /** Strukturiertes Log auf stderr. Nie Tokens oder Codes übergeben. */
 export function log(level: 'info' | 'warn' | 'error', msg: string, felder: Record<string, unknown> = {}): void {
   if (level === 'info' && process.env.VITEST) return;

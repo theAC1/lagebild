@@ -1,6 +1,6 @@
 // HTTP: REST-API, statische Auslieferung des Clients, Sicherheits-Header. Startet auch den WebSocket.
 import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { createReadStream, mkdirSync } from 'node:fs';
 import { readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
@@ -8,7 +8,7 @@ import type { z } from 'zod';
 import { Beitreten, LageErstellen, STANDARD_STATUS, type Beigetreten, type Lage, type LageErstellt, type Teilnehmer } from '../../shared/protocol.ts';
 import { oeffneDb, type Db } from './db.ts';
 import { geojson, gpx, type ExportDaten } from './export.ts';
-import { clientIp, gleich, log, neuerCode, neuesToken, rateLimiter, sha256 } from './sicherheit.ts';
+import { clientIp, corsKopf, gleich, log, neuerCode, neuesToken, rateLimiter, sha256 } from './sicherheit.ts';
 import { starteWs } from './ws.ts';
 
 export type Optionen = {
@@ -16,6 +16,8 @@ export type Optionen = {
   dataDir: string;
   erstellPasswort: string;
   clientDir: string;
+  /** Android-App zum Download: `lagebild.apk` + `version.json` (deploy/apk.sh). Vorgabe: <dataDir>/app */
+  appDir?: string;
   host?: string;
   /** Socket-Adressen, deren `CF-Connecting-IP` gilt (cloudflared). Leer: immer die Socket-IP. */
   vertrauteProxies?: string[];
@@ -115,6 +117,7 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
   const db: Db = oeffneDb(join(o.dataDir, 'lagebild.sqlite'));
   const clientDir = resolve(o.clientDir);
   const fotoDir = resolve(o.dataDir, 'fotos');
+  const appDir = resolve(o.appDir ?? join(o.dataDir, 'app'));
   const vertraut = new Set(o.vertrauteProxies ?? []);
   const ip = (req: IncomingMessage): string => clientIp(req, vertraut);
   const limitErstellen = rateLimiter(10, 60_000);
@@ -247,6 +250,24 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
     throw new HttpFehler(404, 'Nicht gefunden');
   }
 
+  /** `/app/version.json` und `/app/lagebild.apk` aus dem Datenverzeichnis; die APK gehört nicht ins Git. */
+  async function appDatei(req: IncomingMessage, res: ServerResponse, pfad: string): Promise<void> {
+    if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpFehler(405, 'Methode nicht erlaubt');
+    const apk = pfad === '/app/lagebild.apk';
+    if (!apk && pfad !== '/app/version.json') throw new HttpFehler(404, 'Nicht gefunden');
+    const datei = join(appDir, apk ? 'lagebild.apk' : 'version.json');
+    const info = await stat(datei).catch(() => undefined);
+    if (!info?.isFile()) throw new HttpFehler(404, 'App nicht bereitgestellt');
+    res.writeHead(200, {
+      'Content-Type': apk ? 'application/vnd.android.package-archive' : 'application/json',
+      'Content-Length': info.size,
+      'Cache-Control': 'no-cache',
+      ...(apk ? { 'Content-Disposition': 'attachment; filename="lagebild.apk"' } : {}),
+    });
+    if (req.method === 'HEAD') return void res.end();
+    createReadStream(datei).on('error', () => res.destroy()).pipe(res);
+  }
+
   async function statisch(req: IncomingMessage, res: ServerResponse, pfad: string): Promise<void> {
     if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpFehler(405, 'Methode nicht erlaubt');
     let datei = resolve(clientDir, '.' + pfad);
@@ -274,7 +295,13 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
     try {
       const url = new URL(req.url ?? '/', 'http://x');
       const pfad = decodeURIComponent(url.pathname);
-      await (pfad.startsWith('/api/') ? api(req, res, pfad, url) : statisch(req, res, pfad));
+      const cors = corsKopf(req.headers.origin);
+      for (const [k, v] of Object.entries(cors)) res.setHeader(k, v);
+      if (req.method === 'OPTIONS' && cors['Access-Control-Allow-Origin'] && (pfad.startsWith('/api/') || pfad.startsWith('/app/'))) {
+        res.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, POST, DELETE', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '86400' }).end();
+        return;
+      }
+      await (pfad.startsWith('/api/') ? api(req, res, pfad, url) : pfad.startsWith('/app/') ? appDatei(req, res, pfad) : statisch(req, res, pfad));
     } catch (e) {
       const status = e instanceof HttpFehler ? e.status : e instanceof URIError ? 400 : 500;
       // Body ungelesen (zu gross oder vorher abgelehnt) → Verbindung schliessen statt ihn abzuwarten
