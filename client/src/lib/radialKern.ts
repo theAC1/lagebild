@@ -100,3 +100,11 @@ registriereRadialAktion({
   },
   sichtbar: darfMarkerAendern,
 });
+
+// Leere Karte (Ziel 'punkt'): Koordinate kommt vom Kern, Marker/Sichtung/R&B/Bloodhound melden die Features an
+registriereRadialAktion({
+  fuer: 'punkt',
+  label: 'Koordinate',
+  icon: ikon('<circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>'),
+  aktion: (z) => (ui.koordinate = z.punkt ?? null),
+});

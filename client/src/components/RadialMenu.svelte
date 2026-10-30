@@ -1,6 +1,6 @@
 <script lang="ts">
   import { groesse } from '../lib/groesse.svelte.ts';
-  import { radialAktionenFuer, type RadialAktion } from '../lib/map.ts';
+  import { markierePunkt, radialAktionenFuer, type RadialAktion } from '../lib/map.ts';
   import { store } from '../lib/store.svelte.ts';
   import { ui, type RadialZiel } from '../lib/ui.svelte.ts';
 
@@ -15,8 +15,11 @@
     if (ziel.art === 'ich') return store.ichSelbst?.rufname ?? 'Ich';
     if (ziel.art === 'teilnehmer') return store.teilnehmer.get(ziel.id)?.rufname ?? 'Teilnehmer';
     if (ziel.art === 'marker') return store.marker.get(ziel.id)?.bezeichnung || 'Marker';
+    if (ziel.art === 'punkt') return 'Punkt';
     return ziel.art === 'sichtung' ? 'Sichtung' : 'Zeichnung';
   });
+  // Leere Karte: Punkt markieren, denn am Bildrand rückt der Ring vom Finger weg
+  $effect(() => (ziel.punkt ? markierePunkt(ziel.punkt) : undefined));
   const mitte = $derived({
     x: Math.min(Math.max(x, RAND), Math.max(RAND, innerWidth - RAND)),
     y: Math.min(Math.max(y, RAND), Math.max(RAND, innerHeight - RAND)),
@@ -24,6 +27,10 @@
 
   const label = (a: RadialAktion) => (typeof a.label === 'string' ? a.label : a.label(ziel));
   const schliessen = () => (ui.radial = null);
+  // Beim Loslassen nach dem Langdruck schickt der Browser (iOS, Touch-Emulation) einen Klick auf das, was jetzt unter dem
+  // Finger liegt: ✕ oder ein Knopf. Gelten lassen nur Klicks nach einem neuen Druck oder per Tastatur (detail 0).
+  let gedrueckt = false;
+  const echt = (e: MouseEvent) => gedrueckt || e.detail === 0;
   function ausfuehren(a: RadialAktion) {
     const z = ziel; // Props hängen an ui.radial und sind nach dem Schliessen weg
     ui.radial = null;
@@ -31,10 +38,11 @@
   }
 </script>
 
+<svelte:window onpointerdown={() => (gedrueckt = true)} />
 <!-- Fläche ausserhalb des Rings: Tippen schliesst (pointerdown, damit die Karte darunter nichts abbekommt) -->
 <div class="aussen" role="presentation" onpointerdown={schliessen}></div>
 <div class="ring" role="menu" aria-label="Aktionen für {titel}" style:left="{mitte.x}px" style:top="{mitte.y}px">
-  <button class="mitte" aria-label="Menü schliessen" onclick={schliessen}>✕</button>
+  <button class="mitte" aria-label="Menü schliessen" onclick={(e) => echt(e) && schliessen()}>✕</button>
   {#each aktionen as a, i (a)}
     {@const winkel = (i / aktionen.length) * 2 * Math.PI - Math.PI / 2}
     <button
@@ -42,7 +50,7 @@
       role="menuitem"
       style:left="{Math.cos(winkel) * RADIUS}px"
       style:top="{Math.sin(winkel) * RADIUS}px"
-      onclick={() => ausfuehren(a)}
+      onclick={(e) => echt(e) && ausfuehren(a)}
     >
       <span class="symbol">{@html a.icon}</span>
       <span class="text">{label(a)}</span>

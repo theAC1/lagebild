@@ -1,5 +1,5 @@
-// Zugriff auf die MapLibre-Karte für Features: Instanz, Fadenkreuz-Punktwahl, Kontextmenü- und Radial-Einträge.
-import type { Map as MapLibreMap } from 'maplibre-gl';
+// Zugriff auf die MapLibre-Karte für Features: Instanz, Fadenkreuz-Punktwahl, Radial-Einträge.
+import { Marker, type Map as MapLibreMap } from 'maplibre-gl';
 import type { Punkt } from '../../../shared/protocol.ts';
 import { store } from './store.svelte.ts';
 import { toast, ui, type RadialArt, type RadialZiel } from './ui.svelte.ts';
@@ -61,25 +61,13 @@ export function waehlePunkt(hinweis: string, knopf = 'Übernehmen'): Promise<Pun
   });
 }
 
-export interface KontextAktion {
-  label: string;
-  aktion: (p: Punkt) => void;
-  /** nur für die Leitung anzeigen */
-  nurLeitung?: boolean;
+/** Ring-Markierung am Kartenpunkt (Radial-Menü und Koordinaten-Karte der leeren Karte). Gibt die Entfernen-Funktion zurück. */
+export function markierePunkt(p: Punkt): () => void {
+  const el = document.createElement('div');
+  el.className = 'punkt-marke';
+  const mk = new Marker({ element: el }).setLngLat([p.lon, p.lat]).addTo(getMap());
+  return () => mk.remove();
 }
-
-const aktionen: KontextAktion[] = [];
-
-/** Eintrag im Langdruck-Kontextmenü. Gibt eine Abmeldefunktion zurück. */
-export function registriereKontextAktion(a: KontextAktion): () => void {
-  aktionen.push(a);
-  return () => {
-    const i = aktionen.indexOf(a);
-    if (i >= 0) aktionen.splice(i, 1);
-  };
-}
-
-export const kontextAktionen = (): readonly KontextAktion[] => aktionen;
 
 /** Karte folgt der eigenen Position (Knopf «Folgen», Radial-Menü). */
 export function folgeMir(): void {
@@ -99,7 +87,7 @@ export function folgeTeilnehmer(id: string): void {
 // --- Radial-Menü ---
 
 export interface RadialAktion {
-  /** Für welche Symbolart(en) der Knopf erscheint. */
+  /** Für welche Symbolart(en) der Knopf erscheint; 'punkt' = leere Karte (ziel.punkt gesetzt). */
   fuer: RadialArt | readonly RadialArt[];
   /** Beschriftung, fest oder je Ziel (z.B. «Folgen» / «Nicht folgen»); wird reaktiv gelesen. */
   label: string | ((z: RadialZiel) => string);
@@ -114,7 +102,7 @@ export interface RadialAktion {
 export const MAX_RADIAL = 8;
 const radialAktionen: RadialAktion[] = [];
 
-/** Knopf im Radial-Menü (Langdruck/Rechtsklick auf ein Symbol). Gibt eine Abmeldefunktion zurück. */
+/** Knopf im Radial-Menü (Langdruck/Rechtsklick auf ein Symbol oder die leere Karte). Gibt eine Abmeldefunktion zurück. */
 export function registriereRadialAktion(a: RadialAktion): () => void {
   radialAktionen.push(a);
   return () => {
@@ -165,7 +153,7 @@ export function zielUnter(x: number, y: number): { ziel: RadialZiel; x: number; 
 
 /** Radial-Menü um (x, y) öffnen – für Features mit eigener Geste; sonst erledigt das die Karte. */
 export function oeffneRadial(ziel: RadialZiel, x: number, y: number): void {
-  ui.kontext = null;
+  ui.koordinate = null;
   ui.radial = { ziel, x, y };
   navigator.vibrate?.(15);
 }

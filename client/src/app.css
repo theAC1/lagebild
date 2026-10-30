@@ -277,6 +277,8 @@ label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
 .bft.kein-gps .bft-label::after { content: ' · kein GPS'; color: var(--warn); }
 /* offline/abgelaufen: grau – das eigene Symbol bei GPS-Fehler nur gedämpft */
 .bft.ich.kein-gps { opacity: 0.6; }
+/* Langdruck-Punkt auf leerer Karte (map.ts markierePunkt) */
+.punkt-marke { width: 28px; height: 28px; border: 2px solid var(--accent); border-radius: 50%; box-shadow: 0 0 0 2px rgb(22 27 31 / 0.6); }
 
 /* MapLibre-Bedienelemente nicht unter Kopf-/Werkzeugleiste */
 .maplibregl-ctrl-top-right { top: calc(var(--oben) + 4px + var(--banner-h, 0px)); }

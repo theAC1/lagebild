@@ -1,13 +1,14 @@
-// UI-Zustand: offene Panels (bis zu zwei), Toasts, Punktwahl, Kontext- und Radial-Menü.
+// UI-Zustand: offene Panels (bis zu zwei), Toasts, Punktwahl, Radial-Menü und Koordinaten-Karte.
 import { MediaQuery } from 'svelte/reactivity';
 import type { Punkt } from '../../../shared/protocol.ts';
 
 export type Auswahl = { art: string; id: string };
 /** Ein offenes Panel. Details laufen als Panel `DETAIL` mit params `{ art, id }`. */
 export type PanelZustand = { id: string; params: Record<string, any> };
-/** Ziel eines Radial-Menüs (Langdruck/Rechtsklick auf ein Symbol). */
-export type RadialArt = 'teilnehmer' | 'marker' | 'sichtung' | 'ich' | 'zeichnung';
-export type RadialZiel = { art: RadialArt; id: string };
+/** Ziel eines Radial-Menüs (Langdruck/Rechtsklick auf ein Symbol oder auf die leere Karte = 'punkt'). */
+export type RadialArt = 'teilnehmer' | 'marker' | 'sichtung' | 'ich' | 'zeichnung' | 'punkt';
+/** Bei art 'punkt' ist id leer und `punkt` der Kartenpunkt unter dem Finger. */
+export type RadialZiel = { art: RadialArt; id: string; punkt?: Punkt };
 
 /** Panel-ID des Detail-Sheets (ui.auswahl). */
 export const DETAIL = 'detail';
@@ -25,9 +26,9 @@ class UiZustand {
   toasts = $state<{ id: number; text: string; knopf?: ToastKnopf }[]>([]);
   /** Aktiver Fadenkreuz-Modus (siehe map.ts waehlePunkt); `knopf` beschriftet die Bestätigung. */
   punktWahl = $state<{ hinweis: string; knopf: string; fertig: (p: Punkt | null) => void } | null>(null);
-  /** Langdruck-Punkt → Kontextmenü. */
-  kontext = $state<Punkt | null>(null);
-  /** Langdruck/Rechtsklick auf ein Symbol → Radial-Menü um (x, y) in Bildschirmpixeln. */
+  /** Radial «Koordinate» auf leerer Karte → Karte mit LV95/MGRS/WGS84 zu diesem Punkt. */
+  koordinate = $state<Punkt | null>(null);
+  /** Langdruck/Rechtsklick auf ein Symbol oder die leere Karte → Radial-Menü um (x, y) in Bildschirmpixeln. */
   radial = $state<{ ziel: RadialZiel; x: number; y: number } | null>(null);
   /** Karte folgt der eigenen Position. */
   folgen = $state(false);
@@ -66,7 +67,7 @@ export const istOffen = (id: string): boolean => ui.panels.some((p) => p.id === 
  */
 export function oeffne(featureId: string, params: Record<string, any> = {}): void {
   ui.punktWahl?.fertig(null); // Panels sind während der Punktwahl ausgeblendet: Knopf am Rand bricht sie ab
-  ui.kontext = null;
+  ui.koordinate = null;
   ui.radial = null;
   const neu = { id: featureId, params };
   const liste = ui.panels;

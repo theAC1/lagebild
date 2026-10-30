@@ -45,19 +45,19 @@ Panels, Details, Radial-Menü und Fadenkreuz sind in beiden gleich.
 - `waehle(art, id)`: Detail-Panel (`DETAIL`, params `{ art, id }`), es gibt höchstens eines.
 - `schliesse(id?)`: ohne ID das oberste Panel (das, in dem zuletzt getippt wurde), `schliesseAlle()`.
 - `istOffen(id)` statt `ui.panel?.id === id` (ein Panel kann auch das zweite sein). `ui.panel` (oberstes Feature-Panel) und `ui.auswahl` (Detail) bleiben als Nur-Lese-Getter für v1-Code.
-- `ui.folgen` (eigene Position), `ui.folgtTeilnehmer`, `ui.radial`, `ui.kontext`, `toast(text, ms?, { label, aktion }?)` (optional mit Knopf), `ikon(svgInhalt)`, `lies/schreibe` (localStorage, fehlertolerant).
+- `ui.folgen` (eigene Position), `ui.folgtTeilnehmer`, `ui.radial`, `ui.koordinate` (Koordinaten-Karte), `toast(text, ms?, { label, aktion }?)` (optional mit Knopf), `ikon(svgInhalt)`, `lies/schreibe` (localStorage, fehlertolerant).
 
 Konventionen für `params`: Chat `{ an: ChatZiel }`, Range & Bearing `{ ziel: { art: 'teilnehmer' | 'marker' | 'sichtung' | 'punkt', id?, punkt? } }`.
 
 ## lib/map.ts – Karte
 
-`getMap()` (in MapLayer sicher), `onMapReady(cb)`, `kartenMitte()`, `zentriere(p, zoom?)`, `folgeMir()`, `folgeTeilnehmer(id)`, `waehlePunkt(hinweis, knopf = 'Übernehmen'): Promise<Punkt | null>` (Fadenkreuz, Panels werden ausgeblendet), `registriereKontextAktion({ label, aktion(p), nurLeitung? })` → Abmeldefunktion (Langdruck/Rechtsklick auf leere Karte).
+`getMap()` (in MapLayer sicher), `onMapReady(cb)`, `kartenMitte()`, `zentriere(p, zoom?)`, `folgeMir()`, `folgeTeilnehmer(id)`, `waehlePunkt(hinweis, knopf = 'Übernehmen'): Promise<Punkt | null>` (Fadenkreuz, Panels werden ausgeblendet), `markierePunkt(p)` → Entfernen-Funktion (Ring am Kartenpunkt).
 
-### Radial-Menü (Langdruck/Rechtsklick auf ein Symbol)
+### Radial-Menü (Langdruck/Rechtsklick auf ein Symbol oder die leere Karte)
 
 ```ts
 const ab = registriereRadialAktion({
-  fuer: 'teilnehmer',                       // oder Liste: ['teilnehmer', 'marker', 'sichtung', 'ich', 'zeichnung']
+  fuer: 'teilnehmer',                       // oder Liste: ['teilnehmer', 'marker', 'sichtung', 'ich', 'zeichnung', 'punkt']
   label: 'Bloodhound',                      // oder (ziel) => string, reaktiv gelesen
   icon: ikon('<path d="…"/>'),
   aktion: (ziel) => …,                      // ziel = { art, id }; für 'ich' ist id die eigene Teilnehmer-ID
@@ -66,10 +66,11 @@ const ab = registriereRadialAktion({
 onDestroy(ab);
 ```
 
-- Höchstens `MAX_RADIAL` (8) Knöpfe; Reihenfolge = Anmeldung, der Kern meldet zuerst an (Details, R&B, Koord., Folgen, Spur, Chat, Marker hier, Bearbeiten, Löschen). Spätere Knöpfe fallen bei Überlauf weg.
+- Höchstens `MAX_RADIAL` (8) Knöpfe; Reihenfolge = Anmeldung, der Kern meldet zuerst an (Details, R&B, Koord., Folgen, Spur, Chat, Marker hier, Bearbeiten, Löschen, Koordinate). Spätere Knöpfe fallen bei Überlauf weg.
+- **Leere Karte** = Ziel `{ art: 'punkt', id: '', punkt }`: Langdruck/Rechtsklick ohne Symbol darunter. Der Kern bringt «Koordinate» (Karte mit LV95/MGRS/WGS84 zum Kopieren), Features melden ihren Eintrag mit `fuer: 'punkt'` an und lesen `ziel.punkt` (heute Marker hier, Sichtung hier, R&B, Bloodhound).
 - DOM-Symbole (MapLibre-`Marker`) mit `markiereZiel(element, { art, id })` kennzeichnen: dann öffnen Rechtsklick/Langdruck den Ring und Doppelklick die Details (`detailArt` des Features).
 - Ziele im WebGL-Layer (Zeichnungen): `registriereTreffer((punkt) => ziel | null)` – bekommt Kartenpixel wie `MapMouseEvent.point`, z.B. `queryRenderedFeatures`. Eigene Gesten können `oeffneRadial(ziel, clientX, clientY)` rufen.
-- Esc schliesst Ring → Kontextmenü → Punktwahl → oberstes Panel. Ein Werkzeug mit eigenem Esc ruft `preventDefault()` im eigenen keydown-Hörer (Capture), dann greift der Kern nicht.
+- Esc schliesst Ring → Koordinaten-Karte → Punktwahl → oberstes Panel. Ein Werkzeug mit eigenem Esc ruft `preventDefault()` im eigenen keydown-Hörer (Capture), dann greift der Kern nicht.
 
 ## Weitere Helfer
 

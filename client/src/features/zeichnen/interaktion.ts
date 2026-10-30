@@ -525,7 +525,7 @@ export function starteInteraktion(m: MapLibreMap): () => void {
     }
   };
   const taste = (e: KeyboardEvent) => {
-    if (!istDesktop() || e.defaultPrevented || istEingabe(document.activeElement) || ui.punktWahl || ui.radial || ui.kontext || zn.eingabe) return;
+    if (!istDesktop() || e.defaultPrevented || istEingabe(document.activeElement) || ui.punktWahl || ui.radial || ui.koordinate || zn.eingabe) return;
     const b = befehlFuer(e);
     if (b && fuehreAus(b)) e.preventDefault();
   };
