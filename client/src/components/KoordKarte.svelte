@@ -9,17 +9,26 @@
 
   let { punkt }: { punkt: Punkt } = $props();
 
-  const zeilen = $derived([
-    { label: 'LV95', wert: formatLv95(punkt) },
-    { label: 'MGRS', wert: formatMgrs(punkt) },
-    { label: 'WGS84', wert: formatWgs84(punkt) },
-  ]);
+  const zeilen = $derived(
+    [
+      { label: 'LV95', wert: formatLv95(punkt) },
+      { label: 'MGRS', wert: formatMgrs(punkt) },
+      { label: 'WGS84', wert: formatWgs84(punkt) },
+    ].map((z) => ({ ...z, teile: haelften(z.wert) })),
+  );
   // Liegt der Punkt in der unteren Hälfte, steht die Karte oben (und umgekehrt): der Punkt bleibt sichtbar
   const oben = $derived.by(() => {
     const m = getMap();
     return m.project([punkt.lon, punkt.lat]).y + m.getContainer().getBoundingClientRect().top > innerHeight / 2;
   });
   let kopiert = $state<string | null>(null);
+
+  /** Wert in zwei Hälften am mittleren Leerschlag: bricht er um, dann zwischen den Teilen, nicht mitten in einer Zahl. */
+  function haelften(s: string): [string, string] {
+    let i = -1;
+    for (let j = s.indexOf(' '); j >= 0; j = s.indexOf(' ', j + 1)) if (i < 0 || Math.abs(j - s.length / 2) < Math.abs(i - s.length / 2)) i = j;
+    return i < 0 ? [s, ''] : [s.slice(0, i), s.slice(i + 1)];
+  }
 
   $effect(() => markierePunkt(punkt));
 
@@ -40,7 +49,7 @@
   {#each zeilen as z (z.label)}
     <button class="zeile" aria-label="{z.label} {z.wert} kopieren" onclick={() => kopiere(z.label, z.wert)}>
       <span class="label">{z.label}</span>
-      <span class="mono wert">{z.wert}</span>
+      <span class="mono wert"><span>{z.teile[0]}</span> <span>{z.teile[1]}</span></span>
       {#if kopiert === z.label}
         <span class="ok">Kopiert</span>
       {:else}
@@ -94,9 +103,9 @@
     background: var(--bg);
     padding: 2px 10px;
   }
-  /* langer Wert bricht um statt abgeschnitten zu werden (schmales Handy, grosse Schrift) */
-  .wert {
-    overflow-wrap: anywhere;
+  /* langer Wert bricht um statt abgeschnitten zu werden (schmales Handy, grosse Schrift), aber nur zwischen den Hälften */
+  .wert > span {
+    white-space: nowrap;
   }
   .label {
     font-size: 0.75rem;
