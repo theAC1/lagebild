@@ -6,6 +6,7 @@ import { ClientMsg, MAX_NACHRICHT, PING_MS, type Alarm, type Chat, type Lage, ty
 import type { Db } from './db.ts';
 import { beendeAuftraege, sichtbareAuftraege, verarbeiteZeichnen } from './zeichnen.ts';
 import { verarbeiteRaster } from './raster.ts';
+import { verarbeiteTaufe } from './taufe.ts';
 import { log, neuerCode, rateLimiter, sha256 } from './sicherheit.ts';
 
 const HALLO_TIMEOUT_MS = 5000;
@@ -84,6 +85,7 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
       sichtungen: db.eintraege(lage.id, 'sichtung'),
       ebenen: db.ebenenSicherstellen(lage.id),
       zeichnungen: db.eintraege(lage.id, 'zeichnung'),
+      taufen: db.eintraege(lage.id, 'taufe'),
       bloodhound: sichtbareAuftraege(db, lage.id, v),
       raster: db.eintraege(lage.id, 'raster'),
       alarme: db.eintraege(lage.id, 'alarm').filter((a) => a.aufgehobenAm === null),
@@ -159,7 +161,7 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
       fehler: (text: string) => fehler(v, text),
       meldung: (lageId: string, von: string, text: string) => meldung(lageId, von, null, text),
     };
-    if (verarbeiteZeichnen(u, t, lage, m) || verarbeiteRaster(u, t, lage, m)) return;
+    if (verarbeiteZeichnen(u, t, lage, m) || verarbeiteRaster(u, t, lage, m) || verarbeiteTaufe(u, t, lage, m)) return;
     switch (m.typ) {
       case 'hallo':
         return fehler(v, 'Bereits angemeldet');

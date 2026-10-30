@@ -20,6 +20,9 @@
     <span class="haken" aria-hidden="true"></span>{o.label}
   </button>
 {/each}
+<button class="ebene" aria-pressed={store.einstellungen.taufe} onclick={() => setzeEinstellung('taufe', !store.einstellungen.taufe)}>
+  <span class="haken" aria-hidden="true"></span>Geländetaufe
+</button>
 {#each features as f (f.id)}
   {@const liste = f.ebenen?.() ?? []}
   {#if liste.length}

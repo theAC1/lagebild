@@ -1,8 +1,8 @@
 // Export einer Lage als GPX 1.1 (trk je Teilnehmer, wpt für Marker/Sichtungen) und GeoJSON.
-import type { Ebene, Lage, Marker, Punkt, Raster, Sichtung, Spuren, Teilnehmer, Zeichnung } from '../../shared/protocol.ts';
+import type { Ebene, Lage, Marker, Punkt, Raster, Sichtung, Spuren, Taufe, Teilnehmer, Zeichnung } from '../../shared/protocol.ts';
 import { rahmen, RASTER_NAME } from '../../shared/raster.ts';
 
-export type ExportDaten = { lage: Lage; teilnehmer: Teilnehmer[]; marker: Marker[]; sichtungen: Sichtung[]; ebenen: Ebene[]; zeichnungen: Zeichnung[]; raster: Raster[]; spuren: Spuren };
+export type ExportDaten = { lage: Lage; teilnehmer: Teilnehmer[]; marker: Marker[]; sichtungen: Sichtung[]; ebenen: Ebene[]; zeichnungen: Zeichnung[]; raster: Raster[]; taufen: Taufe[]; spuren: Spuren };
 
 const xml = (s: string): string =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]!);
@@ -128,6 +128,8 @@ export function geojson(d: ExportDaten): object {
         geometry: { type: 'Polygon', coordinates: [rahmen(r).map(koord)] },
         properties: { art: 'fuehrungsraster', raster: r.art, name: RASTER_NAME[r.art], lv95: { e: r.e, n: r.n }, zeilen: r.zeilen, spalten: r.spalten, zellM: r.zellM, fixiert: r.fixiert, id: r.id, von: r.von, geaendertAm: r.geaendertAm },
       })),
+      // Geländetaufe: Geometrie wie gespeichert (Kopie), Eigenschaften ohne Geometrie
+      ...d.taufen.map(({ geometrie, ...t }) => ({ type: 'Feature', geometry: geometrie, properties: { art: 'taufe', ...t } })),
     ],
   };
 }

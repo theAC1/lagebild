@@ -37,6 +37,28 @@ export const STANDARD_STATUS: StatusDef[] = [
   { key: 'erfuellt', label: 'Auftrag erfüllt', farbe: '#6a1b9a' },
 ];
 
+// --- Geländetaufe: Familien und Namenslisten (30.10.) ---------------------------
+
+/** Namensfamilien nach CH-Armee-Praxis: Gebäude = Metalle/Elemente/Edelsteine, Strassen = Tiere, Gewässer = Wassertiere … */
+export const TaufFamilie = z.enum(['gebaeude', 'strasse', 'gewaesser', 'wald', 'flaeche']);
+export type TaufFamilie = z.infer<typeof TaufFamilie>;
+export const TAUF_FAMILIEN: TaufFamilie[] = TaufFamilie.options;
+export const MAX_TAUFNAMEN_JE_FAMILIE = 200;
+export const TaufName = Text(40).min(1);
+/** Namensliste je Familie; pro Lage durch die Leitung anpassbar (fehlt eine Familie, gilt die Vorgabe). */
+export const TaufListen = z.partialRecord(TaufFamilie, z.array(TaufName).max(MAX_TAUFNAMEN_JE_FAMILIE));
+export type TaufListen = z.infer<typeof TaufListen>;
+/** Vorgabe je Familie (Juans Muster, ergänzt; gut funkbar, nicht zu nah am NATO-Alphabet). */
+export const STANDARD_TAUFNAMEN: Record<TaufFamilie, string[]> = {
+  gebaeude: ['Gold', 'Copper', 'Fluor', 'Alu', 'Bronce', 'Helium', 'Iridium', 'Jod', 'Kalium', 'Radium', 'Lithium', 'Diamond', 'Emerald', 'Mangan', 'Nickel', 'Osmium', 'Platinum', 'Queck Silver', 'Iron', 'Zinc', 'Cobalt', 'Chrome', 'Titan', 'Neon', 'Argon', 'Uran', 'Ruby', 'Saphir', 'Topas', 'Jade', 'Opal', 'Quartz'],
+  strasse: ['Jaguar', 'Horse', 'Goat', 'Elephant', 'Deer', 'Fox', 'Camel', 'Bear', 'Ape', 'Ibex', 'Lion', 'Tiger', 'Wolf', 'Badger', 'Moose', 'Bison', 'Panther', 'Rhino', 'Hyena', 'Zebra', 'Beaver', 'Lynx', 'Puma', 'Buffalo', 'Gorilla', 'Leopard', 'Donkey', 'Rabbit', 'Marmot', 'Cheetah', 'Koala'],
+  gewaesser: ['Fish', 'Whale', 'Dolphin', 'Shark', 'Seal', 'Otter', 'Pike', 'Trout', 'Salmon', 'Eel', 'Crab', 'Squid', 'Orca', 'Walrus', 'Octopus', 'Turtle', 'Frog', 'Carp', 'Perch', 'Tuna', 'Ray', 'Lobster', 'Shrimp', 'Jellyfish', 'Beluga', 'Manatee', 'Penguin', 'Pelican', 'Swan', 'Heron'],
+  wald: ['Forest', 'Woods', 'Grove', 'Timber', 'Jungle', 'Thicket', 'Pines', 'Birch', 'Oak', 'Maple', 'Cedar', 'Spruce', 'Larch', 'Beech', 'Rowan', 'Elm', 'Willow', 'Poplar', 'Fir', 'Yew', 'Cypress', 'Bamboo', 'Hazel', 'Alder', 'Linden', 'Chestnut', 'Juniper', 'Redwood', 'Palm', 'Bush'],
+  flaeche: ['Floor', 'Field', 'Weed', 'Ruins', 'Plaza', 'Yard', 'Meadow', 'Desert', 'Steppe', 'Prairie', 'Square', 'Court', 'Arena', 'Garden', 'Park', 'Pasture', 'Swamp', 'Marsh', 'Dune', 'Beach', 'Quarry', 'Crater', 'Valley', 'Canyon', 'Plateau', 'Savanna', 'Tundra', 'Oasis', 'Gravel', 'Pitch'],
+};
+/** Vergleichsschlüssel für die Eindeutigkeit von Taufnamen (über alle Familien einer Lage, ohne Gross-/Kleinschreibung). */
+export const taufSchluessel = (name: string): string => name.trim().toLocaleLowerCase('de-CH').replace(/\s+/g, ' ');
+
 // --- Entitäten --------------------------------------------------------------
 
 export const Rolle = z.enum(['teilnehmer', 'leitung']);
@@ -48,6 +70,7 @@ export const Lage = z.object({
   statusSet: z.array(StatusDef).min(1).max(20),
   erstelltAm: z.number(),
   beendetAm: z.number().nullable(),
+  taufListen: TaufListen.optional(), // Geländetaufe: angepasste Namenslisten der Leitung
 });
 export type Lage = z.infer<typeof Lage>;
 
@@ -180,6 +203,49 @@ export const MAX_ZEICHNUNGEN_JE_MSG = 100;
 /** Grösste WebSocket-Nachricht (Bytes); grössere schliesst der Server. Grenze/Freihand mit 2000 Punkten sind ~100 KB. */
 export const MAX_NACHRICHT = 256 * 1024;
 
+// --- Geländetaufe (30.10.) ---------------------------------------------------
+
+/** GeoJSON-Position [lon, lat]. */
+export const TaufPos = z.tuple([Lon, Lat]);
+const TaufRing = z.array(TaufPos).min(4);
+/** Kopie der Geometrie (Kachelstücke zusammengefügt oder gezeichnet), GeoJSON in WGS84. */
+export const TaufGeometrie = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('LineString'), coordinates: z.array(TaufPos).min(2) }),
+  z.object({ type: z.literal('MultiLineString'), coordinates: z.array(z.array(TaufPos).min(2)).min(1).max(200) }),
+  z.object({ type: z.literal('Polygon'), coordinates: z.array(TaufRing).min(1).max(200) }),
+  z.object({ type: z.literal('MultiPolygon'), coordinates: z.array(z.array(TaufRing).min(1).max(200)).min(1).max(200) }),
+]);
+export type TaufGeometrie = z.infer<typeof TaufGeometrie>;
+/** Höchstens so viele Stützpunkte je Taufe (der Client vereinfacht grosse Wälder vorher). */
+export const MAX_TAUF_PUNKTE = 5000;
+export const taufPunkte = (g: TaufGeometrie): number =>
+  g.type === 'LineString' ? g.coordinates.length : g.type === 'MultiPolygon' ? g.coordinates.flat(2).length : g.coordinates.flat().length;
+const geometrieBegrenzt = TaufGeometrie.refine((g) => taufPunkte(g) <= MAX_TAUF_PUNKTE, `Höchstens ${MAX_TAUF_PUNKTE} Punkte je Taufe`);
+
+/** Fassadenfarbe: Zutritt (dem Angreifer zugewandt) weiss, Rückseite schwarz, links in Stossrichtung rot, rechts grün. */
+export const Fassade = z.enum(['weiss', 'schwarz', 'rot', 'gruen']);
+export type Fassade = z.infer<typeof Fassade>;
+
+const TaufeKern = z.object({
+  familie: TaufFamilie,
+  name: TaufName,
+  geometrie: geometrieBegrenzt,
+  quelle: z.enum(['vt', 'gezeichnet']), // vt = swisstopo-Vektorkachel (ch.swisstopo.base.vt)
+  objektart: Text(60), // Layer/Klasse der Vorlage, z.B. 'building/roof', 'transportation/track'
+  /** Stossrichtung in Grad (0 = Nord, im Uhrzeigersinn): Richtung, in die angegriffen wird; null = keine. */
+  stoss: z.number().min(0).lt(360).nullable(),
+  /** Umgefärbte Fassaden: [Kantenindex im Umriss, Farbe]; übersteuert die aus der Stossrichtung berechnete Farbe. */
+  fassaden: z.array(z.tuple([z.number().int().min(0).max(MAX_TAUF_PUNKTE), Fassade])).max(500),
+  ziel: z.boolean(), // «Zielobjekt»: hervorgehoben (gelbes Namenskästchen)
+});
+export const TaufeInput = TaufeKern;
+export type TaufeInput = z.infer<typeof TaufeInput>;
+/** Änderung: nur gesetzte Felder; Familie und Quelle bleiben. */
+export const TaufeAenderung = TaufeKern.pick({ name: true, geometrie: true, objektart: true, stoss: true, fassaden: true, ziel: true }).partial().extend({ id: Id });
+export type TaufeAenderung = z.infer<typeof TaufeAenderung>;
+export const Taufe = TaufeKern.extend({ id: Id, von: Id, erstelltAm: z.number(), geaendertAm: z.number() });
+export type Taufe = z.infer<typeof Taufe>;
+
 // --- Bloodhound-Aufträge (v2) -------------------------------------------------
 
 /** Wie bei Range & Bearing. teilnehmer/marker/sichtung: `id` Pflicht; punkt: `punkt` Pflicht. */
@@ -304,6 +370,11 @@ export const ClientMsg = z.discriminatedUnion('typ', [
   z.object({ typ: z.literal('ebene.neu'), name: Text(60).min(1), gesperrt: z.boolean().optional() }),
   z.object({ typ: z.literal('ebene.aendern'), id: Id, name: Text(60).min(1).optional(), gesperrt: z.boolean().optional(), reihenfolge: z.number().int().min(0).max(1000).optional() }),
   z.object({ typ: z.literal('ebene.loeschen'), id: Id }),
+  // Geländetaufe: alle dürfen taufen, umbenennen, Stossrichtung/Fassaden ändern, löschen. Namen sind je Lage eindeutig.
+  z.object({ typ: z.literal('taufe.neu'), taufe: TaufeInput }),
+  z.object({ typ: z.literal('taufe.aendern'), taufe: TaufeAenderung }),
+  z.object({ typ: z.literal('taufe.loeschen'), id: Id }),
+  z.object({ typ: z.literal('lage.taufListen'), taufListen: TaufListen }), // nur Leitung
   // Bloodhound-Auftrag: auftrag/aufheben nur Leitung; quittieren/beendet/erreicht nur der Empfänger.
   z.object({ typ: z.literal('bloodhound.auftrag'), an: Id, ziel: BloodhoundZiel }),
   z.object({ typ: z.literal('bloodhound.aufheben'), id: Id }),
@@ -344,6 +415,7 @@ export type ServerMsg =
       sichtungen: Sichtung[];
       ebenen: Ebene[]; // nach reihenfolge; enthält immer die Standard-Ebene
       zeichnungen: Zeichnung[];
+      taufen: Taufe[];
       bloodhound: BloodhoundAuftrag[]; // offene Aufträge: Leitung alle, sonst nur die an mich
       raster: Raster[]; // Führungsraster der Lage (höchstens Grande und Piccolo)
       alarme: Alarm[]; // nicht aufgehobene
@@ -359,6 +431,8 @@ export type ServerMsg =
   | { typ: 'ebene.geloescht'; id: string; zeichnungIds: string[] } // inkl. der mitgelöschten Zeichnungen
   | { typ: 'zeichnungen'; zeichnungen: Zeichnung[] } // neu oder geändert (nach id ersetzen)
   | { typ: 'zeichnungen.geloescht'; ids: string[] }
+  | { typ: 'taufe'; taufe: Taufe } // neu oder geändert
+  | { typ: 'taufe.geloescht'; id: string }
   // Auftrag neu oder geändert (quittiert/beendet/aufgehoben/erreicht, `ende` gesetzt). Nur an Leitung und Empfänger.
   | { typ: 'bloodhound'; auftrag: BloodhoundAuftrag }
   | { typ: 'raster'; raster: Raster } // neu oder geändert

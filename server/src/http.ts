@@ -144,6 +144,7 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
       ebenen: db.ebenenSicherstellen(lage.id),
       zeichnungen: db.eintraege(lage.id, 'zeichnung'),
       raster: db.eintraege(lage.id, 'raster'),
+      taufen: db.eintraege(lage.id, 'taufe'),
       spuren: db.spuren(lage.id),
     };
   }

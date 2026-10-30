@@ -15,6 +15,7 @@ import {
   type Position,
   type ServerMsg,
   type Sichtung,
+  type Taufe,
   type Teilnehmer,
   type Zeichnung,
 } from '../../../shared/protocol.ts';
@@ -49,6 +50,8 @@ export interface Einstellungen {
   groesse: Bediengroesse;
   /** Nur Android-App: Position auch bei gesperrtem Bildschirm/anderer App senden (Foreground-Service) */
   hintergrund: boolean;
+  /** Layer «Geländetaufe» anzeigen (Ebenen-Auswahl) */
+  taufe: boolean;
 }
 const STANDARD_EINST: Einstellungen = {
   intervallS: 10,
@@ -62,6 +65,7 @@ const STANDARD_EINST: Einstellungen = {
   bedienung: 'daumen',
   groesse: 'normal',
   hintergrund: false,
+  taufe: true,
 };
 
 function ladeEinstellungen(): Einstellungen {
@@ -82,6 +86,7 @@ class LageStore {
   sichtungen = new SvelteMap<string, Sichtung>();
   ebenen = new SvelteMap<string, Ebene>();
   zeichnungen = new SvelteMap<string, Zeichnung>();
+  taufen = new SvelteMap<string, Taufe>();
   /** nur offene Bloodhound-Aufträge (Leitung: alle, sonst die an mich) */
   bloodhound = new SvelteMap<string, BloodhoundAuftrag>();
   /** inkl. aufgehobener seit dem Snapshot (aufgehobenAm != null) */
@@ -164,6 +169,7 @@ export function wende(m: ServerMsg): void {
       ersetze(store.sichtungen, m.sichtungen);
       ersetze(store.ebenen, m.ebenen);
       ersetze(store.zeichnungen, m.zeichnungen);
+      ersetze(store.taufen, m.taufen ?? []);
       ersetze(store.bloodhound, m.bloodhound);
       ersetze(store.alarme, m.alarme);
       store.chat = m.chat;
@@ -212,6 +218,12 @@ export function wende(m: ServerMsg): void {
       break;
     case 'zeichnungen.geloescht':
       for (const id of m.ids) store.zeichnungen.delete(id);
+      break;
+    case 'taufe':
+      store.taufen.set(m.taufe.id, m.taufe);
+      break;
+    case 'taufe.geloescht':
+      store.taufen.delete(m.id);
       break;
     case 'bloodhound':
       if (m.auftrag.ende === null) store.bloodhound.set(m.auftrag.id, m.auftrag);
@@ -394,6 +406,7 @@ function setzeZurueck() {
   store.sichtungen.clear();
   store.ebenen.clear();
   store.zeichnungen.clear();
+  store.taufen.clear();
   store.bloodhound.clear();
   store.alarme.clear();
   store.chat = [];
