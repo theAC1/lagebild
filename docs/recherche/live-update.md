@@ -17,7 +17,8 @@ Stand 30.10.2026. Frage: Wie holt die Capacitor-App neue Web-Stände vom eigenen
 - `autoUpdate: false`, `updateUrl`, `statsUrl`, `channelUrl` leer: das Plugin ruft von sich aus nichts auf, es gibt keine Statistik (Stats-Aufrufe sind bei leerer `statsUrl` abgeschaltet). Die einzige Verbindung ist der Bundle-Download von unserem Server, den wir selbst anstossen.
 - Manifest und Bundle kommen aus `DATA_DIR/app` (`/app/web.json`, `/app/web-<code>.zip`), nicht aus dem Git.
 - Wir prüfen das Manifest streng selbst (nur relativer Pfad `/app/web-<webCode>.zip`, nur https-Basis, SHA-256 aus dem Manifest, `minNativeCode`), das Plugin prüft die Prüfsumme beim Laden zusätzlich.
-- Aktiviert wird mit `set()` erst nach Zustimmung (Antippen) oder beim nächsten Start der App; `next()` wird bewusst nicht genutzt, weil das Plugin es beim nächsten Wechsel in den Hintergrund anwendet (z.B. beim Kamerawechsel für eine Sichtung).
+- Siegel: jedes `web.json` trägt eine ECDSA-P-256-Signatur (WebCrypto `verify`, IEEE P1363) über Stand, Mindest-APK, Protokoll, Stufe und SHA-256; geprüft vor dem Download gegen den in der App eingebauten öffentlichen Schlüssel. Ed25519 bewusst nicht, weil WebCrypto es in älteren Android-WebViews nicht sicher anbietet. Der private Schlüssel liegt nur auf dem Host; wer den Server übernimmt, kann damit keine Stände unterschieben.
+- Aktiviert wird mit `set()` nur nach Zustimmung (Antippen von «Neu laden»), auch nicht beim nächsten Start (Entscheid «Live-Update gesichert», 30.10.); `next()` wird bewusst nicht genutzt, weil das Plugin es beim nächsten Wechsel in den Hintergrund anwendet (z.B. beim Kamerawechsel für eine Sichtung).
 
 ## Origin und Speicher
 
