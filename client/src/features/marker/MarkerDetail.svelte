@@ -6,6 +6,7 @@
   import { groesse } from '../../lib/groesse.svelte.ts';
   import { oeffne, schliesse, toast } from '../../lib/ui.svelte.ts';
   import { darfAendern, formatZeit, markerName, setzenNachricht } from './logik.ts';
+  import { rasterAnsprachen } from '../raster/zustand.svelte.ts';
 
   let { id }: { id: string } = $props();
 
@@ -47,6 +48,10 @@
     <dd class="mono">{formatLv95(m)}</dd>
     <dt>MGRS</dt>
     <dd class="mono">{formatMgrs(m)}</dd>
+    {#each rasterAnsprachen(m) as a (a)}
+      <dt>Raster</dt>
+      <dd class="mono">{a}</dd>
+    {/each}
     {#if store.meinePos}
       <dt>Von mir</dt>
       <dd class="mono">{formatDistanz(distanz(store.meinePos, m))} · {formatRichtung(azimut(store.meinePos, m))}</dd>

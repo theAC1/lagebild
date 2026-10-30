@@ -6,6 +6,7 @@
   import { groesse } from '../../lib/groesse.svelte.ts';
   import { oeffne } from '../../lib/ui.svelte.ts';
   import { formatZeit, vertrauenLabel, vonMir } from './logik.ts';
+  import { rasterAnsprachen } from '../raster/zustand.svelte.ts';
 
   let { id }: { id: string } = $props();
 
@@ -92,6 +93,10 @@
     <dd class="mono">{formatLv95(s)}</dd>
     <dt>MGRS</dt>
     <dd class="mono">{formatMgrs(s)}</dd>
+    {#each rasterAnsprachen(s) as a (a)}
+      <dt>Raster</dt>
+      <dd class="mono">{a}</dd>
+    {/each}
     {#if weg}
       <dt>Von mir</dt>
       <dd class="mono">{weg}</dd>

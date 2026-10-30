@@ -2,7 +2,7 @@
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { Punkt } from '../../../shared/protocol.ts';
 import { store } from './store.svelte.ts';
-import { toast, ui, type RadialArt, type RadialZiel } from './ui.svelte.ts';
+import { toast, ui, type RadialArt, type RadialZiel, type ToastKnopf } from './ui.svelte.ts';
 
 export type { RadialArt, RadialZiel };
 
@@ -46,13 +46,15 @@ export function kartenMitte(): Punkt | null {
 /**
  * Fadenkreuz-Modus: blendet das Sheet aus, zeigt ein Fadenkreuz in der Kartenmitte mit Hinweis.
  * Liefert die Kartenmitte bei der Bestätigung (`knopf`, z.B. «Hier», «Setzen»), null bei «Abbrechen».
+ * `extra`: zusätzlicher Knopf neben «Abbrechen» (z.B. «Rasterposition»); seine Aktion beendet die Punktwahl nicht selbst.
  */
-export function waehlePunkt(hinweis: string, knopf = 'Übernehmen'): Promise<Punkt | null> {
+export function waehlePunkt(hinweis: string, knopf = 'Übernehmen', extra?: ToastKnopf): Promise<Punkt | null> {
   ui.punktWahl?.fertig(null);
   return new Promise((resolve) => {
     ui.punktWahl = {
       hinweis,
       knopf,
+      extra,
       fertig: (p) => {
         ui.punktWahl = null;
         resolve(p);

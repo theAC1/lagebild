@@ -24,6 +24,10 @@
   <div class="mono leise">{formatKoord(punkt, store.einstellungen.koordFormat)}</div>
   <div class="knoepfe">
     <button onclick={() => ui.punktWahl?.fertig(null)}>Abbrechen</button>
+    {#if ui.punktWahl?.extra}
+      {@const x = ui.punktWahl.extra}
+      <button onclick={x.aktion}>{x.label}</button>
+    {/if}
     <button class="primaer" onclick={() => ui.punktWahl?.fertig(mitte())}>{knopf}</button>
   </div>
 </div>

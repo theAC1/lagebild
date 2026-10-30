@@ -11,6 +11,7 @@ import leitung from './leitung/index.ts';
 import bloodhound from './bloodhound/index.ts';
 import zeichnen from './zeichnen/index.ts';
 import meldungen from './meldungen/index.ts';
+import raster from './raster/index.ts';
 
 /** Props jedes Panels: was `oeffne(id, params)` mitgegeben hat. */
 export type PanelProps = { params: Record<string, any> };
@@ -40,6 +41,8 @@ export interface Feature {
    * `aktion` ersetzt «Panel auf» (ist das Panel offen, schliesst der Knopf es), `Knopf` ersetzt den ganzen Standardknopf.
    */
   haupt?: { aktion?: () => void; Knopf?: Component };
+  /** Schalter in der Ebenen-Auswahl unter der Überschrift `label` (pro Gerät gemerkt); wird reaktiv gelesen. */
+  ebenen?: () => { label: string; an: boolean; schalten: () => void }[];
 }
 
-export const features: Feature[] = [marker, status, chat, sichtung, alarm, rangebearing, spuren, zeichnen, leitung, meldungen, bloodhound];
+export const features: Feature[] = [marker, status, chat, sichtung, alarm, rangebearing, spuren, zeichnen, raster, leitung, meldungen, bloodhound];
