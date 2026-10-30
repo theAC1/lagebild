@@ -16,12 +16,29 @@ LAGE_ERSTELL_PASSWORT=… npm start        # Produktion: liefert client/dist + A
 npm run e2e                              # Playwright: baut, startet Server auf PW_PORT (8797) mit frischem DATA_DIR
 ```
 
+### Android-App (Capacitor)
+
+Die App ist dieselbe Svelte-Oberfläche in einer APK (`ch.arvuna.lagebild`, `capacitor.config.ts`, `android/`). Sie startet ohne Netz; API und WebSocket gehen an `https://lage.arvuna.ch` (`client/src/lib/umgebung.ts`, Build-Zeit überschreibbar mit `VITE_SERVER_URL`). Die PWA bleibt daneben unverändert.
+
+```bash
+npm run build:app          # Oberfläche ohne Service Worker nach client/dist-app (wird von cap sync in die APK kopiert)
+deploy/android.sh          # kompletter Ablauf: Oberfläche bauen, cap sync, Gradle in LXC 120, APK nach /root/projekte/lagebild-apk/
+VARIANTE=debug deploy/android.sh   # Debug-Build statt signierter Release-APK
+```
+
+- **Gradle** läuft in LXC 120 `android-build` (JDK 21 – Capacitor 8 verlangt es –, SDK unter `/opt/android-sdk`, kein Node). `android.sh` kopiert `android/` plus die nativen Teile der Plugins aus `node_modules/@capacitor*` hinüber und holt die APK zurück.
+- **versionCode** = Minuten seit 1.1.2026 (steigt mit jedem Bauen), **versionName** = `1.0.<Commit-Anzahl>`.
+- **Signatur:** Keystore `/root/.config/lagebild/lagebild.jks`, Passwort daneben in `keystore.pass` (beide 600, nie im Git, einmalig vom Skript erzeugt). Geht er verloren, lässt sich die App nicht mehr aktualisieren, nur neu installieren: Sicherung anlegen.
+- **Hintergrund-GPS** (Einstellung «Position im Hintergrund senden», nur in der App, Vorgabe aus): `@capacitor-community/background-geolocation` als Foreground-Service mit Dauer-Benachrichtigung; `android.useLegacyBridge` in der Config ist dafür Pflicht. Berechtigungen: Standort (fein/grob), `FOREGROUND_SERVICE_LOCATION`, `POST_NOTIFICATIONS`, Kamera; `ACCESS_BACKGROUND_LOCATION` bewusst nicht.
+- **Service Worker** ist in der App aus; stattdessen fragt sie beim Start und bei `visibilitychange` `/app/version.json` ab und zeigt «Neue App-Version · Herunterladen».
+
 E2E braucht einmalig `npx playwright install chromium`. Die Tests (`e2e/*.e2e.ts`) spielen eine ganze Lage mit Leitung und Teilnehmer durch und legen Screenshots unter `docs/screens/e2e-*.png` ab.
 
 ## Betrieb
 
 - **Wo:** LXC 124 `lagebild` (192.168.1.74:8080), öffentlich als https://lage.arvuna.ch über den CF-Tunnel `proxmox-ssh` des Proxmox-Hosts.
 - **Deploy:** `deploy/deploy.sh` auf dem Host. Das Skript baut, spielt die App nach `/opt/lagebild/app` ein und startet den Dienst `lagebild` neu. Die Daten unter `/var/lib/lagebild` bleiben erhalten.
+- **Android-App ausliefern:** `deploy/apk.sh` legt `lagebild.apk` und `version.json` nach `/var/lib/lagebild/app/` in LXC 124 (nicht im Git, kein Neustart nötig). Der Server liefert sie als `/app/lagebild.apk` und `/app/version.json`; im Browser auf Android erscheint im Login «Android-App installieren», sobald `version.json` da ist. `Access-Control-Allow-Origin` setzt der Server nur für die App-Ursprünge `https://localhost` und `capacitor://localhost` (`server/src/sicherheit.ts`); die API nutzt Bearer-Tokens statt Cookies, der WebSocket prüft keinen Origin.
 - **Geheimnis:** `/etc/lagebild.env` enthält nur `LAGE_ERSTELL_PASSWORT` (root, 600). So ersetzt du es auf dem Host: `pct exec 124 -- bash -c 'read -rsp "Erstell-Passwort: " p; echo; umask 077; printf "LAGE_ERSTELL_PASSWORT=%s\n" "$p" > /etc/lagebild.env; systemctl restart lagebild'`
 - **Proxy:** `TRUSTED_PROXY=192.168.1.100` steht in der Unit, weil cloudflared auf dem Host läuft. Nur von dort gilt `CF-Connecting-IP` für die Rate-Limits, für alle anderen Verbindungen gilt die Socket-IP.
 - **Logs:** `pct exec 124 -- journalctl -u lagebild -f`
