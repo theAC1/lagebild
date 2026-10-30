@@ -272,6 +272,16 @@ test('Alarm halten: zu kurz bricht ab, 1,5 s öffnet die Wahl, Notfall löst aus
   await bravo.keyboard.press('Escape');
 });
 
+test('Alarm kurz tippen: die Leitung sieht die Alarmliste, Teilnehmende nichts', async () => {
+  await knopf(bravo, /^Alarm/).click();
+  await expect(bravo.getByRole('tab', { name: /^Alarme/ })).toHaveCount(0);
+  await expect(bravo.getByRole('dialog', { name: 'Alarm auslösen' })).toHaveCount(0);
+  await knopf(leitung, /^Alarm/).click();
+  await expect(leitung.getByRole('tab', { name: /^Alarme/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(leitung.getByText('Zeigt aktive Alarme und die seit dem Öffnen der App aufgehobenen.')).toBeVisible();
+  await leitung.keyboard.press('Escape');
+});
+
 test('Tablet quer 1180×820: Ränder bleiben, zwei Panels zwischen Rand und Karte', async () => {
   await leitung.setViewportSize({ width: 1180, height: 820 });
   await knopf(leitung, /^Chat/).click(); // «Chat (1 ungelesen)» nach der Schnellmeldung
