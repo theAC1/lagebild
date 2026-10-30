@@ -2,10 +2,10 @@
 // Alle Kachel-Anfragen gehen an page.route (Farbkacheln), nichts an swisstopo. Service Worker aus, sonst sieht route nichts.
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { crc32, deflateSync } from 'node:zlib';
+import { dokuBild } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const SIDC = '10031000001211000000';
-const SCREENS = 'docs/screens';
 const HOCH = { width: 390, height: 844 };
 const QUER = { width: 844, height: 390 };
 const GRUEN = [40, 170, 60] as const;
@@ -66,7 +66,7 @@ test.beforeAll(async ({ browser }) => {
 test.afterAll(() => ctx.close());
 
 const knopf = (name: string | RegExp) => page.getByRole('button', { name, exact: typeof name === 'string' });
-const bild = (name: string) => page.screenshot({ path: `${SCREENS}/v4-offline-${name}.png`, animations: 'disabled' });
+const bild = (name: string) => dokuBild(page, `v4-offline-${name}`);
 const gebiete = () => page.locator('ul.gebiete > li');
 const kachelnImSpeicher = () => page.evaluate(async () => (await (await caches.open('lagebild-offline-kacheln')).keys()).length);
 const gespeichert = () => page.evaluate(() => JSON.parse(localStorage.getItem('lagebild.offline.gebiete') ?? '[]'));

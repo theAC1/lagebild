@@ -2,9 +2,9 @@
 // Gebäude/Strasse taufen, verlängern, Stossrichtung, Layer aus/an, doppelter Name. Gegen den echten Server.
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
 import { kachel, ll, MITTE } from './taufe-kacheln.ts';
+import { dokuBild } from './hilfen.ts';
 
 const SIDC = '10031000001211000000';
-const SCREENS = 'docs/screens';
 const HOCH = { width: 390, height: 844 };
 const QUER = { width: 844, height: 390 };
 const TAG = new Date('2026-10-30T11:00:00+01:00');
@@ -38,7 +38,7 @@ async function sitzung(browser: Browser, code: string, rufname: string, viewport
 }
 
 const knopf = (p: Page, name: string | RegExp) => p.getByRole('button', { name, exact: typeof name === 'string' });
-const bild = (p: Page, name: string) => p.screenshot({ path: `${SCREENS}/v4-taufe-${name}.png`, animations: 'disabled' });
+const bild = (p: Page, name: string) => dokuBild(p, `v4-taufe-${name}`);
 const label = (p: Page, name: string) => p.locator('.tf-label', { hasText: new RegExp(`^${name}$`) });
 
 /** Karte auf die eigene Position (= MITTE, Zoom 16). */

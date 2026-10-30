@@ -1,11 +1,10 @@
 // Spec v2 Punkt 4: Zeichnen am Desktop (voller Umfang) und mobil (reduziert), gegen den echten Server.
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
-import { bedienung } from './hilfen.ts';
+import { bedienung, dokuBild } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const BRAVO = { latitude: 46.9476, longitude: 7.4462 };
 const SIDC = '10031000001211000000';
-const SCREENS = 'docs/screens';
 const DESKTOP = { width: 1440, height: 900 };
 
 test.describe.configure({ mode: 'serial' });
@@ -40,7 +39,7 @@ async function zeichnungen(req: APIRequestContext = leitung.page.request): Promi
 const punkteVon = (z: ExportZeichnung): number[][] => (z.geometry.type === 'Polygon' ? (z.geometry.coordinates as number[][][])[0] : (z.geometry.coordinates as number[][]));
 const nachForm = async (form: string) => (await zeichnungen()).filter((z) => z.properties.form === form);
 
-const bild = (p: Page, name: string) => p.screenshot({ path: `${SCREENS}/v2-zeichnen-${name}.png`, animations: 'disabled' });
+const bild = (p: Page, name: string) => dokuBild(p, `v2-zeichnen-${name}`);
 const werkzeug = (p: Page, name: string) => p.getByRole('toolbar', { name: 'Zeichenwerkzeuge' }).getByRole('button', { name, exact: true });
 
 /** Karte auf die eigene Position (Zoom 16) und Mitte der Karte in Fensterpixeln. */

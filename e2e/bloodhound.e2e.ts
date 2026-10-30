@@ -1,14 +1,13 @@
 // Bloodhound: persönliches Bloodhound per Rechtsklick-Radial (Desktop) und Auftrag der Leitung bis «erreicht».
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { WebSocket } from 'ws';
-import { bedienung } from './hilfen.ts';
+import { bedienung, dokuBild } from './hilfen.ts';
 
 const PORT = Number(process.env.PW_PORT ?? 8797);
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const BRAVO = { latitude: 46.9466, longitude: 7.4462 };
 const MARKER = { lat: 46.9466, lon: 7.4562 }; // ~800 m östlich von Bravo
 const SIDC = '10031000001211000000';
-const SCREENS = 'docs/screens';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -49,7 +48,7 @@ function setzeMarker(token: string): Promise<void> {
   });
 }
 
-const bild = (p: Page, name: string) => p.screenshot({ path: `${SCREENS}/v2-bloodhound-${name}.png`, animations: 'disabled' });
+const bild = (p: Page, name: string) => dokuBild(p, `v2-bloodhound-${name}`);
 const leiste = (p: Page) => p.getByRole('region', { name: 'Bloodhound' });
 const bravoSymbol = (p: Page) => p.locator('.bft', { has: p.locator('.bft-label', { hasText: 'Bravo' }) }).locator('.bft-sym');
 

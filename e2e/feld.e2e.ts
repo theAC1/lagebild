@@ -1,6 +1,6 @@
 // Feldfälle: Funkloch (halb offene Verbindung), GPS-Verlust, verweigerter Standort, schmale Handys und Querformat.
 import { expect, test, type Browser, type BrowserContextOptions, type Page } from '@playwright/test';
-import { bedienung } from './hilfen.ts';
+import { bedienung, dokuBild } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const NAH = { latitude: 46.9466, longitude: 7.4462 }; // ~150 m östlich: Symbole überlappen auf Zoom 14
@@ -186,7 +186,7 @@ test.describe('schmale Handys und Querformat', () => {
     await expect(toast).toBeVisible();
     const [t, b] = [await toast.boundingBox(), await banner.boundingBox()];
     expect(t!.y).toBeGreaterThanOrEqual(b!.y + b!.height);
-    await leitung.screenshot({ path: 'docs/screens/e2e-360-alarm.png', animations: 'disabled' });
+    await dokuBild(leitung, 'e2e-360-alarm');
   });
 
   test('Radial-Menü, Koordinate und Leitungs-Tabs passen auf 360 px', async () => {
@@ -230,6 +230,6 @@ test.describe('schmale Handys und Querformat', () => {
     expect(menu.height).toBeGreaterThanOrEqual(150);
     const banner = (await leitung.locator('.banner').boundingBox())!;
     expect(menu.x + menu.width).toBeLessThanOrEqual(banner.x); // aktives Alarm-Banner verdeckt das Menü nicht
-    await leitung.screenshot({ path: 'docs/screens/e2e-quer-ebenen.png', animations: 'disabled' });
+    await dokuBild(leitung, 'e2e-quer-ebenen');
   });
 });

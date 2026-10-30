@@ -1,11 +1,11 @@
 // Spec v3: Bedienung «Daumen-Ränder» (Vorgabe) – Querformat Handy/Tablet, Hochformat, Meldungen mit wenig Tipps,
 // Marker per Fadenkreuz, Alarm halten, Tag/Nacht nach Sonnenstand.
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
+import { dokuBild } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const NAH = { latitude: 46.9466, longitude: 7.4462 }; // ~150 m östlich
 const SIDC = '10031000001211000000';
-const SCREENS = 'docs/screens';
 // Uhrzeit fürs Thema (Bern, 29.10.: Sonnenaufgang ≈ 07:13, Untergang ≈ 17:11 MEZ)
 const NACHT = new Date('2026-10-29T22:00:00+01:00');
 const TAG = new Date('2026-10-29T12:00:00+01:00');
@@ -34,7 +34,7 @@ async function seite(browser: Browser, code: string, rufname: string, geolocatio
   return page;
 }
 
-const bild = (p: Page, name: string) => p.screenshot({ path: `${SCREENS}/v3-${name}.png`, animations: 'disabled' });
+const bild = (p: Page, name: string) => dokuBild(p, `v3-${name}`);
 const knopf = (p: Page, name: string | RegExp) => p.getByRole('button', { name, exact: typeof name === 'string' });
 const sheets = (p: Page) => p.locator('section.sheet');
 const box = async (p: Page, name: string | RegExp) => (await knopf(p, name).boundingBox())!;

@@ -2,6 +2,14 @@
 import type { Page } from '@playwright/test';
 
 /**
+ * Bildschirmfoto nach docs/screens/<name>.png, nur mit E2E_BILDER=1 (Doku-Bilder erneuern). Sonst nichts: spart je
+ * Bild bis 7 MB PNG und Zeit, und ein normaler Lauf ändert keine Dateien im Repo.
+ */
+export async function dokuBild(p: Page, name: string): Promise<void> {
+  if (process.env.E2E_BILDER) await p.screenshot({ path: `docs/screens/${name}.png`, animations: 'disabled' });
+}
+
+/**
  * Init-Script für context.addInitScript(bedienung, 'klassisch'): setzt die Bedienung, solange keine gewählt ist.
  * Andere Einstellungen (z.B. die per Tippen gemerkte Koordinatenzeile) bleiben über Neuladen erhalten.
  */

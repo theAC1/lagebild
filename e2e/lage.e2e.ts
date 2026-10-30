@@ -1,11 +1,10 @@
 // Ende-zu-Ende: Leitung (Adler, Bundeshaus) und Teilnehmer (Bravo, 1.1 km südlich) in einer Lage, gegen den echten Server.
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { bedienung } from './hilfen.ts';
+import { bedienung, dokuBild } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const BRAVO = { latitude: 46.9366, longitude: 7.4442 }; // ~1.11 km, Azimut 180° von Adler
-const SCREENS = 'docs/screens';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -31,7 +30,7 @@ async function beitreten(page: Page, rufname: string, einheit: string) {
 }
 
 // Sheets/Toasts blenden ein → Animationen fertig laufen lassen, sonst halbtransparente Bilder
-const bild = (page: Page, name: string) => page.screenshot({ path: `${SCREENS}/${name}.png`, animations: 'disabled' });
+const bild = (page: Page, name: string) => dokuBild(page, name);
 
 const werkzeug = (page: Page, label: string) => page.locator('nav.werkzeuge button.werkzeug', { hasText: label });
 const sheet = (page: Page) => page.locator('section.sheet');

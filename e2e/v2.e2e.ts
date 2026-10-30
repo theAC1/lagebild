@@ -1,11 +1,10 @@
 // Spec v2: Querformat (Handy, Tablet, Desktop), zwei Panels, Desktop-Bedienung, Radial-Menü.
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { bedienung } from './hilfen.ts';
+import { bedienung, dokuBild } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const NAH = { latitude: 46.9466, longitude: 7.4462 }; // ~150 m östlich
 const SIDC = '10031000001211000000';
-const SCREENS = 'docs/screens';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -28,7 +27,7 @@ async function seite(browser: Browser, code: string, rufname: string, geolocatio
   return page;
 }
 
-const bild = (p: Page, name: string) => p.screenshot({ path: `${SCREENS}/v2-${name}.png`, animations: 'disabled' });
+const bild = (p: Page, name: string) => dokuBild(p, `v2-${name}`);
 const werkzeug = (p: Page, label: string) => p.locator('nav.werkzeuge button.werkzeug', { hasText: label });
 const sheets = (p: Page) => p.locator('section.sheet');
 const karte = (p: Page) => p.locator('.maplibregl-canvas');
@@ -150,7 +149,9 @@ test('Desktop: Rechtsklick auf Teilnehmer öffnet Radial-Menü, Esc schliesst', 
   await expect(ring).toHaveCount(0);
   await expect(sheets(leitung)).toHaveCount(1); // Esc schloss nur das Menü
 
-  // Chat aus dem Ring → öffnet neben der Teilnehmerliste
+  // Chat aus dem Ring → öffnet neben der Teilnehmerliste. MapView verwirft einen zweiten Rechtsklick an derselben
+  // Stelle binnen 500 ms (Android-Doppelereignis); früher wartete das Bildschirmfoto davor lange genug.
+  await leitung.waitForTimeout(600);
   await bravoSymbol(leitung).click({ button: 'right' });
   await ring.getByRole('menuitem', { name: 'Chat' }).click();
   await expect(sheets(leitung)).toHaveCount(2);

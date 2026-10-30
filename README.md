@@ -14,6 +14,7 @@ npm test                                 # vitest: Server, Client-Logik, Feature
 npm run build                            # client/dist inkl. Service Worker
 LAGE_ERSTELL_PASSWORT=… npm start        # Produktion: liefert client/dist + API + WebSocket (PORT, DATA_DIR)
 npm run e2e                              # Playwright: baut, startet Server auf PW_PORT (8797) mit frischem DATA_DIR
+E2E_BILDER=1 npm run e2e                 # dazu die Doku-Bilder in docs/screens neu schreiben (sonst keine Bildschirmfotos)
 ```
 
 ### Android-App (Capacitor)

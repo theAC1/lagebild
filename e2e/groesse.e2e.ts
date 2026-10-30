@@ -1,6 +1,6 @@
 // Einstellung «Bediengrösse» auf dem Handy (Touch): Trefferflächen, keine Überlappung, Karte bleibt gross, gemerkt.
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { langdruck, leereStelle } from './hilfen.ts';
+import { dokuBild, langdruck, leereStelle } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const SIDC = '10031000001211000000';
@@ -105,7 +105,7 @@ async function pruefe(p: Page, viewport: typeof HOCH) {
 async function bild(p: Page, name: string) {
   await p.waitForLoadState('networkidle');
   await p.waitForTimeout(800);
-  await p.screenshot({ path: `docs/screens/v2-groesse-${name}.png`, animations: 'disabled' });
+  await dokuBild(p, `v2-groesse-${name}`);
 }
 
 for (const [ansicht, viewport] of [
@@ -228,7 +228,7 @@ for (const [ansicht, viewport] of [
       }
       for (const [i, a] of teile.entries()) for (const b of teile.slice(i + 1)) expect(schneiden(a.box, b.box), `${a.name} ↔ ${b.name}`).toBe(false);
       await p.waitForTimeout(300);
-      await p.screenshot({ path: `docs/screens/v3-radial-leer-${ansicht}-${stufe}.png`, animations: 'disabled' });
+      await dokuBild(p, `v3-radial-leer-${ansicht}-${stufe}`);
 
       await ring.getByRole('menuitem', { name: 'Koordinate' }).tap();
       await expect(ring).toHaveCount(0);
@@ -248,7 +248,7 @@ for (const [ansicht, viewport] of [
           .map((x) => x.textContent?.slice(0, 24));
       });
       expect(raus).toEqual([]);
-      await p.screenshot({ path: `docs/screens/v3-koordinate-${ansicht}-${stufe}.png`, animations: 'disabled' });
+      await dokuBild(p, `v3-koordinate-${ansicht}-${stufe}`);
 
       const lv95 = karte.getByRole('button', { name: /^LV95 / });
       await lv95.tap();

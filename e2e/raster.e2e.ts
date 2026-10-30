@@ -2,12 +2,11 @@
 // Marker per Rasterposition. Bedienung «Daumen-Ränder» (Vorgabe), Leitung quer, Teilnehmerin hoch.
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { ansprache, zelleVon, zellMitte, type RasterGeo } from '../shared/raster.ts';
-import { leereStelle } from './hilfen.ts';
+import { dokuBild, leereStelle } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const BRAVO = { latitude: 46.9472, longitude: 7.4452 };
 const SIDC = '10031000001211000000';
-const SCREENS = 'docs/screens';
 const QUER = { width: 844, height: 390 };
 const HOCH = { width: 390, height: 844 };
 const TAG = new Date('2026-10-29T12:00:00+01:00'); // heller Tagmodus wie auf Papier
@@ -44,7 +43,7 @@ const abschnitt = (p: Page, name: 'Grande' | 'Piccolo') => panel(p).getByRole('r
 const koepfe = (p: Page, seite = '') => p.locator(`.raster-frei .kopf${seite}`);
 const bild = async (p: Page, name: string) => {
   await p.waitForTimeout(1500); // Kacheln
-  await p.screenshot({ path: `${SCREENS}/v4-raster-${name}.png`, animations: 'disabled' });
+  await dokuBild(p, `v4-raster-${name}`);
 };
 
 type ExportRaster = RasterGeo & { art: 'grande' | 'piccolo'; fixiert: boolean };

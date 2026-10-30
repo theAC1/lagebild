@@ -4,11 +4,11 @@ import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { WebSocket } from 'ws';
 import { rasterUm, RASTER_VORGABE, zuLv95 } from '../shared/raster.ts';
+import { dokuBild } from './hilfen.ts';
 
 const PORT = Number(process.env.PW_PORT ?? 8797);
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const SIDC = '10031000001211000000';
-const SCREENS = 'docs/screens';
 const K = Math.cos((ADLER.latitude * Math.PI) / 180) * 111_320;
 /** Meter (Ost, Nord) ab ADLER → [lon, lat] */
 const ll = (ost: number, nord: number): [number, number] => [ADLER.longitude + ost / K, ADLER.latitude + nord / 111_320];
@@ -48,7 +48,7 @@ async function bild(p: Page, jpeg: Buffer, name: string) {
   await p.setViewportSize({ width: 1170, height: 827 });
   await p.setContent(`<body style="margin:0"><img style="width:1170px;display:block" src="data:image/jpeg;base64,${jpeg.toString('base64')}"></body>`);
   await p.locator('img').evaluate((img: HTMLImageElement) => img.decode());
-  await p.screenshot({ path: `${SCREENS}/v4-raster-pdf-${name}.png` });
+  await dokuBild(p, `v4-raster-pdf-${name}`);
 }
 
 test('Piccolo «Als PDF»: Datei mit Luftbild und SpotMap', async ({ browser }) => {
@@ -85,7 +85,7 @@ test('Piccolo «Als PDF»: Datei mit Luftbild und SpotMap', async ({ browser }) 
   const download = p.waitForEvent('download', { timeout: 120_000 });
   await piccolo.getByRole('button', { name: 'Als PDF' }).click();
   await expect(piccolo.getByRole('button', { name: 'PDF entsteht …' })).toBeDisabled();
-  await p.screenshot({ path: `${SCREENS}/v4-raster-pdf-panel.png`, animations: 'disabled' });
+  await dokuBild(p, 'v4-raster-pdf-panel');
   const d = await download;
   expect(d.suggestedFilename()).toMatch(/^ubung-aare-piccolo-\d{4}-\d{2}-\d{2}\.pdf$/);
   const pdf = readFileSync((await d.path())!);
