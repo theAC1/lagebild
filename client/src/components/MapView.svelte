@@ -6,11 +6,13 @@
   import { oeffneRadial, setzeKarte, zielUnter } from '../lib/map.ts';
   import { zeigeDetails } from '../lib/radialKern.ts';
   import { ABDECKUNG, BASISKARTEN, kachelUrl, OVERLAYS, type Overlay } from '../lib/karten.ts';
+  import { lokal, registriereKachelProtokoll } from '../lib/kachelspeicher.ts';
   import { store } from '../lib/store.svelte.ts';
   import { ui } from '../lib/ui.svelte.ts';
 
   let { children }: { children?: Snippet } = $props();
   setWorkerUrl(workerUrl);
+  registriereKachelProtokoll(); // Kacheln zuerst aus den Offline-Gebieten, dann aus dem Netz
 
   let el: HTMLDivElement;
   let karte: MapLibreMap | undefined;
@@ -24,7 +26,7 @@
       sources: Object.fromEntries(
         alle.map((l) => [
           l.id,
-          { type: 'raster', tiles: [kachelUrl(l)], tileSize: 256, maxzoom: l.maxzoom, bounds: ABDECKUNG, attribution: l.attribution },
+          { type: 'raster', tiles: [lokal(kachelUrl(l))], tileSize: 256, maxzoom: l.maxzoom, bounds: ABDECKUNG, attribution: l.attribution },
         ]),
       ),
       layers: alle.map((l) => ({

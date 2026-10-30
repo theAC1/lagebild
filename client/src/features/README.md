@@ -81,6 +81,7 @@ onDestroy(ab);
 - `lib/team.ts`: `teamFarbe(einheit)` (ATAK-Teamfarbe, z.B. für Spuren je Einheit).
 - `features/raster/zustand.svelte.ts`: `rasterAnsprache(punkt)` → «Grande H 09 C · Piccolo B 03 A» oder `null` (nur fixierte Raster), `rasterAnsprachen(punkt)` als Liste. Geometrie/Ansprache rein in `shared/raster.ts`.
 - `lib/Platzhalter.svelte`: Stub-Panel.
+- `lib/kachelspeicher.ts`: swisstopo-Kacheln für eigene Quellen immer als `tiles: [lokal(url)]` angeben (MapLibre-Protokoll `kachel://`), dann kommen sie zuerst aus den Offline-Gebieten. Vektorkacheln der Taufe: `lokal(TAUFE_VT.vorlage)` (`lib/karten.ts`).
 
 Stil: globale Klassen aus `app.css` (`button.primaer`, `button.gefahr`, `button.icon`, `.segmente`, `.chips`, `.gruppe-titel`, `.rand-knopf`, `label.feld`, `.mono`, `.leise`), Farben nur über Tokens (`--accent`, `--danger`, `--warn`, `--ok`, `--surface`, `--line`, `--text`; auf der Karte `--karte-bg`/`--karte-text`), weil `data-thema` nach Sonnenstand zwischen Nacht (dunkel-taktisch) und Tag (hell) wechselt. Touch-Ziele ≥ 48 px (`--touch`), Hauptaktionen ≥ 56 px (`--haupt`).
 

@@ -10,7 +10,7 @@ Vertrag: `shared/protocol.ts` (Datenmodell, WebSocket-Nachrichten, REST-Bodies).
 - **Karte:** MapLibre GL JS, swisstopo-WMTS in EPSG:3857 (Raster). Layer: Landeskarte farbig (`ch.swisstopo.pixelkarte-farbe`), grau (`ch.swisstopo.pixelkarte-grau`), Luftbild (`ch.swisstopo.swissimage`). Attribution «© swisstopo». Positionen intern WGS84.
 - **Koordinaten:** Anzeige WGS84, LV95 (proj4, EPSG:2056, Format `2'600'000 / 1'200'000`) und MGRS (`mgrs`). Langes Tippen auf die Karte zeigt die Koordinate des Punkts.
 - **Symbole:** milsymbol, APP-6D/2525D (20-stellige SIDC). Kuratierte Auswahl häufiger Funktionen (Infanterie, mech. Infanterie, Panzer, Aufklärung, Führung/KP, Sanität, Genie/Pionier, Artillerie, Logistik, Fahrzeug, Beobachtungsposten, Scharfschütze, Drohne, Zivilperson …) × Zugehörigkeit (Freund/Feind/Neutral/Unbekannt) × Grösse (Trupp/Gruppe/Zug/Kompanie). Zusätzlich SIDC-Freieingabe.
-- **PWA:** `vite-plugin-pwa`, installierbar, App-Hülle offline. Service Worker cacht angezeigte swisstopo-Kacheln (CacheFirst, max. ~30'000 Einträge, 60 Tage). Kein Vorab-Massendownload (swisstopo Fair Use).
+- **PWA:** `vite-plugin-pwa`, installierbar, App-Hülle offline. Service Worker cacht angezeigte swisstopo-Kacheln (CacheFirst, max. ~30'000 Einträge, 60 Tage). Kein Massendownload; Vorab-Laden nur als gedrosseltes Offline-Gebiet (siehe «Offline-Gebiete»).
 
 ## Funktionen v1
 
@@ -239,3 +239,33 @@ Feature `client/src/features/taufe`, Server `server/src/taufe.ts`, Vertrag `Tauf
 ### Server
 - `taufe.neu`, `taufe.aendern` (nur gesetzte Felder), `taufe.loeschen`, `lage.taufListen` (Leitung). Antworten `taufe`, `taufe.geloescht`, `lage`; Snapshot `taufen`.
 - Höchstens 2000 Taufen und 6 MB (JSON) je Lage; Export GeoJSON mit `art: 'taufe'`.
+
+## Offline-Gebiete (30.10.2026)
+
+Entscheide: README «Offline-Gebiete (30.10.)». Nutzungsbedingungen, Drosselung und Grössen: `docs/recherche/offline-gebiete.md`.
+
+### Ablauf
+- **Mehr → «Offline-Karten»** (Feature `features/offline/`). «Neues Gebiet aufziehen» schliesst das Panel; ein Finger bzw. die linke Maustaste zieht auf der Karte ein Rechteck auf (Schieben ist dabei aus, zwei Finger und Mausrad zoomen weiter). Neu ziehen ersetzt das Rechteck.
+- Die Leiste unten zeigt live Breite × Höhe in km, geschätzte MB und Kachelzahl. Karten per Chip wählbar: **Landeskarte** (Vorgabe), **Luftbild**, **Taufe-Vektordaten** (`ch.swisstopo.base.vt`).
+- «Weiter» → Bestätigung mit MB und freiem Speicher (`navigator.storage.estimate`). Ab 500 MB Hinweis «Grosser Download: WLAN empfohlen». Reicht der Speicher nicht, ist «Laden» gesperrt. Sonst kein Limit.
+- Umfang je Karte: alle Zoomstufen ab z5 bis zum Max-Zoom, den die App online nutzt (Landeskarte z19, Luftbild z20, Vektor z14). Bis z10 zusätzlich die Umgebung ±20 km (grobe Übersicht ausserhalb), darüber nur das Rechteck.
+- Name aus Lage und Datum («Übung Aare · 30.10.2026»), in der Liste umbenennbar. Beim ersten Gebiet fragt die App `navigator.storage.persist()`.
+
+### Verwaltung
+- Liste: Name, Datum, Karten, MB, «Zuletzt genutzt», Fortschritt (Balken, %) mit Zustand Lädt / Wartet / Kein Netz / Pausiert (mit Grund, z. B. «Speicher voll») / Fertig. Oben belegter und freier Speicher und ob er dauerhaft ist.
+- Knöpfe je Gebiet: Pausieren/Fortsetzen bzw. Aktualisieren (lädt alles neu und überschreibt), Zeigen (Karte auf das Gebiet), Löschen (mit Rückfrage).
+- Schalter «Umrisse»: gestrichelte Rechtecke aller Gebiete auf der Karte (pro Gerät gemerkt).
+- Gebiete laden nacheinander. Ein abgebrochener Download (Netz weg, App zu) läuft beim nächsten Öffnen nach dem Anmelden an der gespeicherten Stelle weiter; ohne Netz wartet er und versucht es alle 10 s.
+- **Ablauf:** Gebiete, aus denen 60 Tage keine Kachel angezeigt wurde, löscht die App beim Start (Toast). Als Nutzung zählen nur Kacheln über z10 im Rechteck, nicht die gemeinsame Übersicht.
+
+### Technik
+- **Ablage:** Cache Storage, Cache `lagebild-offline-kacheln`, Schlüssel = https-URL der Kachel bei swisstopo. Liste der Gebiete in `localStorage` (`lagebild.offline.gebiete`), Fortschritt als lückenloser Zähler `erledigt` in fester Kachelreihenfolge (Karte, Zoom aufsteigend, zeilenweise).
+- **Anzeige:** Alle swisstopo-Quellen in `MapView` laufen über das MapLibre-Protokoll `kachel://` (`lib/kachelspeicher.ts`): zuerst Cache Storage, dann Netz. Gleich in PWA und Android-App (dort ohne Service Worker). Fehlt eine Kachel ohne Netz, meldet das Protokoll 404: MapLibre zeigt still die gröbere Stufe, ohne Fehlermeldung pro Kachel.
+- **Keine doppelte Speicherung:** Der Workbox-Cache `swisstopo-kacheln` (angezeigte Kacheln, PWA) bleibt. Offline-Gebiete laden mit `cache: 'no-store'`, die Workbox-Route ignoriert diese Anfragen (`vite.config.ts`). Liegt eine Kachel schon im Workbox-Cache, wird sie verschoben statt neu geladen. Was im Offline-Speicher liegt, fragt die Karte gar nicht erst übers Netz an.
+- **Überlappung:** Gebiete teilen Kacheln. Löschen entfernt nur Kacheln, die kein anderes Gebiet braucht (aus den Rechtecken gerechnet, keine gespeicherten Zähler).
+- **Taufmodus später:** Die Vektorkacheln liegen unter `TAUFE_VT.vorlage` (`lib/karten.ts`). Eine Vektorquelle mit `tiles: [lokal(TAUFE_VT.vorlage)]` bekommt sie über denselben Weg zuerst lokal.
+- **Drosselung:** WMTS ≤ 6 Anfragen/s, Vektorkacheln ≤ 30/min, 4 gleichzeitig, 30 s Pause bei 429/5xx (`features/offline/laden.ts`).
+
+### Offene Punkte
+- Luftbild bis z20 braucht für 10 × 10 km ~3,7 GB und gedrosselt ~9 h (Landeskarte ~740 MB, ~2,3 h). Ob das Luftbild offline bei z19 aufhören soll (~0,9 GB), entscheidet Juan.
+- Gebiet als Vorschlag aus dem Führungsraster, sobald es das gibt.

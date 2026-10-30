@@ -13,6 +13,7 @@ import zeichnen from './zeichnen/index.ts';
 import meldungen from './meldungen/index.ts';
 import raster from './raster/index.ts';
 import taufe from './taufe/index.ts';
+import offline from './offline/index.ts';
 
 /** Props jedes Panels: was `oeffne(id, params)` mitgegeben hat. */
 export type PanelProps = { params: Record<string, any> };
@@ -46,4 +47,4 @@ export interface Feature {
   ebenen?: () => { label: string; an: boolean; schalten: () => void }[];
 }
 
-export const features: Feature[] = [marker, status, chat, sichtung, alarm, rangebearing, spuren, zeichnen, raster, taufe, leitung, meldungen, bloodhound];
+export const features: Feature[] = [marker, status, chat, sichtung, alarm, rangebearing, spuren, zeichnen, raster, taufe, leitung, meldungen, offline, bloodhound];

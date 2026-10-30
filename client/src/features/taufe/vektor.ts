@@ -4,10 +4,13 @@ import type { FilterSpecification, LayerSpecification, Map as MapLibreMap, MapGe
 import { BAECHE, GEBAEUDE_OHNE, STRASSEN_KLASSEN } from './familien.ts';
 import { linienAufKachel, zuWelt, type Flaeche, type Kachel, type Linie, type XY } from './geo.ts';
 import { MIN_ZOOM } from './zustand.svelte.ts';
+import { lokal } from '../../lib/kachelspeicher.ts';
+import { TAUFE_VT } from '../../lib/karten.ts';
 
 export const VT = 'taufe-vt';
 /** Offizielle Kachel-URL (TileJSON ch.swisstopo.base.vt v1.0.0). Offline-Gebiete hängen ihre lokale Ablage davor. */
-export const VT_KACHELN = [0, 1, 2, 3, 4].map((i) => `https://vectortiles${i}.geo.admin.ch/tiles/ch.swisstopo.base.vt/v1.0.0/{z}/{x}/{y}.pbf`);
+// Über den Kachelspeicher: zuerst aus Offline-Gebieten, dann aus dem Netz (gleiche URL wie beim Herunterladen)
+export const VT_KACHELN = [lokal(TAUFE_VT.vorlage)];
 const SWISSTOPO = '© <a href="https://www.swisstopo.admin.ch" target="_blank" rel="noopener">swisstopo</a>';
 
 const klasseIn = (liste: string[]): FilterSpecification => ['in', ['get', 'class'], ['literal', liste]];
