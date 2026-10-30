@@ -580,3 +580,23 @@ Nicht entschieden; die Empfehlung steht jeweils fett.
   - **(a) Alle 5 min, Alarm sofort (trägt ~20 Geräte im Kanal).**
   - (b) Alle 2 min, nur für kleine Gruppen (≤ 8 Geräte).
   - (c) Nur auf Abruf und bei Statuswechsel.
+
+## Performance 30.10.
+
+Gemessen statt geraten. Lastbild: 50 Geräte (Leitung + 49, je 1 Pos/s), 500 Zeichnungen (davon 70 Freihand à 150 Punkte),
+300 Taufen (jede zehnte 60 Punkte), Spuren 4 h im 10-s-Takt, 200 Meldungen. Browser: Chromium headless, 390×844,
+CPU-Drossel 4× (≈ Mittelklasse-Android), Kacheln echt, Software-GL (Bildraten daher nur relativ vergleichbar).
+Host ist ausgelastet: Werte schwanken um ±15 %.
+
+### Messgrundlage (vorher, main @ 2e82410)
+
+| Was | Wert |
+|---|---|
+| Start-JS (ein Bundle) | 2605 kB, gzip 716 kB (MapLibre 1294 kB, milsymbol 1073 kB, proj4 185 kB, zod 173 kB, qrcode 48 kB, unminifiziert gezählt) |
+| Start bis 49 Symbole sichtbar | 2.5 s |
+| Leitung in Ruhe, 49 Geräte live | 22 Bilder/s, Layout 246 ms/s (Rufnamen-Entzerren erzwingt je Position ein Layout aller 850 Kartenmarker) |
+| dazu alle Spuren (1 h) sichtbar | 8 Bilder/s (je Position ein `setData` aller Spuren) |
+| Snapshot über WebSocket | 1224 kB (gzip wären 357 kB), Aufbau 35 ms |
+| `/api/spuren` 1 h / alles | 2.3 MB / 9.1 MB roh (Cloudflare komprimiert HTTP ohnehin) |
+| Position je Nachricht | 183 B; Server ≈ 1 ms CPU je Position inkl. Verteilen an 50 |
+| `docs/screens/` | 136 MB, 87 PNG, jeder E2E-Lauf schreibt sie neu (bis 7 MB je Bild) |
