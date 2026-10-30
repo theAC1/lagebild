@@ -78,6 +78,7 @@ onDestroy(ab);
 - `lib/coords.ts`: `formatLv95/formatMgrs/formatWgs84/formatKoord`, `distanz`, `azimut`, `promille`, `formatDistanz`, `formatRichtung`, `versetze`, `kreis`.
 - `lib/team.ts`: `teamFarbe(einheit)` (ATAK-Teamfarbe, z.B. für Spuren je Einheit).
 - `lib/Platzhalter.svelte`: Stub-Panel.
+- `lib/kachelspeicher.ts`: swisstopo-Kacheln für eigene Quellen immer als `tiles: [lokal(url)]` angeben (MapLibre-Protokoll `kachel://`), dann kommen sie zuerst aus den Offline-Gebieten. Vektorkacheln der Taufe: `lokal(TAUFE_VT.vorlage)` (`lib/karten.ts`).
 
 Stil: globale Klassen aus `app.css` (`button.primaer`, `button.gefahr`, `button.icon`, `.segmente`, `.chips`, `.gruppe-titel`, `.rand-knopf`, `label.feld`, `.mono`, `.leise`), Farben nur über Tokens (`--accent`, `--danger`, `--warn`, `--ok`, `--surface`, `--line`, `--text`; auf der Karte `--karte-bg`/`--karte-text`), weil `data-thema` nach Sonnenstand zwischen Nacht (dunkel-taktisch) und Tag (hell) wechselt. Touch-Ziele ≥ 48 px (`--touch`), Hauptaktionen ≥ 56 px (`--haupt`).
 
