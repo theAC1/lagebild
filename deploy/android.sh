@@ -19,7 +19,7 @@ VERSION_NAME=${VERSION_NAME:-1.0.$(git rev-list --count HEAD)}
 echo "== Version $VERSION_NAME (Code $VERSION_CODE), Variante $VARIANTE"
 
 echo "== Oberfläche bauen und in android/ synchronisieren"
-npm run build:app
+WEB_CODE=$VERSION_CODE npm run build:app # eingebauter Web-Stand = Rückfall des Live-Updates
 npx cap sync android
 
 STAGE=$(mktemp -d)
@@ -50,7 +50,7 @@ fi
 
 echo "== Projekt nach LXC $CT kopieren"
 # Die nativen Teile der Capacitor-Plugins liegen in node_modules (capacitor.settings.gradle verweist dorthin)
-cp -r node_modules/@capacitor node_modules/@capacitor-community "$STAGE/node_modules/"
+cp -r node_modules/@capacitor node_modules/@capacitor-community node_modules/@capgo "$STAGE/node_modules/"
 tar -czf - --exclude='android/.gradle' --exclude='android/build' --exclude='android/app/build' android -C "$STAGE" node_modules \
   $( [ "$VARIANTE" = release ] && echo "lagebild.jks keystore.properties" ) \
   | pct exec "$CT" -- bash -c "set -e; rm -rf $BUILD; mkdir -p $BUILD; tar -xzf - -C $BUILD

@@ -8,6 +8,10 @@ const config: CapacitorConfig = {
     // Pflicht für @capacitor-community/background-geolocation: sonst stoppen Updates nach 5 min im Hintergrund
     useLegacyBridge: true,
   },
+  plugins: {
+    // Live-Update der Oberfläche, nur manuell (update.svelte.ts): nichts geht an Dritte, kein Auto-Update, keine Statistik
+    CapacitorUpdater: { autoUpdate: false, statsUrl: '', updateUrl: '', channelUrl: '', appReadyTimeout: 20000, resetWhenUpdate: true },
+  },
   backgroundColor: '#161b1f',
 };
 

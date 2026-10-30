@@ -16,7 +16,7 @@ export type Optionen = {
   dataDir: string;
   erstellPasswort: string;
   clientDir: string;
-  /** Android-App zum Download: `lagebild.apk` + `version.json` (deploy/apk.sh). Vorgabe: <dataDir>/app */
+  /** Android-App zum Download: `lagebild.apk` + `version.json` (deploy/apk.sh), `web.json` + `web-<n>.zip` (deploy/web.sh). Vorgabe: <dataDir>/app */
   appDir?: string;
   host?: string;
   /** Socket-Adressen, deren `CF-Connecting-IP` gilt (cloudflared). Leer: immer die Socket-IP. */
@@ -251,18 +251,22 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
     throw new HttpFehler(404, 'Nicht gefunden');
   }
 
-  /** `/app/version.json` und `/app/lagebild.apk` aus dem Datenverzeichnis; die APK gehört nicht ins Git. */
+  /**
+   * `/app/…` aus dem Datenverzeichnis (nicht im Repo): APK, `version.json` (APK-Hinweis), `web.json` + `web-<n>.zip` (Live-Update
+   * der Oberfläche). Die Bundles tragen ihren Stand im Namen und sind unveränderlich; alles andere wird immer neu geprüft.
+   */
   async function appDatei(req: IncomingMessage, res: ServerResponse, pfad: string): Promise<void> {
     if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpFehler(405, 'Methode nicht erlaubt');
     const apk = pfad === '/app/lagebild.apk';
-    if (!apk && pfad !== '/app/version.json') throw new HttpFehler(404, 'Nicht gefunden');
-    const datei = join(appDir, apk ? 'lagebild.apk' : 'version.json');
+    const bundle = /^\/app\/web-\d{1,12}\.zip$/.test(pfad);
+    if (!apk && !bundle && pfad !== '/app/version.json' && pfad !== '/app/web.json') throw new HttpFehler(404, 'Nicht gefunden');
+    const datei = join(appDir, pfad.slice('/app/'.length));
     const info = await stat(datei).catch(() => undefined);
     if (!info?.isFile()) throw new HttpFehler(404, 'App nicht bereitgestellt');
     res.writeHead(200, {
-      'Content-Type': apk ? 'application/vnd.android.package-archive' : 'application/json',
+      'Content-Type': apk ? 'application/vnd.android.package-archive' : bundle ? 'application/zip' : 'application/json',
       'Content-Length': info.size,
-      'Cache-Control': 'no-cache',
+      'Cache-Control': bundle ? 'public, max-age=31536000, immutable' : 'no-cache',
       ...(apk ? { 'Content-Disposition': 'attachment; filename="lagebild.apk"' } : {}),
     });
     if (req.method === 'HEAD') return void res.end();

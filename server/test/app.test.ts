@@ -69,4 +69,28 @@ describe('/app/*', () => {
     expect((await fetch(s.url + '/app/..%2Fgeheim.txt')).status).toBe(404);
     expect((await fetch(s.url + '/app/version.json', { method: 'POST' })).status).toBe(405);
   });
+  it('liefert web.json (no-cache) und Bundles (unveränderlich), nur mit Zahl im Namen', async () => {
+    const dir = join(s.dataDir, 'app');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'web.json'), JSON.stringify({ webCode: 42 }));
+    writeFileSync(join(dir, 'web-42.zip'), Buffer.from('PK\u0003\u0004zip'));
+    writeFileSync(join(dir, 'web-x.zip'), 'x');
+
+    const w = await fetch(s.url + '/app/web.json', { headers: { origin: 'https://localhost' } });
+    expect(w.status).toBe(200);
+    expect(w.headers.get('cache-control')).toBe('no-cache');
+    expect(w.headers.get('access-control-allow-origin')).toBe('https://localhost');
+    expect(await w.json()).toEqual({ webCode: 42 });
+
+    const z = await fetch(s.url + '/app/web-42.zip');
+    expect(z.status).toBe(200);
+    expect(z.headers.get('content-type')).toBe('application/zip');
+    expect(z.headers.get('cache-control')).toContain('immutable');
+    expect(Buffer.from(await z.arrayBuffer()).toString('latin1')).toContain('zip');
+
+    expect((await fetch(s.url + '/app/web-43.zip')).status).toBe(404);
+    expect((await fetch(s.url + '/app/web-x.zip')).status).toBe(404);
+    expect((await fetch(s.url + '/app/web-1%2F..%2Fweb.json')).status).toBe(404);
+    expect((await fetch(s.url + '/app/web.json', { method: 'POST' })).status).toBe(405);
+  });
 });

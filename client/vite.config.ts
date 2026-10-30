@@ -7,6 +7,8 @@ const backend = 'http://localhost:8080';
 
 export default defineConfig(({ mode }) => ({
   // Einstellung «Bediengrösse»: px in den eigenen Stilen skalieren mit --ui/--schrift (siehe uiSkala.ts)
+  // Build-Stand der Oberfläche (Minuten seit 1.1.2026, von deploy/*.sh gesetzt); die App vergleicht ihn mit /app/web.json
+  define: { __WEB_CODE__: Number(process.env.WEB_CODE ?? 0) },
   css: { postcss: { plugins: [uiSkala()] } },
   plugins: [
     svelte(),
