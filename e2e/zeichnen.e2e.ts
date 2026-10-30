@@ -124,6 +124,7 @@ test('Desktop: Phasenlinie mit Bezeichnung, zweiter Teilnehmer sieht sie live', 
 });
 
 test('Desktop: Lasso über zwei Formen, gemeinsam verschieben, Ctrl+Z macht es rückgängig, Ctrl+Y wiederholt', async () => {
+  test.slow(); // dutzende Mausschritte gegen den echten Server: auf einem ausgelasteten Rechner reichen 60 s nicht
   const p = leitung.page;
   const vorher = (await zeichnungen()).map((z) => [z.properties.id, punkteVon(z)[0][0]] as const);
   await werkzeug(p, 'Lasso').click();
@@ -184,6 +185,7 @@ test('Desktop: Koordinate per LV95 eingeben, Format erkannt, Linie entsteht dort
 });
 
 test('Desktop: taktische Zeichen und Räume, Stil-Panel für die Auswahl', async () => {
+  test.slow(); // dutzende Mausschritte gegen den echten Server: auf einem ausgelasteten Rechner reichen 60 s nicht
   const p = leitung.page;
   const zeichne = async (name: string, punkte: [number, number][], bez?: string) => {
     await werkzeug(p, name).click();
@@ -251,8 +253,21 @@ test('Leitung: Ebene anlegen und sperren; Teilnehmer sieht sie gesperrt', async 
 
 test('Desktop: Rechtsklick auf Zeichnung öffnet Radial-Menü mit Zeichnen-Aktionen', async () => {
   const p = leitung.page;
-  await p.getByRole('region', { name: 'Zeichnen' }).getByRole('button', { name: 'Schliessen' }).click(); // Karte wieder volle Breite
+  const panel = p.getByRole('region', { name: 'Zeichnen' });
+  await panel.getByRole('button', { name: 'Schliessen' }).click(); // Karte wieder volle Breite
+  await expect(panel).toHaveCount(0);
   await p.keyboard.press('Escape');
+  // Erst klicken, wenn Auszug/Einblendanimationen fertig und die Karte (ResizeObserver) nachgezogen ist; Mitte neu messen
+  await p.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  let vorige = '';
+  await expect
+    .poll(async () => {
+      const jetzt = JSON.stringify(await p.locator('.maplibregl-canvas').boundingBox());
+      return jetzt === vorige || ((vorige = jetzt), false);
+    }, { intervals: [150] })
+    .toBe(true);
+  const b = (await p.locator('.maplibregl-canvas').boundingBox())!;
+  c = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
   await p.mouse.click(...at(-120, 120), { button: 'right' }); // Grenze, Anfang
   const ring = p.getByRole('menu', { name: /Zeichnung/ });
   for (const name of ['Details', 'Bearbeiten', 'Stil', 'Ebene', 'Kopieren', 'Löschen']) await expect(ring.getByRole('menuitem', { name })).toBeVisible();
