@@ -1,7 +1,8 @@
 // Export einer Lage als GPX 1.1 (trk je Teilnehmer, wpt für Marker/Sichtungen) und GeoJSON.
-import type { Ebene, Lage, Marker, Punkt, Sichtung, Spuren, Teilnehmer, Zeichnung } from '../../shared/protocol.ts';
+import type { Ebene, Lage, Marker, Punkt, Raster, Sichtung, Spuren, Teilnehmer, Zeichnung } from '../../shared/protocol.ts';
+import { rahmen, RASTER_NAME } from '../../shared/raster.ts';
 
-export type ExportDaten = { lage: Lage; teilnehmer: Teilnehmer[]; marker: Marker[]; sichtungen: Sichtung[]; ebenen: Ebene[]; zeichnungen: Zeichnung[]; spuren: Spuren };
+export type ExportDaten = { lage: Lage; teilnehmer: Teilnehmer[]; marker: Marker[]; sichtungen: Sichtung[]; ebenen: Ebene[]; zeichnungen: Zeichnung[]; raster: Raster[]; spuren: Spuren };
 
 const xml = (s: string): string =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]!);
@@ -120,6 +121,12 @@ export function geojson(d: ExportDaten): object {
         type: 'Feature',
         geometry: zeichnungGeometrie(z),
         properties: { art: 'zeichnung', form: z.art, raumArt: z.raumArt, radiusM: z.radiusM, mittelpunkt: z.art === 'kreis' ? z.punkte[0] : undefined, text: z.text, bezeichnung: z.bezeichnung, stil: z.stil, ebeneId: z.ebeneId, ebene: d.ebenen.find((e) => e.id === z.ebeneId)?.name, id: z.id, von: z.von, erstelltAm: z.erstelltAm, geaendertAm: z.geaendertAm },
+      })),
+      // Rahmen als Fläche; Zellen ergeben sich aus e/n (LV95 oben links), zeilen, spalten, zellM (shared/raster.ts)
+      ...d.raster.map((r) => ({
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: [rahmen(r).map(koord)] },
+        properties: { art: 'fuehrungsraster', raster: r.art, name: RASTER_NAME[r.art], lv95: { e: r.e, n: r.n }, zeilen: r.zeilen, spalten: r.spalten, zellM: r.zellM, fixiert: r.fixiert, id: r.id, von: r.von, geaendertAm: r.geaendertAm },
       })),
     ],
   };

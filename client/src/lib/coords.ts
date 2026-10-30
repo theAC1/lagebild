@@ -2,9 +2,8 @@
 import proj4 from 'proj4';
 import { forward as mgrsForward, toPoint as mgrsToPoint } from 'mgrs';
 import type { Punkt } from '../../../shared/protocol.ts';
+import { LV95_PROJ as LV95 } from '../../../shared/raster.ts';
 
-const LV95 =
-  '+proj=somerc +lat_0=46.9524055555556 +lon_0=7.43958333333333 +k_0=1 +x_0=2600000 +y_0=1200000 +ellps=bessel +towgs84=674.374,15.056,405.346,0,0,0,0 +units=m +no_defs';
 // LV03 = LV95 − (2'000'000, 1'000'000), gleiche Projektion
 const LV03 =
   '+proj=somerc +lat_0=46.9524055555556 +lon_0=7.43958333333333 +k_0=1 +x_0=600000 +y_0=200000 +ellps=bessel +towgs84=674.374,15.056,405.346,0,0,0,0 +units=m +no_defs';
