@@ -135,16 +135,17 @@
     const zoom = m.getZoom();
     const wuensche: (LabelWunsch & { winkel: number })[] = [];
     const liste = [...labels.values()].sort((a, b) => Number(b.t.ziel) - Number(a.t.ziel) || LABEL_RANG[a.t.familie] - LABEL_RANG[b.t.familie]);
-    for (const l of liste) {
-      const { t } = l;
-      const anker = labelAnker(t.geometrie);
+    // Erst alle Sichtbarkeiten setzen, dann messen: abwechselnd schreiben und offsetWidth lesen erzwang je Taufe ein Layout
+    const sichtbare = liste.flatMap((l) => {
+      const anker = labelAnker(l.t.geometrie);
       const p = m.project(anker.punkt);
       const imBild = p.x > -100 && p.y > -100 && p.x < r.width + 100 && p.y < r.height + 100;
-      if (!imBild || (zoom < 13 && !t.ziel)) {
-        l.box.parentElement!.style.display = 'none';
-        continue;
-      }
-      l.box.parentElement!.style.display = '';
+      const zeigen = imBild && (zoom >= 13 || l.t.ziel);
+      l.box.parentElement!.style.display = zeigen ? '' : 'none';
+      return zeigen ? [{ l, anker, p }] : [];
+    });
+    for (const { l, anker, p } of sichtbare) {
+      const { t } = l;
       const w = l.box.offsetWidth;
       const h = l.box.offsetHeight;
       let winkel = 0;
