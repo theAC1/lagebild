@@ -20,7 +20,15 @@ type Verbindung = { ws: WebSocket; lageId: string; id: string; rolle: Teilnehmer
 type Ich = { v: Verbindung; t: Teilnehmer; lage: Lage };
 
 export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage) => string) {
-  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_NACHRICHT });
+  // Kompression nur für grosse Nachrichten (Snapshot, Zeichnungen, Taufen: ~70 % kleiner). Positionen bleiben roh, sonst
+  // würde jede für jede Verbindung einzeln komprimiert; `threshold` wirkt in ws nur ohne Context-Takeover.
+  // maxPayload gilt für die entpackte Grösse.
+  const wss = new WebSocketServer({
+    server,
+    path: '/ws',
+    maxPayload: MAX_NACHRICHT,
+    perMessageDeflate: { threshold: 1024, serverNoContextTakeover: true, clientNoContextTakeover: true },
+  });
   const lagen = new Map<string, Set<Verbindung>>();
   // Limits je Teilnehmer, nicht je Verbindung: sonst vervielfacht jede weitere Verbindung desselben Tokens sie
   const limitNachrichten = rateLimiter(50, 10_000);
