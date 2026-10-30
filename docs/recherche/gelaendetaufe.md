@@ -334,3 +334,35 @@ Bereits entschieden und deshalb nicht mehr offen: Taufmodus für alle, Layer «G
 - pmtiles: https://docs.protomaps.com/pmtiles/cli
 - NATO-Alphabet: https://www.nato.int/cps/en/natohq/declassified_136216.htm
 - Esri GRG: https://pro.arcgis.com/en/pro-app/3.5/tool-reference/defense/generate-grid-from-area.htm
+
+---
+
+## Nachtrag 30.10.: Juans Vorlage (Führungsraster/SpotMap «Übungsvorlage», PDF 6 Seiten + PPTX 2 Folien)
+
+Quelle: Juans Vorlage (PowerPoint `Vorlage.pptx`, PDF `Vorlage.pdf`). Abgelesen, nicht im Repo abgelegt (Unterlage mit Einstufung).
+
+**Raster**
+- Fest 21 Spalten × 15 Zeilen. Spalten zweistellig `01`–`21` von links nach rechts, Zeilen `A`–`O` von oben nach unten. Beschriftung auf allen vier Seiten (Zahlen oben und unten, Buchstaben links und rechts).
+- Quadranten: Legende oben links `A B / C D`. Jede Zelle hat vier Viertel: A oben links, B oben rechts, C unten links, D unten rechts. Ansprache z.B. «Hotel 09 Charlie».
+- Nordausgerichtet, nicht gedreht. Nordpfeil oben rechts.
+- **Grande** = Area of Interest (Achsen, Anfahrten). Der Massstabsbalken «400 m» umfasst etwa 5 Zellen, also etwa 80 m pro Zelle (die PPTX enthält den Text «80m»). Daraus ergeben sich rund 1,7 × 1,2 km bei Kartenmassstab 1:5'000. Juan: Grande soll etwa 2–5 km abdecken.
+- **Piccolo** = Area of Operation (Compound, Zielobjekt, direkt relevante Gebäude). Der Balken «50 m» umfasst etwa 5 Zellen, also etwa 10 m pro Zelle. Daraus ergeben sich rund 210 × 150 m bei Kartenmassstab 1:1'000. Beim Piccolo sind die Zeilenköpfe links rot und rechts grün; die Bedeutung ist offen.
+- Je Version ein Blatt mit Luftbild und eines mit Landeskarte. Beide haben dasselbe Raster.
+
+**Blattlayout (Letter/A4 quer)**
+- Kopf: Quadranten-Legende, Massstabsbalken, Einstufung (schwarz), Version (grau, «GRANDE»/«PICCOLO»), Nordpfeil.
+- Fuss: Übung und Lagename (Übungsname plus Codewort in Rot).
+- Massstabsleiste unten rechts im Kartenfeld.
+
+**SpotMap (Geländetaufe auf dem Luftbild, Seiten 4 und 6)**
+- Gebäude: weiss umrandet, Beschriftung in einem Kästchen mit Führungslinie. Die Namen sind Metalle, Elemente und Edelsteine, teils auf Deutsch: Gold, Copper, Fluor, Alu, Bronce, Helium, Iridium, Jod, Kalium, Radium, Lithium, Diamond, Emerald, Mangan, Nickel, Osmium, Platinum, Queck Silver. Einzelne Kästchen sind gelb hervorgehoben (Helium, Iridium, Bronce), vermutlich Schwerpunkte oder Ziele.
+- Strassen und Wege: rote Schrift entlang der Achse: Jaguar, Horse, Goat, Elephant, Deer, Fox, Camel, Bear, Ape, Ibex.
+- Wald: braun eingefärbte Flächen, nummeriert «Forest 1–4».
+- Flächen: Floor, Field, Weed.
+- Rote «X» als Punktmarken.
+
+**Folgerungen für die App**
+- Das Raster ist ein fixes Schema (21 × 15, A–O / 01–21, Quadranten A–D). Pro Lage wählt man nur Ursprung und Zellgrösse; Grande und Piccolo sind Voreinstellungen der Zellgrösse.
+- Die Namen sind nicht strikt Englisch. Die Familien brauchen frei editierbare Listen, und die Hervorhebung (gelb) braucht ein eigenes Merkmal.
+- Waldnummerierung «Forest 1, 2 …» ist eine eigene Vergaberegel: Familienname plus Laufnummer statt Namensliste.
+- Das PDF braucht genau dieses Layout. Die Einstufung ist ein frei wählbarer Text pro Raster.
