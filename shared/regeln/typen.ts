@@ -26,6 +26,8 @@ export type Zustand = {
   teilnehmerAktiv(id: string): boolean;
   /** Foto liegt in dieser Lage. */
   fotoVorhanden(id: string): boolean;
+  /** Ereigniszeit der letzten angenommenen Position des Teilnehmers (für die Positionsrate). */
+  letztePosAm(id: string): number | undefined;
 };
 
 /** Was ein Teilnehmer auslöst. `hallo` und `lage.codeErneuern` sind Sache der Verbindung bzw. des Servers. */
@@ -47,7 +49,8 @@ export type Aenderung =
   | { was: 'lage'; lage: Lage }
   | { was: 'teilnehmer'; teilnehmer: Teilnehmer }
   | { was: 'entfernen'; id: string }
-  | { was: 'spur'; id: string; pos: Position };
+  | { was: 'spur'; id: string; pos: Position }
+  | { was: 'posAm'; id: string; t: number };
 
 /**
  * Angenommen: Änderungen (in dieser Reihenfolge anwenden) und Deltas (in dieser Reihenfolge verteilen); beide leer =

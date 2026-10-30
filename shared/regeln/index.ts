@@ -9,7 +9,7 @@ import { wendeZeichnen, ZEICHNEN_TYPEN } from './zeichnen.ts';
 
 export * from './typen.ts';
 export { MAX_AUFTRAEGE_JE_LAGE, offen, sichtbareAuftraege } from './bloodhound.ts';
-export { MAX_MARKER_JE_LAGE, MAX_SICHTUNGEN_JE_LAGE } from './lage.ts';
+export { MAX_MARKER_JE_LAGE, MAX_SICHTUNGEN_JE_LAGE, POS_MIN_ABSTAND_MS } from './lage.ts';
 export { doppelterListenName, MAX_TAUFEN_JE_LAGE, MAX_TAUFEN_ZEICHEN_JE_LAGE, nameFrei } from './taufe.ts';
 export { MAX_EBENEN_JE_LAGE, MAX_ZEICHNUNGEN_JE_LAGE, MAX_ZEICHNUNGEN_ZEICHEN_JE_LAGE } from './zeichnen.ts';
 export { empfaengt, sichtbar } from './sichtbar.ts';

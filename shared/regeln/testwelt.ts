@@ -12,7 +12,7 @@ export const tn = (id: string, rolle: Teilnehmer['rolle'] = 'teilnehmer', extra:
 /** Leere Lage mit Standard-Ebene. */
 export function leereLage(lage: Lage, teilnehmer: Teilnehmer[] = []): Daten {
   const ebene = { id: standardEbeneId(lage.id), name: STANDARD_EBENE_NAME, gesperrt: false, reihenfolge: 0, erstelltVon: 'system', erstelltAm: lage.erstelltAm };
-  return { lage, teilnehmer, entfernt: [], eintraege: { ebene: [ebene] }, spuren: {}, fotos: [] };
+  return { lage, teilnehmer, entfernt: [], eintraege: { ebene: [ebene] }, spuren: {}, fotos: [], posAm: {} };
 }
 
 /** Leitung `ltg`, Teilnehmende `a` und `b`. `tu` wendet an und übernimmt angenommene Änderungen. */

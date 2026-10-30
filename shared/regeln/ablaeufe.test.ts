@@ -40,6 +40,18 @@ describe('Position und Alarm', () => {
     expect(w.daten.spuren.a).toEqual([pos(2)]);
   });
 
+  it('Positionsrate: schneller als 1 s je Teilnehmer still ignoriert; Ignoriertes zählt nicht', () => {
+    let d = leereLage(LAGE, [tn('a'), tn('b', 'teilnehmer', { sendetPos: false })]);
+    const sende = (id: string, jetzt: number) => {
+      const r = wende(speicher(d), { autor: d.teilnehmer.find((t) => t.id === id)!, msg: { typ: 'pos', pos: pos(jetzt) }, jetzt, neueId: () => 'x' });
+      if ('abgelehnt' in r) throw new Error(r.abgelehnt);
+      d = anwenden(d, r.aenderungen);
+      return r.deltas.length;
+    };
+    expect([sende('a', 5000), sende('a', 5999), sende('a', 6000), sende('b', 6000)]).toEqual([1, 0, 1, 0]);
+    expect(d.posAm).toEqual({ a: 6000 }); // b sendet nicht (Emission Control) → keine Sperrzeit
+  });
+
   it('ein neuer Alarm ersetzt den eigenen alten, in dieser Reihenfolge', () => {
     const w = welt();
     w.tu('a', { typ: 'alarm.ausloesen', art: 'notfall', pos: null });

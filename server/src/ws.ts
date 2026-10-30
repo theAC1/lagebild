@@ -9,7 +9,6 @@ import { sichtAusDb, speichere } from './regeln.ts';
 import { log, neuerCode, rateLimiter, sha256 } from './sicherheit.ts';
 
 const HALLO_TIMEOUT_MS = 5000;
-const POS_MIN_ABSTAND_MS = 1000;
 /** Je Teilnehmer gleichzeitig (Tabs, Reconnect-Überlappung); eine neue Verbindung schliesst die älteste. */
 const MAX_VERBINDUNGEN_JE_TEILNEHMER = 3;
 /** Je IP gleichzeitig offene Verbindungen ohne hallo. */
@@ -144,12 +143,10 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
       log('info', 'teilnehmer-code erneuert', { lageId: lage.id });
       return senden(v.ws, { typ: 'code', teilnehmerCode });
     }
-    if (m.typ === 'pos' && jetzt - (letztePos.get(t.id) ?? 0) < POS_MIN_ABSTAND_MS) return;
     if (m.typ === 'alarm.ausloesen' && !limitAlarme(t.id, jetzt)) return fehler(v, 'Zu viele Alarme – bitte kurz warten');
-    const r = wende(sichtAusDb(db, lage), { autor: t, msg: m, jetzt, neueId: randomUUID });
+    const r = wende(sichtAusDb(db, lage, letztePos), { autor: t, msg: m, jetzt, neueId: randomUUID });
     if (istAbgelehnt(r)) return fehler(v, r.abgelehnt);
-    if (m.typ === 'pos' && r.deltas.length) letztePos.set(t.id, jetzt);
-    speichere(db, lage.id, r.aenderungen);
+    speichere(db, lage.id, r.aenderungen, letztePos);
     for (const d of r.deltas) verteile(lage.id, d);
   }
 

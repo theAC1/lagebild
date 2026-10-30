@@ -5,6 +5,8 @@ import { lauf, nein, type Befehl, type Ereignis, type Ergebnis, type Lauf, type 
 
 export const MAX_MARKER_JE_LAGE = 2000;
 export const MAX_SICHTUNGEN_JE_LAGE = 2000;
+/** Schnellere Positionen eines Teilnehmers werden still ignoriert. */
+export const POS_MIN_ABSTAND_MS = 1000;
 
 export const LAGE_TYPEN = [
   'pos', 'sendetPos', 'status', 'marker.setzen', 'marker.loeschen', 'chat', 'sichtung',
@@ -34,9 +36,11 @@ export function wendeLage(z: Zustand, e: Ereignis & { msg: LageBefehl }): Ergebn
 
   switch (m.typ) {
     case 'pos': {
+      if (jetzt - (z.letztePosAm(t.id) ?? 0) < POS_MIN_ABSTAND_MS) return l.fertig();
       // Emission Control gilt nicht, solange ein eigener Alarm aktiv ist (wie ATAK-Notruf). Sonst still ignoriert.
       if (!t.sendetPos && !aktiveAlarme(z, t.id).length) return l.fertig();
       // staleNach ist per Schema schon auf ≤ STALE_MAX_MS begrenzt und wird unverändert mitgespeichert.
+      l.tu({ was: 'posAm', id: t.id, t: jetzt });
       position(l, t, jetzt, m.pos);
       return l.fertig();
     }

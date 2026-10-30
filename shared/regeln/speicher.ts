@@ -12,6 +12,8 @@ export type Daten = {
   eintraege: { [A in Art]?: Eintraege[A][] };
   spuren: Spuren;
   fotos: string[];
+  /** Je Teilnehmer die Zeit der letzten angenommenen Position. */
+  posAm: Record<string, number>;
 };
 
 export function speicher(d: Daten): Zustand {
@@ -27,6 +29,7 @@ export function speicher(d: Daten): Zustand {
     teilnehmerListe: (auchEntfernte = false) => d.teilnehmer.filter((t) => auchEntfernte || !d.entfernt.includes(t.id)),
     teilnehmerAktiv: (id) => d.teilnehmer.some((t) => t.id === id) && !d.entfernt.includes(id),
     fotoVorhanden: (id) => d.fotos.includes(id),
+    letztePosAm: (id) => d.posAm[id],
   };
 }
 
@@ -46,6 +49,8 @@ function eine(d: Daten, a: Aenderung): Daten {
       return { ...d, entfernt: d.entfernt.includes(a.id) ? d.entfernt : [...d.entfernt, a.id] };
     case 'spur':
       return { ...d, spuren: { ...d.spuren, [a.id]: [...(d.spuren[a.id] ?? []), a.pos] } };
+    case 'posAm':
+      return { ...d, posAm: { ...d.posAm, [a.id]: a.t } };
   }
 }
 
