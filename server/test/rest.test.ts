@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { bildFormat } from '../src/http.ts';
-import { PASSWORT, SIDC, testServer } from './helfer.ts';
+import type { Beigetreten } from '../../shared/protocol.ts';
+import { bildFormat, MAX_TEILNEHMER_JE_LAGE } from '../src/http.ts';
+import { PASSWORT, SIDC, testServer, verbinde } from './helfer.ts';
 
 let s: Awaited<ReturnType<typeof testServer>>;
 beforeAll(async () => (s = await testServer()));
@@ -58,6 +59,27 @@ describe('REST', () => {
     const falsch = JSON.stringify({ code: 'ZZZZZZZZ', rufname: 'X', einheit: 'Y', funktion: '', sidc: SIDC });
     for (let i = 0; i < 10; i++) await s.api('/api/beitreten', { method: 'POST', body: falsch, ip: '192.0.2.51' });
     expect((await s.api('/api/beitreten', { method: 'POST', body, ip: '192.0.2.51' })).status).toBe(429);
+  });
+
+  it('Beitreten: Teilnehmer-Kontingent je Lage, entfernte Teilnehmer machen Platz', async () => {
+    const l = await s.lage();
+    const ltg = await s.beitreten(l.leitungCode, 'Leitung');
+    const body = JSON.stringify({ code: l.teilnehmerCode, rufname: 'X', einheit: 'Y', funktion: '', sidc: SIDC });
+    const ids: string[] = [];
+    for (let i = 1; i < MAX_TEILNEHMER_JE_LAGE; i++) {
+      const r = await s.api('/api/beitreten', { method: 'POST', body, ip: '192.0.2.60' });
+      expect(r.status).toBe(201);
+      ids.push(((await r.json()) as Beigetreten).teilnehmerId);
+    }
+    const voll = await s.api('/api/beitreten', { method: 'POST', body, ip: '192.0.2.60' });
+    expect(voll.status).toBe(507);
+    // andere Lagen sind nicht betroffen
+    expect((await s.beitreten((await s.lage()).teilnehmerCode, 'Z')).rolle).toBe('teilnehmer');
+    const c = await verbinde(s.url, ltg.token);
+    c.senden({ typ: 'teilnehmer.entfernen', id: ids[0] });
+    await c.warte('teilnehmer.weg');
+    c.zu();
+    expect((await s.api('/api/beitreten', { method: 'POST', body, ip: '192.0.2.60' })).status).toBe(201);
   });
 
   it('CF-Connecting-IP von nicht vertrauter Quelle umgeht das Limit nicht', async () => {

@@ -24,10 +24,13 @@ export type Optionen = {
 };
 
 const MAX_JSON = 64 * 1024;
-const MAX_FOTO = 8 * 1024 * 1024;
-// ponytail: Kontingent nach Anzahl, nicht nach Bytes (Client verkleinert auf ≤ 1600 px). Worst case 300 × 8 MB je Lage.
+// Der Client sendet JPEG ≤ 1600 px (Qualität 0.8), also deutlich unter 2 MB; mehr wäre nur Plattenfüllung.
+const MAX_FOTO = 2 * 1024 * 1024;
+// ponytail: Kontingent nach Anzahl, nicht nach Bytes (Client verkleinert auf ≤ 1600 px). Worst case 300 × 2 MB je Lage.
 const MAX_FOTOS_JE_LAGE = 300;
 const MAX_UPLOADS_GLEICHZEITIG = 4;
+/** Aktive Teilnehmende je Lage: der Teilnehmer-Code ist breit verteilt, ohne Grenze könnte er die Lage mit Beitritten fluten. */
+export const MAX_TEILNEHMER_JE_LAGE = 1000;
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -172,6 +175,7 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
         throw new HttpFehler(403, 'Code ungültig');
       }
       if (gefunden.lage.beendetAm !== null) throw new HttpFehler(410, 'Lage ist beendet');
+      if (db.teilnehmerListe(gefunden.lage.id).length >= MAX_TEILNEHMER_JE_LAGE) throw new HttpFehler(507, 'Teilnehmer-Kontingent der Lage erschöpft');
       const { lage, rolle } = gefunden;
       const t: Teilnehmer = {
         id: randomUUID(),

@@ -244,9 +244,19 @@ describe('WebSocket', () => {
     await a.warte('fehler');
   });
 
-  it('Foto über 8 MB wird abgelehnt', async () => {
+  it('Alarm-Flut: höchstens 10 Auslösungen je Minute und Person', async () => {
+    const { a, b } = await szenario();
+    for (let i = 0; i < 11; i++) b.senden({ typ: 'alarm.ausloesen', art: i % 2 ? 'notfall' : 'kontakt', pos: null });
+    expect((await b.warte('fehler')).meldung).toMatch(/Zu viele Alarme/);
+    await pause(100);
+    // 10 Alarme kamen durch (jeder ersetzt den vorigen: 10 neue + 9 aufgehobene), der 11. nicht
+    expect(a.empfangen.filter((m) => m.typ === 'alarm' && m.alarm.aufgehobenAm === null)).toHaveLength(10);
+    expect(b.empfangen.filter((m) => m.typ === 'fehler')).toHaveLength(0);
+  });
+
+  it('Foto über 2 MB wird abgelehnt', async () => {
     const { aB } = await szenario();
-    const gross = Buffer.concat([JPEG, Buffer.alloc(8 * 1024 * 1024)]);
+    const gross = Buffer.concat([JPEG, Buffer.alloc(2 * 1024 * 1024)]);
     const r = await s.api('/api/foto', { method: 'POST', token: aB.token, body: gross, headers: { 'content-type': 'image/jpeg' } }).catch(() => undefined);
     expect(r?.status).toBe(413);
   });
