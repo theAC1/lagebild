@@ -29,12 +29,11 @@ export function onMapReady(cb: (m: MapLibreMap) => void): void {
   else warten.push(cb);
 }
 
-/** Karte auf p zentrieren (mind. Zoom 14) und Folgen-Modus beenden. */
+/** Karte auf p zentrieren (mind. Zoom 14) und Folgen-Modus beenden. Vor dem Kartenstart: sobald sie steht. */
 export function zentriere(p: Punkt, zoom?: number): void {
   ui.folgen = false;
   ui.folgtTeilnehmer = null;
-  const m = getMap();
-  m.easeTo({ center: [p.lon, p.lat], zoom: zoom ?? Math.max(m.getZoom(), 14) });
+  onMapReady((m) => m.easeTo({ center: [p.lon, p.lat], zoom: zoom ?? Math.max(m.getZoom(), 14) }));
 }
 
 /** Mitte der Karte; null, solange die Karte nicht geladen ist. */
