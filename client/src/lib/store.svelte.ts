@@ -399,7 +399,7 @@ function setzeZurueck() {
   store.chat = [];
   store.meldungen = [];
   schliesseAlle();
-  ui.kontext = null;
+  ui.koordinate = null;
   ui.radial = null;
 }
 

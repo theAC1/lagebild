@@ -1,5 +1,6 @@
 // Einstellung «Bediengrösse» auf dem Handy (Touch): Trefferflächen, keine Überlappung, Karte bleibt gross, gemerkt.
 import { expect, test, type Browser, type Page } from '@playwright/test';
+import { langdruck, leereStelle } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const SIDC = '10031000001211000000';
@@ -180,4 +181,103 @@ test('Desktop (Maus): Normal bleibt beim heutigen Stand, Gross skaliert', async 
   expect(await ui(p)).toBe(1.2);
   expect((await knopf(p, 'Eigener Position folgen').boundingBox())!.height).toBeCloseTo(57.6, 0);
   await ctx.close();
+});
+
+// Langdruck überall (30.10.): auf leerer Karte derselbe Ring wie auf Symbolen, «Koordinate» als kompakte Karte
+const LEER = ['Koordinate', 'Marker hier', 'Sichtung hier', 'R&B', 'Bloodhound'];
+const STELLEN: [number, number][] = [
+  [0.5, 0.62],
+  [0.4, 0.7],
+  [0.6, 0.4],
+  [0.35, 0.35],
+];
+const ringLeer = (p: Page) => p.getByRole('menu', { name: 'Aktionen für Punkt' });
+
+/** Vibration zählen: jeder Ring meldet sich einmal, ein Doppel-Auslösen (MapLibre + natives contextmenu) zeigt sich als 2. */
+const zaehleVibration = (p: Page) =>
+  p.evaluate(() => {
+    const w = window as unknown as { vib: number };
+    w.vib = 0;
+    navigator.vibrate = () => (w.vib++, true);
+  });
+const vibriert = (p: Page) => p.evaluate(() => (window as unknown as { vib: number }).vib);
+
+for (const [ansicht, viewport] of [
+  ['quer', NIEDRIG],
+  ['hoch', HOCH],
+] as const) {
+  for (const stufe of ['normal', 'sehrgross'] as const) {
+    test(`Langdruck auf leere Karte ${viewport.width}×${viewport.height} ${stufe}: Ring, Koordinate ganz im Bild`, async ({ browser }) => {
+      const p = await handy(browser, viewport, stufe, `L-${ansicht}-${stufe}`);
+      await p.context().grantPermissions(['geolocation', 'clipboard-read', 'clipboard-write']);
+      await p.waitForLoadState('networkidle');
+      await zaehleVibration(p);
+      const { x, y } = await leereStelle(p, STELLEN);
+      await langdruck(p, x, y);
+
+      const ring = ringLeer(p);
+      await expect(ring.getByRole('menuitem')).toHaveText(LEER);
+      expect(await vibriert(p), 'genau ein Auslösen').toBe(1);
+      for (const el of await ring.getByRole('menuitem').all()) await expect(el).toBeInViewport({ ratio: 1 });
+      const gekuerzt = await ring.locator('.text').evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent));
+      expect(gekuerzt, 'Beschriftungen ungekürzt').toEqual([]);
+      const teile: { name: string; box: Box }[] = [];
+      for (const el of await ring.locator('.text, .symbol').all()) teile.push({ name: (await el.textContent()) || 'Symbol', box: (await el.boundingBox())! });
+      for (const t of teile) {
+        expect(t.box.x >= 0 && t.box.y >= 0 && t.box.x + t.box.width <= viewport.width + 0.5 && t.box.y + t.box.height <= viewport.height + 0.5, `${t.name} im Bild`).toBe(true);
+      }
+      for (const [i, a] of teile.entries()) for (const b of teile.slice(i + 1)) expect(schneiden(a.box, b.box), `${a.name} ↔ ${b.name}`).toBe(false);
+      await p.waitForTimeout(300);
+      await p.screenshot({ path: `docs/screens/v3-radial-leer-${ansicht}-${stufe}.png`, animations: 'disabled' });
+
+      await ring.getByRole('menuitem', { name: 'Koordinate' }).tap();
+      await expect(ring).toHaveCount(0);
+      const karte = p.getByRole('dialog', { name: 'Koordinate' });
+      await expect(karte).toBeInViewport({ ratio: 1 });
+      for (const f of ['LV95', 'MGRS', 'WGS84']) await expect(karte.getByRole('button', { name: new RegExp(`^${f} .+ kopieren$`) })).toBeInViewport({ ratio: 1 });
+      await expect(karte).toContainText(/Von mir: \d/);
+      // nichts abgeschnitten: kein internes Scrollen, kein Element ragt aus der Karte oder läuft in sich über
+      expect(await karte.evaluate((k) => k.scrollHeight <= k.clientHeight + 1), 'Karte scrollt nicht').toBe(true);
+      const raus = await karte.evaluate((k) => {
+        const r = k.getBoundingClientRect();
+        return [...k.querySelectorAll('*')]
+          .filter((x) => {
+            const b = x.getBoundingClientRect();
+            return b.right > r.right + 0.5 || b.left < r.left - 0.5 || b.bottom > r.bottom + 0.5 || x.scrollWidth > x.clientWidth + 1;
+          })
+          .map((x) => x.textContent?.slice(0, 24));
+      });
+      expect(raus).toEqual([]);
+      await p.screenshot({ path: `docs/screens/v3-koordinate-${ansicht}-${stufe}.png`, animations: 'disabled' });
+
+      const lv95 = karte.getByRole('button', { name: /^LV95 / });
+      await lv95.tap();
+      await expect(lv95).toContainText('Kopiert');
+      expect(await p.evaluate(() => navigator.clipboard.readText())).toMatch(/^\d.* \/ \d/);
+
+      // Tippen daneben schliesst: unter bzw. über der Karte
+      const b = (await karte.boundingBox())!;
+      const daneben = b.y > viewport.height / 2 ? b.y / 2 : (b.y + b.height + viewport.height) / 2;
+      await p.touchscreen.tap(b.x + b.width / 2, daneben);
+      await expect(karte).toHaveCount(0);
+      await p.context().close();
+    });
+  }
+}
+
+test('Langdruck auf leere Karte: «Marker hier» setzt einen Marker, Esc schliesst den Ring', async ({ browser }) => {
+  const p = await handy(browser, NIEDRIG, 'normal', 'L-Marker');
+  await p.waitForLoadState('networkidle');
+  const vorher = await p.locator('.lage-marker').count();
+  const { x, y } = await leereStelle(p, STELLEN);
+  await langdruck(p, x, y);
+  await expect(ringLeer(p).getByRole('menuitem').first()).toBeVisible(); // der Ring selbst ist 0×0
+  await p.keyboard.press('Escape');
+  await expect(ringLeer(p)).toHaveCount(0);
+
+  await langdruck(p, x, y);
+  await ringLeer(p).getByRole('menuitem', { name: 'Marker hier' }).tap();
+  await p.getByRole('button', { name: 'Marker setzen', exact: true }).tap();
+  await expect(p.locator('.lage-marker')).toHaveCount(vorher + 1);
+  await p.context().close();
 });

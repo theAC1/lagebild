@@ -59,7 +59,7 @@
     m.addControl(new AttributionControl({ compact: false }), 'bottom-right');
     m.touchZoomRotate.enable();
 
-    // Langdruck (Touch) bzw. Rechtsklick → Radial-Menü auf einem Symbol, sonst Kontextmenü mit Koordinate
+    // Langdruck (Touch) bzw. Rechtsklick → Radial-Menü um das Symbol, auf leerer Karte um den Punkt (Ziel 'punkt')
     let zuletzt = { t: 0, x: 0, y: 0 };
     const langdruck = (x: number, y: number) => {
       // Langdruck erkennt MapLibre selbst (auch iOS); Android feuert zusätzlich ein natives contextmenu an derselben Stelle
@@ -70,9 +70,7 @@
       if (z) return oeffneRadial(z.ziel, z.x, z.y);
       const r = el.getBoundingClientRect();
       const p = m.unproject([x - r.left, y - r.top]);
-      ui.radial = null;
-      ui.kontext = { lat: p.lat, lon: p.lng };
-      navigator.vibrate?.(15);
+      oeffneRadial({ art: 'punkt', id: '', punkt: { lat: p.lat, lon: p.lng } }, x, y);
     };
     m.on('contextmenu', (e) => langdruck(e.originalEvent.clientX, e.originalEvent.clientY)); // Browser-Menü sperrt App (keinBrowserMenu)
     // Doppelklick auf ein Symbol = Details statt Zoom; auf leerer Karte zoomt MapLibre selbst
@@ -82,7 +80,6 @@
       e.preventDefault();
       zeigeDetails(z.ziel);
     });
-    m.on('click', () => (ui.kontext = null));
     m.on('dragstart', () => {
       ui.folgen = false;
       ui.folgtTeilnehmer = null;

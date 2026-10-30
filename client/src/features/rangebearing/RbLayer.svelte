@@ -2,9 +2,9 @@
   import { Marker, type GeoJSONSource } from 'maplibre-gl';
   import { onDestroy } from 'svelte';
   import { versetze } from '../../lib/coords.ts';
-  import { getMap, registriereKontextAktion } from '../../lib/map.ts';
+  import { getMap, registriereRadialAktion } from '../../lib/map.ts';
   import { store } from '../../lib/store.svelte.ts';
-  import { oeffne } from '../../lib/ui.svelte.ts';
+  import { ikon, oeffne } from '../../lib/ui.svelte.ts';
   import { messe, rbLabel } from './logik.ts';
   import { hinzufuegen, ladeFuer, punktVon, rb } from './messungen.svelte.ts';
 
@@ -26,10 +26,13 @@
     paint: { 'circle-radius': 5, 'circle-color': '#c8b46a', 'circle-stroke-color': '#161b1f', 'circle-stroke-width': 2 },
   });
 
-  const abmelden = registriereKontextAktion({
-    label: 'Range & Bearing hierher',
-    aktion: (p) => {
-      hinzufuegen({ art: 'punkt', punkt: p });
+  // Messung von mir zum Punkt (wie bisher; ohne GPS zeigt das Panel den Hinweis und rechnet ab dem ersten Fix)
+  const abmelden = registriereRadialAktion({
+    fuer: 'punkt',
+    label: 'R&B', // wie auf Symbolen: von mir zum Ziel; kurz, sonst stossen die unteren Beschriftungen im Ring zusammen
+    icon: ikon('<circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/><path d="M6.5 17.5l11-11" stroke-dasharray="2 3"/>'),
+    aktion: (z) => {
+      hinzufuegen({ art: 'punkt', punkt: z.punkt! });
       oeffne('rangebearing');
     },
   });

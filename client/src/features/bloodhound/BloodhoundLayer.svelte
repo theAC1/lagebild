@@ -1,9 +1,9 @@
 <script lang="ts">
-  // Karten-Teil und Steuerung von Bloodhound: Linie(n), Radial-/Kontextaktionen, Auftrags-Annahme,
+  // Karten-Teil und Steuerung von Bloodhound: Linie(n), Radial-Aktionen (Symbole und leere Karte), Auftrags-Annahme,
   // Ziel-weg- und Erreicht-Erkennung. Die Anzeige selbst ist Leiste.svelte.
   import type { GeoJSONSource } from 'maplibre-gl';
   import { onDestroy, untrack } from 'svelte';
-  import { getMap, registriereKontextAktion, registriereRadialAktion } from '../../lib/map.ts';
+  import { getMap, registriereRadialAktion } from '../../lib/map.ts';
   import { beiNachricht, store } from '../../lib/store.svelte.ts';
   import { ikon, oeffne, toast } from '../../lib/ui.svelte.ts';
   import Leiste from './Leiste.svelte';
@@ -35,7 +35,12 @@
       aktion: (z) => oeffne('leitung', { tab: 'auftraege', an: z.id }),
       sichtbar: (z) => store.istLeitung && z.id !== store.ich,
     }),
-    registriereKontextAktion({ label: 'Bloodhound hierhin', aktion: (p) => starte({ art: 'punkt', punkt: { lat: p.lat, lon: p.lon } }) }),
+    registriereRadialAktion({
+      fuer: 'punkt',
+      label: 'Bloodhound', // wie auf Symbolen; «Bloodhound hierhin» passt nicht in den Ring
+      icon: ikon('<circle cx="12" cy="12" r="8.5"/><path d="M12 5.5l2.5 6.5-2.5-1.2L9.5 12z" fill="currentColor"/><path d="M12 18.5v-4"/>'),
+      aktion: (z) => starte({ art: 'punkt', punkt: { lat: z.punkt!.lat, lon: z.punkt!.lon } }),
+    }),
   ];
 
   const bereit = $derived(store.verbindung === 'verbunden' && store.lage !== null);

@@ -2,15 +2,20 @@
   import { Marker as MapMarker } from 'maplibre-gl';
   import { onDestroy } from 'svelte';
   import { groesse } from '../../lib/groesse.svelte.ts';
-  import { getMap, markiereZiel, registriereKontextAktion } from '../../lib/map.ts';
+  import { getMap, markiereZiel, registriereRadialAktion } from '../../lib/map.ts';
   import { store } from '../../lib/store.svelte.ts';
   import { symbolElement } from '../../lib/symbol.ts';
-  import { oeffne, waehle } from '../../lib/ui.svelte.ts';
+  import { ikon, oeffne, waehle } from '../../lib/ui.svelte.ts';
   import { markerName } from './logik.ts';
 
   const m = getMap();
   const eintraege = new Map<string, { marker: MapMarker; schluessel: string }>();
-  const abmelden = registriereKontextAktion({ label: 'Marker hier', aktion: (p) => oeffne('marker', { neu: p }) });
+  const abmelden = registriereRadialAktion({
+    fuer: 'punkt',
+    label: 'Marker hier',
+    icon: ikon('<path d="M12 21s-6-6.2-6-11a6 6 0 0 1 12 0c0 4.8-6 11-6 11z"/><path d="M12 7v6M9 10h6"/>'),
+    aktion: (z) => oeffne('marker', { neu: z.punkt }),
+  });
 
   $effect(() => {
     const gesehen = new Set<string>();

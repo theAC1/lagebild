@@ -72,17 +72,19 @@ Umfang: Querformat, Desktop-Bedienung, Radial-Menü, Zeichnen, Bloodhound. In ei
 
 ### 2. Desktop-Bedienung
 
-- **Rechtsklick** = langes Tippen (Kontextmenü auf der Karte, Radial-Menü auf Symbolen). Browser-Kontextmenü auf der Karte unterdrückt.
+- **Rechtsklick** = langes Tippen (Radial-Menü auf Symbolen und, seit 30.10., auch auf der leeren Karte). Browser-Kontextmenü auf der Karte unterdrückt.
 - **Mausrad** zoomt. **Doppelklick** auf ein Symbol öffnet dessen Details, Doppelklick auf leere Karte zoomt hinein.
 - Tastatur: `Esc` schliesst das oberste Panel / bricht das aktive Werkzeug ab; Zeichen-Kürzel siehe 4.
 
 ### 3. Radial-Menü
 
-Langes Tippen / Rechtsklick auf ein Symbol öffnet einen Ring um das Symbol (max. 8 Knöpfe, Beschriftung sichtbar, Tippen ausserhalb schliesst):
+Langes Tippen / Rechtsklick auf ein Symbol öffnet einen Ring um das Symbol, auf der leeren Karte um den gedrückten Punkt (max. 8 Knöpfe, Beschriftung sichtbar, Tippen ausserhalb oder Esc schliesst; am Bildrand rückt der Ring ins Bild, der Punkt bleibt markiert):
 - **Teilnehmer:** Details, R&B von hier, Bloodhound, Folgen, Spur ein/aus, Chat; Leitung zusätzlich: Bloodhound-Auftrag.
 - **Marker / Sichtung:** Details, R&B, Bloodhound, Bearbeiten, Löschen (nur Ersteller/Leitung).
 - **Eigenes Symbol:** Details, Koordinaten ein/aus, Folgen, Spur, Marker hier setzen.
 - **Zeichnung:** Bearbeiten, Stil, Ebene, Kopieren, Löschen (nur Ersteller/Leitung).
+- **Leere Karte** (seit 30.10., Juan: «langes drücken öffnet nicht das radial menu»; ersetzt die frühere Liste): Koordinate, Marker hier, Sichtung hier, R&B (von mir zum Punkt), Bloodhound (zum Punkt). Beschriftungen kurz, damit sie sich auch bei «Sehr gross» im niedrigen Querformat nicht überdecken.
+  - **Koordinate** öffnet eine kompakte Karte mit LV95, MGRS und WGS84 (Tippen auf eine Zeile kopiert, die Zeile zeigt «Kopiert») und darunter «Von mir: Distanz · Azimut», sofern GPS da ist. Sie steht auf der dem Punkt abgewandten Bildhälfte, passt auch auf 740×360 quer bei «Sehr gross» ganz ins Bild (lange Werte brechen um, nichts wird abgeschnitten) und schliesst per Tippen daneben oder Esc.
 
 ### 4. Zeichnen
 

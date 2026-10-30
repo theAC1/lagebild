@@ -312,7 +312,7 @@ test('Browser-Gesten: Text auf Knöpfen nicht markierbar, kein Browser-Menü auf
   await expect(leitung.getByRole('menu', { name: 'Melden' })).toHaveCount(0); // Rechtsklick ist kein Tipp
   // Karte: Browser-Menü weg, der Rechtsklick (= Langdruck) der App wirkt weiter
   expect(await menue(leitung.locator('.maplibregl-canvas'), { x: 300, y: 300 })).toBe(true);
-  await expect(leitung.getByRole('dialog', { name: 'Punkt' })).toBeVisible();
+  await expect(leitung.getByRole('menu', { name: 'Aktionen für Punkt' }).getByRole('menuitem').first()).toBeVisible();
   await leitung.keyboard.press('Escape');
   expect(await leitung.locator('img').evaluateAll((els) => els.every((e) => getComputedStyle(e).getPropertyValue('-webkit-user-drag') === 'none'))).toBe(true);
 

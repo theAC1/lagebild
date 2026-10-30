@@ -6,7 +6,7 @@
   import EigenePosition from './components/EigenePosition.svelte';
   import Einstellungen from './components/Einstellungen.svelte';
   import Fadenkreuz from './components/Fadenkreuz.svelte';
-  import KontextMenu from './components/KontextMenu.svelte';
+  import KoordKarte from './components/KoordKarte.svelte';
   import KoordLeiste from './components/KoordLeiste.svelte';
   import Login from './components/Login.svelte';
   import MapView from './components/MapView.svelte';
@@ -48,11 +48,11 @@
     untrack(begrenzePanels);
   });
 
-  // Esc: zuerst Menüs, dann Werkzeug (Punktwahl), dann das oberste Panel
+  // Esc: zuerst Ring und Koordinaten-Karte, dann Werkzeug (Punktwahl), dann das oberste Panel
   function taste(e: KeyboardEvent) {
     if (e.key !== 'Escape' || e.defaultPrevented) return;
     if (ui.radial) ui.radial = null;
-    else if (ui.kontext) ui.kontext = null;
+    else if (ui.koordinate) ui.koordinate = null;
     else if (ui.punktWahl) ui.punktWahl.fertig(null);
     else if (basisOffen) basisOffen = false;
     else if (ui.panels.length) schliesse();
@@ -101,7 +101,7 @@
     {#each features as f (f.id)}
       {#if f.MapLayer}<f.MapLayer />{/if}
     {/each}
-    {#if ui.kontext}<KontextMenu punkt={ui.kontext} />{/if}
+    {#if ui.koordinate}<KoordKarte punkt={ui.koordinate} />{/if}
     {#if ui.punktWahl}<Fadenkreuz hinweis={ui.punktWahl.hinweis} knopf={ui.punktWahl.knopf} />{/if}
   {/if}
 </MapView>

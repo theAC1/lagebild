@@ -2,10 +2,10 @@
   import { Marker } from 'maplibre-gl';
   import { onDestroy } from 'svelte';
   import { groesse } from '../../lib/groesse.svelte.ts';
-  import { getMap, markiereZiel, registriereKontextAktion } from '../../lib/map.ts';
+  import { getMap, markiereZiel, registriereRadialAktion } from '../../lib/map.ts';
   import { beiNachricht, store } from '../../lib/store.svelte.ts';
   import { symbolElement } from '../../lib/symbol.ts';
-  import { oeffne, toast, waehle } from '../../lib/ui.svelte.ts';
+  import { ikon, oeffne, toast, waehle } from '../../lib/ui.svelte.ts';
   import { starteEntwurf } from './entwurf.svelte.ts';
   import { KAMERA_SVG } from './logik.ts';
 
@@ -41,10 +41,12 @@
   });
 
   const abmelden = [
-    registriereKontextAktion({
+    registriereRadialAktion({
+      fuer: 'punkt',
       label: 'Sichtung hier',
-      aktion: (p) => {
-        starteEntwurf(p);
+      icon: ikon('<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
+      aktion: (z) => {
+        starteEntwurf(z.punkt!);
         oeffne('sichtung');
       },
     }),
