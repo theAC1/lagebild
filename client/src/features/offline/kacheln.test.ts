@@ -5,6 +5,7 @@ import {
   alleKacheln,
   anzahl,
   bereiche,
+  bboxUm,
   enthaelt,
   kachelBei,
   kachelVon,
@@ -148,5 +149,18 @@ describe('Luftbild-Detail', () => {
   it('die Landeskarte bleibt unberührt', () => {
     const z = (voll?: boolean) => Math.max(...bereiche({ bbox, karten: ['farbe'], voll }).map((b) => b.z));
     expect(z()).toBe(z(true));
+  });
+});
+
+describe('bboxUm: Offline-Gebiet aus einem Rahmen', () => {
+  const ring = [{ lat: 47.0, lon: 7.4 }, { lat: 47.0, lon: 7.5 }, { lat: 46.95, lon: 7.5 }, { lat: 46.95, lon: 7.4 }, { lat: 47.0, lon: 7.4 }];
+  it('umschliesst den Rahmen mit Rand (10 % der längeren Seite) auf allen Seiten', () => {
+    const [w, s, e, n] = bboxUm(ring);
+    expect(w).toBeLessThan(7.4);
+    expect(e).toBeGreaterThan(7.5);
+    expect(s).toBeLessThan(46.95);
+    expect(n).toBeGreaterThan(47.0);
+    const rand = 0.1 * 7.6; // längere Seite ≈ 7.6 km breit
+    expect((7.4 - w) * 111.32 * Math.cos((46.975 * Math.PI) / 180)).toBeCloseTo(rand, 1);
   });
 });

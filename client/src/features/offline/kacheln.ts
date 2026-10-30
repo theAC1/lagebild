@@ -88,6 +88,15 @@ export function erweitere([w, s, e, n]: Bbox, km: number): Bbox {
   return beschneide([w - dLon, s - dLat, e + dLon, n + dLat]);
 }
 
+/** Rechteck um die Punkte (z. B. Raster-Rahmen) mit Rand von `anteil` der längeren Seite. */
+export function bboxUm(punkte: { lat: number; lon: number }[], anteil = 0.1): Bbox {
+  const lats = punkte.map((p) => p.lat);
+  const lons = punkte.map((p) => p.lon);
+  const b: Bbox = [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
+  const { breite, hoehe } = masseKm(b);
+  return erweitere(b, anteil * Math.max(breite, hoehe));
+}
+
 const beschneide = ([w, s, e, n]: Bbox): Bbox => [Math.max(w, ABDECKUNG[0]), Math.max(s, ABDECKUNG[1]), Math.min(e, ABDECKUNG[2]), Math.min(n, ABDECKUNG[3])];
 
 /** Kachelbereiche je Karte und Zoom in fester Reihenfolge (Karte, Zoom aufsteigend): grobe Übersicht kommt zuerst. */

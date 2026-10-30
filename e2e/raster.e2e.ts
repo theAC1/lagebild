@@ -254,3 +254,14 @@ test('Piccolo neben Grande: Leitung legt es auf und fixiert; beide unterscheidba
   await karte(p, 'Luftbild');
   await bild(p, 'hoch-piccolo-luftbild');
 });
+
+test('Offline-Gebiet aus dem Raster: Aufziehen startet mit dem Rahmen vorbelegt, «Weiter» sofort möglich', async () => {
+  const l = leitung.page;
+  await oeffnePanel(l);
+  await abschnitt(l, 'Piccolo').getByRole('button', { name: 'Offline-Gebiet …' }).click();
+  const leiste = l.getByRole('dialog', { name: 'Offline-Gebiet aufziehen' });
+  await expect(leiste).toContainText(/\d km · ca\./);
+  await expect(leiste.getByRole('button', { name: 'Weiter' })).toBeEnabled();
+  await leiste.getByRole('button', { name: 'Abbrechen' }).click();
+  await expect(leiste).toHaveCount(0);
+});

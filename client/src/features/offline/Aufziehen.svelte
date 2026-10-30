@@ -12,7 +12,7 @@
   const QUELLE = 'offline-auswahl';
   const m = getMap();
 
-  let bbox = $state<Bbox | null>(null);
+  let bbox = $state<Bbox | null>(offline.vorschlag);
   let karten = $state<OfflineKarte[]>(['farbe']);
   let voll = $state(false); // Luftbild bis Max-Zoom statt LUFTBILD_STANDARD_Z
   let bestaetigen = $state(false);
@@ -26,6 +26,11 @@
   const fmtKm = (n: number) => n.toLocaleString('de-CH', { maximumFractionDigits: n < 10 ? 1 : 0 });
 
   void aktualisiereSpeicher();
+  if (offline.vorschlag) {
+    const [w, s, e, n] = offline.vorschlag;
+    m.fitBounds([[w, s], [e, n]], { padding: 60, animate: false });
+    offline.vorschlag = null;
+  }
 
   const flaeche = (b: Bbox | null): GeoJSON.FeatureCollection => ({
     type: 'FeatureCollection',
