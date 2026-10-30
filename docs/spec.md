@@ -198,7 +198,7 @@ Zweck: ein für die Aktion fixiertes Gitter, damit auch Leute nur mit Funk präz
 - GeoJSON-Export der Leitung: je Raster ein Feature `art: 'fuehrungsraster'` mit dem Rahmen als Polygon und `raster`, `lv95 {e, n}`, `zeilen`, `spalten`, `zellM`, `fixiert`.
 
 ### Später
-PDF je Raster (Luftbild und SpotMap mit Raster, Layout der Vorlage), Offline-Gebiet aus dem Raster vorschlagen.
+PDF je Raster (Luftbild und SpotMap mit Raster, Layout der Vorlage). Offline-Gebiet aus dem Raster: erledigt (30.10.), Raster-Detail › «Offline-Gebiet …» belegt das Aufziehen mit dem Rahmen + 10 % Rand vor.
 
 ## Geländetaufe (30.10.2026, Entscheide im README «Geländetaufe & Führungsraster», «Stossrichtung/Fassaden», «Taufe-Details»)
 
@@ -269,4 +269,3 @@ Entscheide: README «Offline-Gebiete (30.10.)». Nutzungsbedingungen, Drosselung
 
 ### Offene Punkte
 - Luftbild bis z20 braucht für 10 × 10 km ~3,7 GB und gedrosselt ~9 h (Landeskarte ~740 MB, ~2,3 h). Ob das Luftbild offline bei z19 aufhören soll (~0,9 GB), entscheidet Juan.
-- Gebiet als Vorschlag aus dem Führungsraster, sobald es das gibt.
