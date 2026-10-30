@@ -23,8 +23,13 @@
   import { aktualisiereWachhalten, starteGps, stoppeGps } from './lib/position.svelte.ts';
   import { store, verbinde } from './lib/store.svelte.ts';
   import { pruefeThema } from './lib/thema.ts';
-  import { apkHerunterladen, neuLaden, update } from './lib/update.svelte.ts';
+  import { PROTOKOLL_VERSION } from '../../shared/protocol.ts';
+  import { apkHerunterladen, neuLaden, spaeter, ueberspringen, update } from './lib/update.svelte.ts';
   import { begrenzePanels, DETAIL, ikon, istOffen, maxPanels, merkeQuelle, oeffne, schliesse, setzeLeisteZu, ui, type PanelZustand } from './lib/ui.svelte.ts';
+
+  // Live-Update-Hinweis: normal nach «Später» ausgeblendet, wichtig/sicherheit bleiben klein sichtbar
+  const stufe = $derived(update.web?.stufe ?? 'normal');
+  const updateTitel = $derived(stufe === 'sicherheit' ? 'Sicherheitsupdate bereit' : stufe === 'wichtig' ? 'Wichtiges Update bereit' : 'Neue Version bereit');
 
   const EINGEBAUT: Record<string, string> = { teilnehmer: 'Teilnehmende', einstellungen: 'Einstellungen' };
 
@@ -195,8 +200,18 @@
 {/if}
 
 <div class="toasts" aria-live="polite">
-  {#if update.bereit}
-    <button class="toast neu" onclick={() => neuLaden(true)}>Neue Version bereit · <u>Neu laden</u></button>
+  {#if update.bereit && update.spaeter && stufe !== 'normal'}
+    <button class="toast neu {stufe}" onclick={() => neuLaden(true)}>{updateTitel} · <u>Neu laden</u></button>
+  {:else if update.bereit && !update.spaeter}
+    <div class="toast neu {stufe}" role="status">
+      <strong>{updateTitel}</strong>
+      {#if update.web && update.web.protokoll !== PROTOKOLL_VERSION}<div>Update nötig, um mit neueren Geräten zu arbeiten</div>{/if}
+      <div class="update-knoepfe">
+        <button class="primaer" onclick={() => neuLaden(true)}>Neu laden</button>
+        <button onclick={spaeter}>Später</button>
+        {#if update.web?.stufe === 'normal'}<button onclick={ueberspringen}>Diese Version überspringen</button>{/if}
+      </div>
+    </div>
   {/if}
   {#if update.appNeu}
     <button class="toast neu" onclick={() => apkHerunterladen()}>Neue App-Version · <u>Herunterladen</u></button>
@@ -475,5 +490,20 @@
     pointer-events: auto;
     color: var(--text);
     border-color: var(--accent);
+  }
+  /* Sicherheitsupdate deutlich: Rot statt Akzent (--warn ist vom Akzent kaum zu unterscheiden) */
+  .neu.sicherheit {
+    border: 2px solid var(--danger);
+    background: color-mix(in srgb, var(--danger) 28%, var(--surface-2));
+  }
+  .update-knoepfe {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .update-knoepfe button {
+    min-height: var(--touch);
   }
 </style>
