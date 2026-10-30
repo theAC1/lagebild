@@ -100,7 +100,7 @@ Rechte: alle dürfen zeichnen; bearbeiten/löschen nur Ersteller und Leitung (wi
 - **Ebenen:** benannte Ebenen pro Lage (z. B. «Phase 1», «Sperren»), Zeichnung gehört zu genau einer Ebene, Ebenen ein-/ausblenden (lokal) und sperren (nur Leitung, gesperrt = nicht bearbeitbar). Ebenen anlegen/umbenennen/löschen: Leitung; alle dürfen in nicht gesperrte Ebenen zeichnen.
 - Kürzel: L Linie, P Fläche, R Rechteck, K Kreis, F Freihand, T Text, M Messen, S Auswahl, Entf löschen.
 
-**Mobil – stark reduziert:** alle Zeichnungen und Ebenen ansehen (Sichtbarkeit lokal schalten), Details lesen; zeichnen nur Linie, Pfeil, Kreis mit Standardfarbe; nur eigene Formen bearbeiten (Punkte ziehen, löschen). Kein Stil, kein Lasso, keine Ebenenverwaltung.
+**Mobil – stark reduziert:** alle Zeichnungen und Ebenen ansehen (Sichtbarkeit lokal schalten), Details lesen; zeichnen nur Linie, Pfeil, Kreis mit Standardfarbe; nur eigene Formen bearbeiten (Punkte ziehen, löschen). Seit 30.10. im Detailfenster eigener Linien, Pfeile und Kreise Stil per Chips: Farbe (dieselbe feste Palette wie am Desktop), Dicke (Dünn/Mittel/Dick), Darstellung (durchgezogen/gestrichelt), beim Kreis Füllung. Kein Lasso, keine Ebenenverwaltung.
 
 ### 5. Bloodhound
 

@@ -12,7 +12,7 @@ import {
   linienMitte,
   lokal,
   meterJePixel,
-  pfeilspitze,
+  pfeil,
   rechteckRing,
   stosspfeil,
   versatz,
@@ -107,13 +107,16 @@ describe('Taktische Zeichen (lokale Ebene)', () => {
     expect(q.lat).toBeCloseTo(p.lat, 9);
     expect(q.lon).toBeCloseTo(p.lon, 9);
   });
-  it('Pfeilspitze: symmetrische Schenkel der Länge l an der Spitze', () => {
-    const [l1, spitze, l2] = pfeilspitze([0, 0], [100, 0], 10, 30);
-    expect(spitze).toEqual([100, 0]);
-    expect(Math.hypot(l1[0] - 100, l1[1])).toBeCloseTo(10);
-    expect(l1[0]).toBeCloseTo(100 - 10 * Math.cos(Math.PI / 6));
-    expect(l1[1]).toBeCloseTo(-l2[1]);
-    expect(Math.abs(l1[1])).toBeCloseTo(5);
+  it('Pfeil: Dreieck l lang, ±b breit, Spitze am Ende; Schaft endet in der Kopfmitte', () => {
+    const p = pfeil([[0, 0], [100, 0]], 10, 4)!;
+    expect(p.kopf).toEqual([[90, 4], [100, 0], [90, -4], [90, 4]]);
+    expect(p.schaft).toEqual([[0, 0], [95, 0]]);
+    // Knick kurz vor dem Ende: Richtung über die Kopflänge, nicht aus dem 1-m-Stück nach oben
+    const k = pfeil([[0, 0], [100, 0], [100, 1]], 10, 4)!.kopf;
+    expect(k[1]).toEqual([100, 1]);
+    expect(k[0][0]).toBeLessThan(92);
+    expect(pfeil([[5, 5], [5, 5]], 10, 4)).toBeNull();
+    expect(pfeil([[0, 0], [10, 0]], 10, 4)!.kopf[0]).toEqual([4, 2.4]); // kurzer Pfeil: Kopf auf 60 % gekürzt
   });
   it('Zacken: Anzahl aus Länge/Abstand, Spitzen links in Höhe h', () => {
     const z = zacken([[0, 0], [100, 0]], 20, 8);

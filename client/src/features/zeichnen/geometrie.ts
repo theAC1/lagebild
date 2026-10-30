@@ -158,14 +158,6 @@ const norm = (a: Xy): Xy => {
 /** Linksnormale (90° gegen den Uhrzeigersinn). */
 const links = (a: Xy): Xy => [-a[1], a[0]];
 
-/** Pfeilspitze am Ende b (aus Richtung a): zwei Schenkel der Länge `l`, je `winkelGrad` zur Achse. */
-export function pfeilspitze(a: Xy, b: Xy, l: number, winkelGrad = 28): [Xy, Xy, Xy] {
-  const r = norm(sub(a, b)); // zurück entlang der Linie
-  const w = rad(winkelGrad);
-  const dreh = (v: Xy, t: number): Xy => [v[0] * Math.cos(t) - v[1] * Math.sin(t), v[0] * Math.sin(t) + v[1] * Math.cos(t)];
-  return [add(b, mul(dreh(r, w), l)), b, add(b, mul(dreh(r, -w), l))];
-}
-
 /** Polylinie um `d` nach links versetzt (Gehrung an Knicken, begrenzt auf 3·d). */
 export function versatz(linie: Xy[], d: number): Xy[] {
   return linie.map((p, i) => {
@@ -194,6 +186,36 @@ function entlang(linie: Xy[], s: number): { p: Xy; r: Xy } {
 
 const gesamtLaenge = (linie: Xy[]): number => linie.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - linie[i][0], p[1] - linie[i][1]), 0);
 
+/** Polylinie vom Anfang bis zum Abstand `s` entlang der Linie. */
+function bis(linie: Xy[], s: number): Xy[] {
+  const aus: Xy[] = [linie[0]];
+  let t = 0;
+  for (let i = 1; i < linie.length; i++) {
+    t += Math.hypot(linie[i][0] - linie[i - 1][0], linie[i][1] - linie[i - 1][1]);
+    if (t >= s) break;
+    aus.push(linie[i]);
+  }
+  aus.push(entlang(linie, s).p);
+  return aus;
+}
+
+/**
+ * Pfeil: Schaft und gefüllter Kopf (Dreieck) an der Spitze = letzter Punkt. Kopf `l` lang und `2b` breit, gekürzt
+ * auf höchstens 60 % der Linie. Die Richtung kommt aus der Linie über die ganze Kopflänge, nicht aus dem letzten
+ * Stück: ein winziges oder leeres Schlussstück (zweites Tippen, Gummiband beim Zeichnen) dreht den Kopf nicht weg.
+ * Der Schaft endet in der Kopfmitte, damit seine runde Kappe nicht über die Spitze ragt. Null bei Länge 0.
+ */
+export function pfeil(achse: Xy[], l: number, b: number): { schaft: Xy[]; kopf: Xy[] } | null {
+  const gesamt = gesamtLaenge(achse);
+  if (!gesamt) return null;
+  const ende = achse.at(-1)!;
+  const k = Math.min(l, gesamt * 0.6);
+  const r = norm(sub(ende, entlang(achse, gesamt - k).p));
+  const fuss = sub(ende, mul(r, k));
+  const n = mul(links(r), (b * k) / l);
+  return { schaft: bis(achse, gesamt - k / 2), kopf: [add(fuss, n), ende, sub(fuss, n), add(fuss, n)] };
+}
+
 /**
  * Sperre: Zickzack-Zacken links der Linie (Hindernislinie). Liefert die Zackenlinie (Basis–Spitze–Basis …).
  * Abstand `a` zwischen Zackenfüssen, Höhe `h`; mindestens ein Zacken.
@@ -221,16 +243,7 @@ export function stosspfeil(achse: Xy[], b: number): Xy[] {
   const l = gesamtLaenge(achse);
   const kopf = Math.min(1.5 * b, l * 0.6);
   const ansatz = entlang(achse, l - kopf);
-  // Schaft endet am Kopfansatz: Achse bis dorthin kürzen
-  const schaft: Xy[] = [];
-  let s = 0;
-  schaft.push(achse[0]);
-  for (let i = 1; i < achse.length; i++) {
-    s += Math.hypot(achse[i][0] - achse[i - 1][0], achse[i][1] - achse[i - 1][1]);
-    if (s >= l - kopf) break;
-    schaft.push(achse[i]);
-  }
-  schaft.push(ansatz.p);
+  const schaft = bis(achse, l - kopf); // Schaft endet am Kopfansatz
   const li = versatz(schaft, b / 2);
   const re = versatz(schaft, -b / 2);
   const n = links(ansatz.r);
