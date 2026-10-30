@@ -7,7 +7,7 @@
   import { beiNachricht, store } from '../../lib/store.svelte.ts';
   import { ikon, oeffne, toast } from '../../lib/ui.svelte.ts';
   import Leiste from './Leiste.svelte';
-  import { ErreichtWaechter, STUFE_FARBE } from './logik.ts';
+  import { ErreichtWaechter, istErsetzt, STUFE_FARBE } from './logik.ts';
   import { bh, endeLokal, fuettere, ladeFuer, meldeErreicht, messe, rufname, starte, tempoVon, uebernimm, vergissTempo, zielDa, zielName, zielPunkt } from './zustand.svelte.ts';
 
   const m = getMap();
@@ -98,12 +98,15 @@
     const a = msg.auftrag;
     const ende = a.ende;
     if (ende === null) return;
+    // Aufheben und Ersetzen sind für den Server dasselbe: die Meldung erst zeigen, wenn kein neuer Auftrag nachkommt
+    const spaeter = (text: string) => (ende === 'aufgehoben' ? void setTimeout(() => !istErsetzt(store.bloodhound.values(), a) && toast(text), 600) : toast(text));
     if (a.an === store.ich && bh.aktiv?.auftragId === a.id) {
-      endeLokal({ aufgehoben: 'Auftrag von Leitung aufgehoben', beendet: undefined, erreicht: 'Ziel erreicht – Auftrag abgeschlossen' }[ende]);
-    }
-    if (store.istLeitung) {
+      const text = { aufgehoben: 'Auftrag von Leitung aufgehoben', beendet: undefined, erreicht: 'Ziel erreicht – Auftrag abgeschlossen' }[ende];
+      endeLokal();
+      if (text) spaeter(text);
+    } else if (store.istLeitung) {
       const wer = rufname(a.an);
-      toast({ aufgehoben: `Auftrag an ${wer} aufgehoben`, beendet: `${wer} hat Bloodhound beendet`, erreicht: `${wer} hat das Ziel erreicht` }[ende]);
+      spaeter({ aufgehoben: `Auftrag an ${wer} aufgehoben`, beendet: `${wer} hat Bloodhound beendet`, erreicht: `${wer} hat das Ziel erreicht` }[ende]);
     }
   });
 

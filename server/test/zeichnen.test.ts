@@ -132,6 +132,18 @@ describe('Zeichnungen', () => {
     expect(await fehlerText(ltg)).toBe('Zeichnung nicht gefunden');
   });
 
+  it('Leitung legt gelöschte fremde Zeichnung mit dem alten Ersteller neu an (Undo); andere können `von` nicht setzen', async () => {
+    const { ltg, a, b, std, aB } = await szenario();
+    a.senden({ typ: 'zeichnung.neu', zeichnungen: [linie(std, { id: 'u-a1' })] });
+    await a.warte('zeichnungen');
+    ltg.senden({ typ: 'zeichnung.loeschen', ids: ['u-a1'] });
+    await a.warte('zeichnungen.geloescht');
+    ltg.senden({ typ: 'zeichnung.neu', zeichnungen: [linie(std, { id: 'u-a1', von: aB.teilnehmerId })] });
+    expect((await a.warte('zeichnungen')).zeichnungen[0].von).toBe(aB.teilnehmerId);
+    b.senden({ typ: 'zeichnung.neu', zeichnungen: [linie(std, { id: 'u-b1', von: aB.teilnehmerId })] });
+    expect((await b.warte('zeichnungen', (m) => m.zeichnungen[0].id === 'u-b1')).zeichnungen[0].von).not.toBe(aB.teilnehmerId);
+  });
+
   it('gesperrte Ebene: nur Leitung zeichnet, ändert, löscht und verschiebt hinein/heraus', async () => {
     const { ltg, a, std } = await szenario();
     ltg.senden({ typ: 'ebene.neu', name: 'Sperren', gesperrt: true });

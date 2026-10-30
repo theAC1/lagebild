@@ -1,10 +1,12 @@
 <script lang="ts">
   // Führungsraster: auflegen, anpassen (Chips/Stufen), fixieren; Leitung löst. Mit params.melden: Marker per Rasterposition.
   import { RasterDef, RASTER_MAX_AUSDEHNUNG_M, RASTER_MAX_SPALTEN, RASTER_MAX_ZEILEN, type Raster, type RasterArt } from '../../../../shared/protocol.ts';
-  import { RASTER_NAME, RASTER_VORGABE, rasterMitteLv95, rasterUm, zuLv95 } from '../../../../shared/raster.ts';
+  import { RASTER_NAME, RASTER_VORGABE, rahmen, rasterMitteLv95, rasterUm, zuLv95 } from '../../../../shared/raster.ts';
   import { kartenMitte } from '../../lib/map.ts';
   import { send, store } from '../../lib/store.svelte.ts';
-  import { oeffne, toast } from '../../lib/ui.svelte.ts';
+  import { oeffne, schliesse, toast } from '../../lib/ui.svelte.ts';
+  import { bboxUm } from '../offline/kacheln.ts';
+  import { offline } from '../offline/zustand.svelte.ts';
   import type { PanelProps } from '../registry.ts';
   import Melden from './Melden.svelte';
   import { rasterPdf, speichere } from './ausdruck.ts';
@@ -46,6 +48,12 @@
   function inMitte(r: Raster) {
     const mitte = kartenMitte();
     if (mitte) setze({ art: r.art, ...rasterUm(zuLv95(mitte), r) });
+  }
+  /** Offline-Gebiet aufziehen, vorbelegt mit dem Rahmen (+ Rand): die Leitung muss nur noch «Weiter» und «Laden». */
+  function offlineVorschlagen(r: Raster) {
+    offline.vorschlag = bboxUm(rahmen(r));
+    offline.aufziehen = true;
+    schliesse('raster');
   }
   const passt = (r: Raster, zeilen: number, spalten: number, zellM = r.zellM) => Math.max(zeilen, spalten) * zellM <= RASTER_MAX_AUSDEHNUNG_M;
   /** Art, deren PDF gerade entsteht */
@@ -119,6 +127,7 @@
           <div class="aktionen">
             <button onclick={() => zeigeRaster(r)}>Zeigen</button>
             <button disabled={pdfLaeuft !== null} onclick={() => alsPdf(r)}>{pdfLaeuft === art ? 'PDF entsteht …' : 'Als PDF'}</button>
+            <button onclick={() => offlineVorschlagen(r)}>Offline-Gebiet …</button>
             {#if r.fixiert && darfFixieren(r)}<button onclick={() => ok({ typ: 'raster.fixieren', art, fixiert: false })}>Lösen</button>{/if}
             {#if darfFixieren(r)}<button class="gefahr" onclick={() => (loeschenFragen = art)}>Löschen</button>{/if}
           </div>

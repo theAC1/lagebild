@@ -2,14 +2,23 @@
   // Daumen-Ränder: Alarm 1,5 s gedrückt halten (Ring füllt sich), danach Notfall oder Feindkontakt wählen.
   // Vorzeitiges Loslassen bricht ab; so löst ein Streifen mit dem Daumen nie aus.
   import { store } from '../../lib/store.svelte.ts';
+  import { oeffne } from '../../lib/ui.svelte.ts';
   import { ausloesen } from './aktionen.ts';
   import { ARTEN, type AlarmArt } from './logik.ts';
 
   const HALTEN_MS = 1500;
+  const TIPP_MS = 400;
   const UMFANG = 2 * Math.PI * 27;
 
   let halten = $state(false);
   let wahl = $state(false);
+  let seit = 0;
+
+  /** Kurzer Tipp (statt Halten): die Leitung sieht die Alarmliste (Leitung › Alarme); die Liste gibt es nur dort. */
+  function losgelassen() {
+    if (halten && store.istLeitung && performance.now() - seit < TIPP_MS) oeffne('leitung', { tab: 'alarme' });
+    halten = false;
+  }
 
   function gehalten() {
     halten = false;
@@ -42,13 +51,14 @@
   class="alarm-halten"
   class:aktiv={halten}
   style:--dauer="{HALTEN_MS}ms"
-  aria-label="Alarm: 1,5 Sekunden gedrückt halten"
+  aria-label={store.istLeitung ? "Alarm: 1,5 Sekunden gedrückt halten; kurz tippen zeigt die Alarmliste" : "Alarm: 1,5 Sekunden gedrückt halten"}
   onpointerdown={(e) => {
     if (e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
+    seit = performance.now();
     halten = true;
   }}
-  onpointerup={() => (halten = false)}
+  onpointerup={losgelassen}
   onpointercancel={() => (halten = false)}
   onlostpointercapture={() => (halten = false)}
   onblur={() => (halten = false)}

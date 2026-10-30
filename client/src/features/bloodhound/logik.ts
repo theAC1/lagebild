@@ -1,7 +1,11 @@
 // Bloodhound: Geschwindigkeitsglättung, Restzeit, Farbstufen, Erreicht-Erkennung. Reine Logik (getestet).
 import { z } from 'zod';
-import { BloodhoundZiel } from '../../../../shared/protocol.ts';
+import { BloodhoundZiel, type BloodhoundAuftrag } from '../../../../shared/protocol.ts';
 import { distanz } from '../../lib/coords.ts';
+
+/** Wurde der aufgehobene Auftrag durch einen neuen für dieselbe Person ersetzt? (Dann keine Aufhebe-Meldung.) */
+export const istErsetzt = (auftraege: Iterable<Pick<BloodhoundAuftrag, 'id' | 'an' | 'ende'>>, alt: Pick<BloodhoundAuftrag, 'id' | 'an'>): boolean =>
+  [...auftraege].some((x) => x.an === alt.an && x.id !== alt.id && x.ende === null);
 
 /** Darunter gilt die Person als stehend: Restzeit «—». */
 export const MIN_TEMPO = 0.3;

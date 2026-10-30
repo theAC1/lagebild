@@ -78,7 +78,7 @@ export function verarbeiteZeichnen(u: Umfeld, t: Teilnehmer, lage: Lage, m: Clie
         if (z.id) ids.add(z.id);
       }
       if (db.anzahl(lage.id, 'zeichnung') + m.zeichnungen.length > MAX_ZEICHNUNGEN_JE_LAGE) return nein('Zu viele Zeichnungen in dieser Lage');
-      const neu: Zeichnung[] = m.zeichnungen.map((z) => ({ ...z, id: z.id ?? randomUUID(), von: t.id, erstelltAm: jetzt, geaendertAm: jetzt }));
+      const neu: Zeichnung[] = m.zeichnungen.map((z) => ({ ...z, id: z.id ?? randomUUID(), von: leitung && z.von ? z.von : t.id, erstelltAm: jetzt, geaendertAm: jetzt }));
       if (db.groesse(lage.id, 'zeichnung') + zeichen(neu) > MAX_ZEICHNUNGEN_ZEICHEN_JE_LAGE) return nein('Zu viele Zeichnungsdaten in dieser Lage');
       for (const z of neu) db.speichern(lage.id, 'zeichnung', z, z.erstelltAm);
       anAlle(lage.id, { typ: 'zeichnungen', zeichnungen: neu });

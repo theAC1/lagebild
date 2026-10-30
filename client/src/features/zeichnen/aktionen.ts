@@ -75,7 +75,7 @@ export function loesche(ids: string[]): Promise<boolean> {
   if (!alte.length) return Promise.resolve(false);
   for (const z of alte) zn.auswahl.delete(z!.id);
   if (zn.griff && !store.zeichnungen.has(zn.griff.id)) zn.griff = null;
-  return tue({ typ: 'loeschen', zeichnungen: alte.map((z) => zuInhalt(z!)) });
+  return tue({ typ: 'loeschen', zeichnungen: alte.map((z) => ({ ...zuInhalt(z!), von: z!.von })) });
 }
 
 export function rueckgaengig(): void {

@@ -25,6 +25,8 @@ class OfflineZustand {
   umrisse = $state(lies(KEY_UMRISSE) !== '0');
   /** Rechteck aufziehen läuft (Panel ist dann zu) */
   aufziehen = $state(false);
+  /** Rechteck, mit dem das Aufziehen startet (z. B. aus dem Führungsraster); wird beim Start übernommen */
+  vorschlag = $state<Bbox | null>(null);
   speicher = $state<{ belegt: number; frei: number; dauerhaft: boolean } | null>(null);
 }
 

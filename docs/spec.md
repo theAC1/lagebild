@@ -207,7 +207,7 @@ Zweck: ein für die Aktion fixiertes Gitter, damit auch Leute nur mit Funk präz
 - Browser/PWA: Download. Android-App: `window.LagebildDatei.teile()` aus `MainActivity` legt die Datei in den Cache und öffnet den Teilen-Dialog (speichern, senden, drucken); der WebView selbst kennt weder Downloads noch `window.print()`. Ältere App ohne diese Brücke: Hinweis, im Browser zu öffnen.
 
 ### Später
-Offline-Gebiet aus dem Raster vorschlagen; A3 im PDF (in `druck.ts` nur ein anderes Format, bräuchte eine Auswahl); Landeskarte als dritte Seite (Vorlage hat je ein Blatt Luftbild und Landeskarte).
+A3 im PDF (in `druck.ts` nur ein anderes Format, bräuchte eine Auswahl); Landeskarte als dritte Seite (Vorlage hat je ein Blatt Luftbild und Landeskarte). Offline-Gebiet aus dem Raster: erledigt (30.10.), Raster-Detail › «Offline-Gebiet …» belegt das Aufziehen mit dem Rahmen + 10 % Rand vor.
 
 ## Geländetaufe (30.10.2026, Entscheide im README «Geländetaufe & Führungsraster», «Stossrichtung/Fassaden», «Taufe-Details»)
 
@@ -278,7 +278,6 @@ Entscheide: README «Offline-Gebiete (30.10.)». Nutzungsbedingungen, Drosselung
 
 ### Offene Punkte
 - Luftbild bis z20 braucht für 10 × 10 km ~3,7 GB und gedrosselt ~9 h (Landeskarte ~740 MB, ~2,3 h). Ob das Luftbild offline bei z19 aufhören soll (~0,9 GB), entscheidet Juan.
-- Gebiet als Vorschlag aus dem Führungsraster, sobald es das gibt.
 
 ## Spec v5: Dezentrale Missionen (30.10.2026, Entscheide im README, Recherche `docs/recherche/dezentral.md`)
 
