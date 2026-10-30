@@ -157,3 +157,43 @@ Juan: «Im Gefecht oder im Einsatz selber hat man keine Zeit, um groß dann mit 
 - Koordinaten und Messwerte in Monospace.
 - Eigene Position deutlich von anderen unterscheidbar.
 - Ziel ist ein Werkzeug-Look statt eines Prototyps: klare Hierarchie, ruhige Flächen, grosse Touch-Ziele (≥ 48 px, Hauptaktionen ≥ 56 px).
+
+## Geländetaufe (30.10.2026, Entscheide im README «Geländetaufe & Führungsraster», «Stossrichtung/Fassaden», «Taufe-Details»)
+
+Feature `client/src/features/taufe`, Server `server/src/taufe.ts`, Vertrag `Taufe`/`TaufListen` in `shared/protocol.ts`. Grundlage: `docs/recherche/gelaendetaufe.md`.
+
+### Familien und Namen
+- Gebäude = Metalle/Elemente/Edelsteine, Strassen = Tiere, Gewässer = Wassertiere, Wald = Forest/Woods …, Flächen = Floor/Field/Weed/Ruins … Vorgabelisten je Familie (`STANDARD_TAUFNAMEN`, je ~30 Namen aus Juans Muster ergänzt, ohne Wörter des NATO-Alphabets).
+- Die Leitung passt die Listen pro Lage an (Tauf-Panel › «Namenslisten der Lage», ein Name pro Zeile; gespeichert in `Lage.taufListen`, nur abweichende Familien). Doppelte Namen in den Listen lehnt der Server ab.
+- Taufnamen sind je Lage eindeutig, über alle Familien und ohne Gross-/Kleinschreibung (`taufSchluessel`). Der Server sperrt Doppelte («Name «…» ist in dieser Lage schon vergeben»).
+- Immer selbst wählen: Nach dem Antippen zeigt das Panel die **freien** Namen der Familie in Listenreihenfolge als Chips (ein Tipp tauft), daneben ein Feld für einen eigenen Namen. Kein automatischer Vorschlag.
+
+### Taufmodus
+- Einstieg: Mehr › Geländetaufe › «Taufmodus starten». Sichtbar an gelbem Rahmen um die Karte und der Leiste «Taufmodus» mit «Fläche zeichnen» und «Fertig» (Esc beendet am Desktop). Jeder darf taufen.
+- Im Modus liegt die Vektorquelle `ch.swisstopo.base.vt` (offizielle URL, `vektor.ts`) über der Rasterkarte; antippbare Objekte sind ab Zoom 15 dezent hervorgehoben (Gebäude weiss, Strassen orange, Gewässer blau, Wald braun, Flächen gelb). Ausserhalb des Modus stehen die Layer auf `visibility: none`: nichts antippbar, keine Kachel geladen. Keine eigene Kachelablage (Offline-Gebiete hängt ihre lokale Bedienung später vor dieselbe Quelle).
+- Antippen: `queryRenderedFeatures` (±12 px) über den Taufebenen; Familie aus Layer/Klasse (`familien.ts`), Vorrang Gebäude > Gewässer (Linie) > Strasse > Gewässer (Fläche) > Wald > Fläche. Strasse = `transportation` motorway … service, track (ohne `path`); Gebäude ohne underground/chimney/covered_bridge; Gewässer = `waterway` river/stream/canal/drain/ditch und `water` ohne pool; Wald = `landcover` wood; Fläche = übrige `landcover` und alle `landuse`.
+- Antippen einer bestehenden Taufe im Modus öffnet ihre Details.
+- Fehlt ein Objekt (Fläche zwischen Gebäuden, Quartier): «Fläche zeichnen», Eckpunkte antippen, «Abschliessen», Familie frei wählbar.
+
+### Geometrie (Kopie, da die Kacheln keine IDs haben)
+- Gerechnet wird im z14-Kachelgitter (1 Einheit ≈ 0,4 m). Jedes Stück wird auf seine eigene Kachel geschnitten (der Kachelpuffer würde sonst Scheinkreuzungen erzeugen); Punkte der Kachelnähte fängt eine Toleranz von ~0,8 m.
+- **Strasse/Gewässerlinie:** Netz aus allen geladenen Stücken; vom getippten Segment aus in beide Richtungen bis zum nächsten Knoten mit Grad ≠ 2 (Kreuzung oder Ende). Danach bleibt der Modus im «Verlängern»: weitere Tipps hängen Abschnitte an dieselbe Taufe (zusammengefügt, wenn sie anschliessen, sonst MultiLineString). Auch später über Details › «Verlängern».
+- **Flächen (Gebäude, Wald, Gewässer, Landnutzung):** Stücke gleicher Art, die über eine Kachelgrenze am getippten Stück hängen, werden vereint: Gegenkanten auf der Naht heben sich auf, die übrigen Kanten ergeben Ringe (Löcher bleiben). Nachbargebäude mit gemeinsamer Wand bleiben getrennt.
+- Höchstens 5000 Punkte je Taufe (`MAX_TAUF_PUNKTE`, sonst Douglas-Peucker), Koordinaten auf 1e-7° gerundet.
+- Grenzen: nur geladene Kacheln (was nicht im Bild war, fehlt; dann verlängern); als Kreuzung zählt nur ein gemeinsamer Stützpunkt; die swisstopo-Daten sind nicht immer topologisch sauber.
+
+### Stossrichtung und Fassaden
+- Details › Stossrichtung per Kompass-Chips (N, NO … NW, «Keine»). Gespeichert als Azimut `stoss` (Richtung des Angriffs). Ein gelber Pfeil zeigt von der Angreiferseite aufs Objekt.
+- Fassaden als farbige Linien entlang des Umrisses, je Kante aus der Normalen nach aussen: zum Angreifer (± 45°) **weiss** = Zutritt, in Stossrichtung **schwarz** = Rückseite, links in Stossrichtung **rot**, rechts **grün** (wie beim Flieger). Ansprache z.B. «Gold, Fassade Rot».
+- Umfärben: Details › «Fassaden umfärben», dann Fassade auf der Karte antippen (weiss → rot → schwarz → grün). Gespeichert je Kante in `fassaden`; eine Fassade = Folge benachbarter Kanten gleicher berechneter Farbe. Neue Stossrichtung oder neue Geometrie setzt das Umfärben zurück.
+- Schalter «Zielobjekt»: gelbes Namenskästchen.
+- Umbenennen, Stossrichtung/Fassaden, Zielobjekt, Löschen: alle. Taufen, Umbenennen und Löschen landen im Meldungslog.
+
+### Layer «Geländetaufe»
+- In der Ebenen-Auswahl ein-/ausschaltbar (`einstellungen.taufe`, pro Gerät), im Taufmodus immer an.
+- Darstellung nach Juans SpotMap: Gebäude weiss umrandet (dunkler Saum) mit weissem Namenskästchen, das bei Platzmangel mit Führungslinie daneben steht; Strassennamen rot entlang der Achse; Wald braun getönt mit Namen; Gewässer blau; Flächen dezent gelb getönt mit Namen. Beschriftungen als HTML-Kästchen mit Greedy-Platzierung (Zielobjekte, Gebäude, Strassen, Gewässer, Wald, Flächen), was keinen Platz findet, entfällt; unter Zoom 13 nur Zielobjekte.
+- `darstellung.ts` ist rein rechnerisch (Features, Anker, Platzierung), damit der spätere PDF-Export (SpotMap) sie wiederverwenden kann.
+
+### Server
+- `taufe.neu`, `taufe.aendern` (nur gesetzte Felder), `taufe.loeschen`, `lage.taufListen` (Leitung). Antworten `taufe`, `taufe.geloescht`, `lage`; Snapshot `taufen`.
+- Höchstens 2000 Taufen und 6 MB (JSON) je Lage; Export GeoJSON mit `art: 'taufe'`.
