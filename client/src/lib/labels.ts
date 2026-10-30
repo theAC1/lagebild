@@ -23,12 +23,16 @@ const box = (r: DOMRect): Box => ({ x: r.left, y: r.top, w: r.width, h: r.height
 /** Wendet `platziere` auf alle `.bft` im Container an; das eigene Symbol hat Vorrang. */
 export function entzerre(container: HTMLElement): void {
   const els = [...container.querySelectorAll<HTMLElement>('.bft')].sort((a, b) => Number(b.classList.contains('ich')) - Number(a.classList.contains('ich')));
-  for (const el of els) el.classList.remove('label-oben', 'label-weg');
+  // Klassen erst nach dem Messen und nur bei Änderung setzen: Umschalten vor dem Messen erzwang bei jeder Position
+  // ein Layout aller Kartenmarker. «unten» ist der Platz ohne Klasse: 2 px unter dem Symbol (app.css .bft-label).
   const mass = els.map((el) => {
     const sym = el.getBoundingClientRect();
     const label = (el.querySelector('.bft-label') ?? el).getBoundingClientRect();
-    return { sym: box(sym), unten: box(label), oben: { ...box(label), y: sym.top - 2 - label.height } };
+    return { sym: box(sym), unten: { ...box(label), y: sym.bottom + 2 }, oben: { ...box(label), y: sym.top - 2 - label.height } };
   });
   const plaetze = platziere(mass, mass.map((m) => m.sym));
-  els.forEach((el, i) => plaetze[i] !== 'unten' && el.classList.add(`label-${plaetze[i]}`));
+  els.forEach((el, i) => {
+    el.classList.toggle('label-oben', plaetze[i] === 'oben');
+    el.classList.toggle('label-weg', plaetze[i] === 'weg');
+  });
 }
