@@ -5,21 +5,11 @@
   import { store } from '../../lib/store.svelte.ts';
   import { toast } from '../../lib/ui.svelte.ts';
   import { aendere, kopiere, loesche } from './aktionen.ts';
-  import { artLabel, zuInhalt } from './logik.ts';
+  import { artLabel, FARBEN, mitStil, zuInhalt } from './logik.ts';
   import { darf, zn } from './zustand.svelte.ts';
 
   let { fokus }: { fokus?: string } = $props();
 
-  const FARBEN = [
-    { farbe: '#d32f2f', name: 'Rot' },
-    { farbe: '#1565c0', name: 'Blau' },
-    { farbe: '#2e7d32', name: 'Grün' },
-    { farbe: '#f9a825', name: 'Gelb' },
-    { farbe: '#ef6c00', name: 'Orange' },
-    { farbe: '#6a1b9a', name: 'Violett' },
-    { farbe: '#212121', name: 'Schwarz' },
-    { farbe: '#ffffff', name: 'Weiss' },
-  ];
   const STRICHE: { id: Stil['strich']; label: string }[] = [
     { id: 'voll', label: 'Voll' },
     { id: 'gestrichelt', label: 'Gestrichelt' },
@@ -38,14 +28,8 @@
 
   /** Stil der Auswahl ändern (ein Schritt im Verlauf) bzw. Stil für neue Zeichnungen. */
   function setzeStil(teil: Partial<Stil>) {
-    const neu = (s: Stil): Stil => {
-      const x = { ...s, ...teil };
-      if (teil.farbe && s.fuellung === s.farbe) x.fuellung = teil.farbe; // Füllung folgt der Farbe
-      if ('fuellung' in teil && !teil.fuellung) delete x.fuellung;
-      return x;
-    };
-    if (!aenderbar.length) zn.stil = neu(zn.stil);
-    else void aendere(aenderbar.map((z) => ({ ...zuInhalt(z), stil: neu(z.stil) })));
+    if (!aenderbar.length) zn.stil = mitStil(zn.stil, teil);
+    else void aendere(aenderbar.map((z) => ({ ...zuInhalt(z), stil: mitStil(z.stil, teil) })));
   }
   function setzeFeld(feld: 'bezeichnung' | 'text' | 'ebeneId', wert: string) {
     if (!eine && feld !== 'ebeneId') return;

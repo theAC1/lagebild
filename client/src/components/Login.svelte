@@ -99,11 +99,11 @@
         <p><strong>Lage erstellt.</strong> Codes jetzt notieren:</p>
         <div class="code-box">
           <span class="leise">Teilnehmer-Code</span>
-          <span class="code mono">{erstellt.teilnehmerCode}</span>
+          <span class="code mono markierbar">{erstellt.teilnehmerCode}</span>
         </div>
         <div class="code-box leitung">
           <span class="leise">Leitungs-Code</span>
-          <span class="code mono">{erstellt.leitungCode}</span>
+          <span class="code mono markierbar">{erstellt.leitungCode}</span>
         </div>
         <p class="warnung">Leitungs-Code sicher aufbewahren – er lässt sich nicht wiederherstellen und gibt volle Kontrolle über die Lage.</p>
         <button class="primaer" onclick={alsLeitungWeiter}>Weiter: als Leitung beitreten</button>

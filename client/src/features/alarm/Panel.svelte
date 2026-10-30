@@ -52,7 +52,6 @@
         }
       }}
       onkeyup={() => (halten = false)}
-      oncontextmenu={(e) => e.preventDefault()}
     >
       <svg viewBox="0 0 120 120" aria-hidden="true">
         <circle cx="60" cy="60" r="52" class="spur" />
@@ -106,9 +105,6 @@
     font-size: 1.3rem;
     font-weight: 800;
     letter-spacing: 0.06em;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
     touch-action: none;
   }
   .halten.aktiv {

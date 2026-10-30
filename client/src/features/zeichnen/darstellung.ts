@@ -1,7 +1,7 @@
 // Zeichnung → GeoJSON für die MapLibre-Layer und HTML-Beschriftungen (der Kartenstil hat keine Glyphen).
 // Eigene Umsetzung, angelehnt an APP-6D: Phasenlinie, Grenze, Stossrichtung, Sperre, Räume mit Schraffur.
 import type { Punkt, RaumArt, Stil, Zeichnung, ZeichnungArt } from '../../../../shared/protocol.ts';
-import { kreisRing, lokal, linienMitte, mittelpunkt, pfeilspitze, rechteckRing, stosspfeil, zacken, type Xy } from './geometrie.ts';
+import { kreisRing, lokal, linienMitte, mittelpunkt, pfeil, rechteckRing, stosspfeil, zacken, type Xy } from './geometrie.ts';
 
 /** Was gezeichnet wird – Zeichnung, Entwurf oder Vorschau. */
 export type Form = Pick<Zeichnung, 'id' | 'art' | 'punkte' | 'text' | 'bezeichnung' | 'stil'> & Partial<Pick<Zeichnung, 'raumArt' | 'radiusM'>>;
@@ -82,11 +82,11 @@ export function darstelle(f: Form, mpp: number): { features: GeoJSON.Feature[]; 
       break;
     }
     case 'pfeil': {
-      features.push(linie(ps, basis));
-      if (ps.length >= 2) {
-        const a = achse();
-        features.push(linie(zurueck(pfeilspitze(a.at(-2)!, a.at(-1)!, (PX.spitze + s.breite * 2) * mpp)), { ...basis, strich: 'voll' }));
-      }
+      // Kopf als gefülltes Dreieck, wächst mit der Strichdicke; ohne Länge (erster Punkt im Entwurf) nur die Linie
+      const l = (PX.spitze + 3 * s.breite) * mpp;
+      const p = ps.length >= 2 ? pfeil(achse(), l, 0.45 * l) : null;
+      if (p) features.push(linie(zurueck(p.schaft), basis), polygon(zurueck(p.kopf), { ...basis, strich: 'voll', breite: 1, fuellung: s.farbe, deckkraft: 1 }));
+      else features.push(linie(ps, basis));
       mitBez(linienMitte(ps));
       break;
     }

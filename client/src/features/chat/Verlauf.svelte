@@ -75,7 +75,7 @@
       <div class="meta leise">
         {eigen ? 'Ich' : (store.teilnehmer.get(c.von)?.rufname ?? 'Unbekannt')} · <span class="mono">{formatZeit(c.t, store.jetzt)}</span>
       </div>
-      <div class="blase">{c.text}</div>
+      <div class="blase markierbar">{c.text}</div>
     </li>
   {/each}
 </ol>

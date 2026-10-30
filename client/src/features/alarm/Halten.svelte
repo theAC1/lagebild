@@ -59,7 +59,6 @@
     }
   }}
   onkeyup={() => (halten = false)}
-  oncontextmenu={(e) => e.preventDefault()}
 >
   <svg viewBox="0 0 64 64" aria-hidden="true">
     <circle cx="32" cy="32" r="27" class="spur" />
@@ -102,9 +101,6 @@
     font-weight: 800;
     letter-spacing: 0.06em;
     box-shadow: var(--schatten);
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
     touch-action: none;
   }
   .alarm-halten.aktiv {

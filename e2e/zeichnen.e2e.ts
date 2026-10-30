@@ -291,5 +291,33 @@ test('Mobil 390×844: Linie mit Fertig-Knopf, Tippen zeigt Details', async ({ br
   await expect(detail).toContainText('Charlie');
   await expect(detail.getByRole('button', { name: 'Bearbeiten' })).toBeVisible();
   await bild(p, 'mobil-detail');
+
+  // Pfeil auf freier Karte (nach Süden verschoben, die Desktop-Formen liegen südlicher), dann Stil per Chips ändern
+  await p.keyboard.press('Escape');
+  await p.mouse.move(m.x, m.y - 150);
+  await p.mouse.down();
+  await p.mouse.move(m.x, m.y + 200, { steps: 10 });
+  await p.mouse.up();
+  await p.waitForTimeout(800); // Auslaufen der Karte abwarten
+  await p.locator('nav.werkzeuge button.werkzeug', { hasText: 'Zeichnen' }).click();
+  await panel.getByRole('button', { name: 'Pfeil' }).click();
+  await p.mouse.click(m.x - 140, m.y - 200);
+  await p.waitForTimeout(400);
+  await p.mouse.click(m.x + 90, m.y - 260);
+  await p.getByRole('toolbar', { name: 'Pfeil zeichnen' }).getByRole('button', { name: 'Fertig' }).click();
+  const pfeil = async () => (await nachForm('pfeil')).find((z) => z.properties.von === charlie.id) as (ExportZeichnung & { properties: { stil: Record<string, unknown> } }) | undefined;
+  await expect.poll(async () => !!(await pfeil())).toBe(true);
+  await expect(async () => {
+    await p.mouse.click(m.x - 25, m.y - 230);
+    await expect(detail).toContainText('Pfeil', { timeout: 1000 });
+  }).toPass();
+  for (const [gruppe, wahl] of [['Farbe', 'Blau'], ['Dicke', 'Dick'], ['Darstellung', 'Gestrichelt']]) {
+    const knopf = detail.getByRole('group', { name: gruppe }).getByRole('button', { name: wahl, exact: true });
+    await knopf.click();
+    await expect(knopf).toHaveAttribute('aria-pressed', 'true');
+  }
+  await expect.poll(async () => (await pfeil())?.properties.stil).toMatchObject({ farbe: '#1565c0', breite: 6, strich: 'gestrichelt' });
+  await expect(detail.getByRole('group', { name: 'Darstellung' }).getByRole('button', { name: 'Gefüllt' })).toHaveCount(0); // nur beim Kreis
+  await bild(p, 'mobil-pfeil');
   await p.context().close();
 });

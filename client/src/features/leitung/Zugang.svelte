@@ -76,7 +76,7 @@
 {#if codes.teilnehmerCode}
   <div class="code-box">
     <span class="leise">Teilnehmer-Code</span>
-    <span class="code mono">{codes.teilnehmerCode}</span>
+    <span class="code mono markierbar">{codes.teilnehmerCode}</span>
   </div>
   <div class="qr">
     {#if qr}<img src={qr} alt="QR-Code zum Beitreten: {link}" />{:else}<span class="leise">QR-Code wird erzeugt …</span>{/if}
@@ -116,7 +116,7 @@
     {#if leitungZeigen}
       <div class="code-box warnung">
         <span class="leise">Leitungs-Code</span>
-        <span class="code mono">{codes.leitungCode}</span>
+        <span class="code mono markierbar">{codes.leitungCode}</span>
       </div>
       <button class="breit" onclick={() => (leitungZeigen = false)}>Leitungs-Code verbergen</button>
     {:else}

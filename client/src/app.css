@@ -127,6 +127,13 @@
 html, body, #app { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
 body { background: var(--bg); }
 
+/* Browser-Gesten sperren (30.10.): Antippen markiert keinen Text, Lang-Drücken öffnet kein Browser-Popup (das Radial-Menü
+   braucht den Langdruck), Bilder lassen sich nicht ziehen. Eingaben und .markierbar (Chat, Codes) bleiben kopierbar.
+   Das Browser-Kontextmenü unterdrückt App.svelte (keinBrowserMenu). */
+html { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+input, textarea, [contenteditable], .markierbar { user-select: text; -webkit-user-select: text; -webkit-touch-callout: default; }
+img, svg { -webkit-user-drag: none; }
+
 button, input, select, textarea { font: inherit; color: inherit; }
 
 button {

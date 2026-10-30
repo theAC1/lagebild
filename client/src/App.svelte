@@ -60,6 +60,12 @@
     e.preventDefault();
   }
 
+  // Browser-Gesten (30.10.): kein Browser-Kontextmenü auf Karte und Bedienelementen (Langdruck auf Android, Rechtsklick).
+  // MapView/Zeichnen werten Rechtsklick und Langdruck vorher selbst aus; Eingaben und .markierbar behalten das Menü.
+  function keinBrowserMenu(e: MouseEvent) {
+    if (!(e.target as Element).closest?.('input, textarea, [contenteditable], .markierbar')) e.preventDefault();
+  }
+
   // Angemeldet: Verbindung + GPS + Wakelock; abgemeldet oder Lage beendet: alles stoppen.
   // Wachhalten ungetrackt: es liest store.einstellungen, sonst startet jede Einstellung GPS und Verbindung neu.
   $effect(() => {
@@ -85,7 +91,7 @@
   const VERBINDUNG = { verbunden: 'verbunden', verbinde: 'verbinde …', getrennt: 'getrennt' } as const;
 </script>
 
-<svelte:window onkeydown={taste} onpointerdowncapture={(e) => merkeQuelle((e.target as Element).closest?.<HTMLElement>('[data-panel]')?.dataset.panel ?? null)} />
+<svelte:window onkeydown={taste} oncontextmenu={keinBrowserMenu} onpointerdowncapture={(e) => merkeQuelle((e.target as Element).closest?.<HTMLElement>('[data-panel]')?.dataset.panel ?? null)} />
 <Ausrichtung />
 
 <MapView>

@@ -1,5 +1,5 @@
 // Reine Hilfen: Rechte, Bezeichnungen, Masse, Verschieben.
-import type { Ebene, Punkt, Zeichnung, ZeichnungArt } from '../../../../shared/protocol.ts';
+import type { Ebene, Punkt, Stil, Zeichnung, ZeichnungArt } from '../../../../shared/protocol.ts';
 import { azimut, distanz, formatDistanz, formatRichtung } from '../../lib/coords.ts';
 import { flaeche, formatFlaeche, laenge, type Px } from './geometrie.ts';
 import { istGeschlossen, RAUM, umriss } from './darstellung.ts';
@@ -31,6 +31,26 @@ export const zuInhalt = (z: Zeichnung | ZInhalt): ZInhalt => ({
   bezeichnung: z.bezeichnung,
   stil: { ...z.stil },
 });
+
+/** Feste taktische Palette (Desktop-Eigenschaften und mobile Details). */
+export const FARBEN = [
+  { farbe: '#d32f2f', name: 'Rot' },
+  { farbe: '#1565c0', name: 'Blau' },
+  { farbe: '#2e7d32', name: 'Grün' },
+  { farbe: '#f9a825', name: 'Gelb' },
+  { farbe: '#ef6c00', name: 'Orange' },
+  { farbe: '#6a1b9a', name: 'Violett' },
+  { farbe: '#212121', name: 'Schwarz' },
+  { farbe: '#ffffff', name: 'Weiss' },
+];
+
+/** Neuer Stil mit Teiländerung; eine Füllung in der Linienfarbe folgt der Farbe, `fuellung: undefined` entfernt sie. */
+export function mitStil(s: Stil, teil: Partial<Stil>): Stil {
+  const x = { ...s, ...teil };
+  if (teil.farbe && s.fuellung === s.farbe) x.fuellung = teil.farbe;
+  if ('fuellung' in teil && !teil.fuellung) delete x.fuellung;
+  return x;
+}
 
 /** Masse einer Form für Details und Live-Anzeige. */
 export function masse(z: Pick<Zeichnung, 'art' | 'punkte' | 'radiusM'>): { label: string; wert: string }[] {

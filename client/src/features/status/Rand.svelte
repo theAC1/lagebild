@@ -33,7 +33,7 @@
     border-color: var(--text);
     box-shadow: 0 0 0 2px var(--accent);
   }
-  /* min(…, vw): im Hochformat-Dock teilen sich fünf Knöpfe die Breite (Bediengrösse) */
+  /* min(…, vw): im Hochformat-Dock teilen sich vier Knöpfe die Breite (Bediengrösse) */
   .klein {
     font-size: min(0.6rem, 2.5vw);
     letter-spacing: 0.1em;

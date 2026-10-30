@@ -2,13 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { STANDARD_STIL, Zeichnung, type Ebene } from '../../../../shared/protocol.ts';
 import { versetze } from '../../lib/coords.ts';
 import { darstelle, musterBild, musterName, umriss, type Form } from './darstellung.ts';
-import { darfAendern, liveMasse, masse, zuInhalt } from './logik.ts';
+import { lokal, type Xy } from './geometrie.ts';
+import { darfAendern, liveMasse, masse, mitStil, zuInhalt } from './logik.ts';
 
 const A = { lat: 46.9466, lon: 7.4442 };
 const B = versetze(A, 1000, 90);
 const C = versetze(B, 1000, 0);
 const form = (f: Partial<Form>): Form => ({ id: 'z1', art: 'linie', punkte: [A, B], text: '', bezeichnung: '', stil: STANDARD_STIL, ...f });
 const MPP = 2;
+const norm = ([x, y]: Xy): Xy => [x / Math.hypot(x, y), y / Math.hypot(x, y)];
 
 describe('Darstellung', () => {
   it('Linie: ein LineString mit Stil-Eigenschaften', () => {
@@ -32,13 +34,57 @@ describe('Darstellung', () => {
     // 1000 m / (18 px · 2 m/px) = 27 Zacken → 2·27+1 Punkte
     expect((s[1].geometry as GeoJSON.LineString).coordinates).toHaveLength(55);
   });
-  it('Pfeil: Linie plus Spitze; Stossrichtung: gefüllter Umriss', () => {
+  it('Pfeil: Schaft plus gefüllter Kopf; Stossrichtung: gefüllter Umriss', () => {
     const p = darstelle(form({ art: 'pfeil' }), MPP).features;
     expect(p).toHaveLength(2);
-    expect((p[1].geometry as GeoJSON.LineString).coordinates[1]).toEqual([B.lon, B.lat]);
+    expect(p[1].geometry.type).toBe('Polygon');
+    expect(p[1].properties).toMatchObject({ fuellung: STANDARD_STIL.farbe, deckkraft: 1, strich: 'voll' });
     const s = darstelle(form({ art: 'stossrichtung' }), MPP).features[0];
     expect(s.geometry.type).toBe('Polygon');
     expect(s.properties!.fuellung).toBe(STANDARD_STIL.farbe);
+  });
+  describe('Pfeilkopf (Rückmeldung 30.10.: «passt nicht wirklich»)', () => {
+    const ebene = lokal(B);
+    /** Kopf in Metern um die Spitze B, Achse = Richtung A→B; Schaft-Ende ebenso. */
+    function kopf(punkte: Form['punkte'], breite = STANDARD_STIL.breite) {
+      const [schaft, k] = darstelle(form({ art: 'pfeil', punkte, stil: { ...STANDARD_STIL, breite } }), MPP).features;
+      const xy = (c: number[]) => ebene.hin({ lon: c[0], lat: c[1] });
+      const ring = (k.geometry.type === 'Polygon' ? k.geometry.coordinates[0] : (k.geometry as GeoJSON.LineString).coordinates).map(xy);
+      const ende = xy((schaft.geometry as GeoJSON.LineString).coordinates.at(-1)!);
+      return { ring, ende };
+    }
+    const r = norm(ebene.hin(A)); // von der Spitze zurück Richtung A
+    const laengs = (p: Xy) => -(p[0] * r[0] + p[1] * r[1]); // < 0: hinter der Spitze
+    const quer = (p: Xy) => p[0] * r[1] - p[1] * r[0];
+
+    it('Spitze genau am letzten Punkt, Kopf symmetrisch hinter der Spitze entlang der Linie', () => {
+      const { ring } = kopf([A, B]);
+      expect(Math.min(...ring.map((p) => Math.hypot(...p)))).toBeLessThan(0.01);
+      const fluegel = ring.filter((p) => Math.hypot(...p) > 1);
+      expect(fluegel.length).toBeGreaterThanOrEqual(2);
+      for (const p of fluegel) expect(laengs(p)).toBeLessThan(-10);
+      const qs = fluegel.map(quer);
+      expect(Math.max(...qs)).toBeCloseTo(-Math.min(...qs), 3);
+      expect(Math.max(...qs)).toBeGreaterThan(5);
+    });
+    it('winziges oder leeres Schlussstück (Tippen, Gummiband beim Zeichnen) dreht den Kopf nicht weg', () => {
+      const daneben = versetze(B, 0.5, 0); // 0.5 m quer zur Linie, wie ein zweites Tippen an derselben Stelle
+      for (const punkte of [[A, B, B], [A, B, daneben]]) {
+        const { ring } = kopf(punkte);
+        const fluegel = ring.filter((p) => Math.hypot(...p) > 2);
+        expect(fluegel.length).toBeGreaterThanOrEqual(2);
+        for (const p of fluegel) expect(laengs(p)).toBeLessThan(-10);
+      }
+    });
+    it('Schaft endet im Kopf (keine runde Kappe über die Spitze), Kopf wächst mit der Strichdicke', () => {
+      const { ring, ende } = kopf([A, B]);
+      const tiefe = Math.min(...ring.map(laengs));
+      expect(laengs(ende)).toBeLessThan(-1);
+      expect(laengs(ende)).toBeGreaterThan(tiefe);
+      const dick = kopf([A, B], 8).ring;
+      expect(Math.min(...dick.map(laengs))).toBeLessThan(tiefe);
+      expect(Math.max(...dick.map(quer))).toBeGreaterThan(Math.max(...ring.map(quer)) + (8 - 3) * MPP); // mehr als der Strich selbst
+    });
   });
   it('Räume: Schraffur je Art, Beschriftung mit Kürzel in der Fläche', () => {
     const br = darstelle(form({ art: 'raum', raumArt: 'bereitstellung', punkte: [A, B, C], bezeichnung: 'Nord' }), MPP);
@@ -90,6 +136,12 @@ describe('Logik', () => {
     expect(i).not.toHaveProperty('von');
     expect(i).not.toHaveProperty('raumArt');
     expect(i.radiusM).toBe(50);
+  });
+  it('Stil ändern: Füllung in Linienfarbe folgt der Farbe, undefined entfernt sie', () => {
+    const gefuellt = { ...STANDARD_STIL, fuellung: STANDARD_STIL.farbe };
+    expect(mitStil(gefuellt, { farbe: '#1565c0' })).toMatchObject({ farbe: '#1565c0', fuellung: '#1565c0' });
+    expect(mitStil(gefuellt, { fuellung: undefined })).not.toHaveProperty('fuellung');
+    expect(mitStil(STANDARD_STIL, { breite: 6 })).toEqual({ ...STANDARD_STIL, breite: 6 });
   });
   it('Masse für Details', () => {
     expect(masse({ art: 'linie', punkte: [A, B] })).toEqual([{ label: 'Länge', wert: '1.00 km' }]);

@@ -1,19 +1,18 @@
 <script lang="ts">
   // Bedienung «Daumen-Ränder» (Spec v3). Die Karte läuft randlos unter allem durch; Kopf, Knöpfe und Koordinaten
-  // schweben darüber. Quer: links Melden (Status, Sichtung, unten Alarm), rechts oben die Kartenknöpfe (Ebenen, Folgen,
-  // Nordung) als Reihe, rechts unten Marker, Chat, Mehr. Hoch: Dock unten, Alarm links darüber, Kartenknöpfe rechts.
+  // schweben darüber. Quer: links Status, Melden, unten Alarm; rechts oben die Kartenknöpfe (Ebenen, Folgen, Nordung)
+  // als Reihe, rechts unten Chat, Mehr. Hoch: Dock unten (Status, Melden, Chat, Mehr), Alarm links darüber, Kartenknöpfe
+  // rechts. «Melden» öffnet daneben die Wahl Sichtung/Marker (Rückmeldung 30.10.: der Unterschied war nicht klar).
   // Was ein Hauptknopf tut, bestimmt das Feature (Feature.haupt); wo er sitzt, steht hier.
   import { MediaQuery } from 'svelte/reactivity';
   import { features, type Feature } from '../features/registry.ts';
-    import { folgeMir, getMap, onMapReady } from '../lib/map.ts';
+  import { folgeMir, getMap, onMapReady } from '../lib/map.ts';
   import { store } from '../lib/store.svelte.ts';
   import { ikon, istOffen, oeffne, schliesse, ui } from '../lib/ui.svelte.ts';
   import EbenenListe from './EbenenListe.svelte';
   import KoordLeiste from './KoordLeiste.svelte';
 
-  const LINKS = ['status', 'sichtung'];
-  const RECHTS = ['marker', 'chat'];
-  const DOCK = ['status', 'marker', 'sichtung', 'chat'];
+  const MELDEN = ['sichtung', 'marker'];
   const VERBINDUNG = { verbunden: 'verbunden', verbinde: 'verbinde …', getrennt: 'getrennt' } as const;
   const IKON_TN = ikon('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.5-4 3-6 6.5-6s6 2 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2 .7 3.2 2.6 3.5 6"/>');
   const IKON_EINST = ikon('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9L7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>');
@@ -28,8 +27,12 @@
   ]);
   const koordLeiste = $derived(store.einstellungen.koordLeiste || !store.meinePos); // ohne Fix die einzige GPS-Anzeige
 
+  const melden = $derived(MELDEN.map((id) => haupt.get(id)).filter((f) => !!f));
+
   let ebenenOffen = $state(false);
   let mehrOffen = $state(false);
+  let meldenOffen = $state(false);
+  let meldenKnopf = $state<HTMLElement>();
   let peilung = $state(0);
 
   $effect(() => {
@@ -43,8 +46,18 @@
     return () => ab();
   });
 
+  const zu = () => (mehrOffen = ebenenOffen = meldenOffen = false);
+  /** Ein Menü auf/zu, die anderen schliessen. */
+  function umschalten(menu: 'mehr' | 'ebenen' | 'melden') {
+    const war = { mehr: mehrOffen, ebenen: ebenenOffen, melden: meldenOffen }[menu];
+    zu();
+    if (menu === 'mehr') mehrOffen = !war;
+    else if (menu === 'ebenen') ebenenOffen = !war;
+    else meldenOffen = !war;
+  }
+
   function druecke(f: Feature) {
-    mehrOffen = ebenenOffen = false;
+    zu();
     if (istOffen(f.id)) schliesse(f.id);
     else if (f.haupt?.aktion) f.haupt.aktion();
     else oeffne(f.id);
@@ -55,10 +68,28 @@
     oeffne(id);
   }
 
+  /** Kachel der Melden-Wahl: startet den Schnellablauf (Fadenkreuz), auch wenn das Panel schon offen ist. */
+  function meldeMit(f: Feature) {
+    zu();
+    f.haupt?.aktion?.();
+  }
+
+  /** Melden-Wahl direkt neben den Knopf setzen: quer rechts daneben, hoch darüber; immer ganz im Fenster. */
+  function nebenMelden(el: HTMLElement) {
+    const k = meldenKnopf?.getBoundingClientRect();
+    if (!k) return;
+    const { width: b, height: h } = el.getBoundingClientRect();
+    const rand = 8;
+    const x = quer.current ? k.right + rand : k.left + k.width / 2 - b / 2;
+    const y = quer.current ? k.top + k.height / 2 - h / 2 : k.top - rand - h;
+    el.style.left = `${Math.max(rand, Math.min(x, innerWidth - rand - b))}px`;
+    el.style.top = `${Math.max(rand, Math.min(y, innerHeight - rand - h))}px`;
+  }
+
   // Esc schliesst zuerst die eigenen Menüs (Capture: vor dem Esc des Kerns in App)
   function taste(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || !(mehrOffen || ebenenOffen)) return;
-    mehrOffen = ebenenOffen = false;
+    if (e.key !== 'Escape' || !(mehrOffen || ebenenOffen || meldenOffen)) return;
+    zu();
     e.preventDefault();
   }
 </script>
@@ -86,13 +117,27 @@
     class:aktiv={mehr.some((m) => istOffen(m.id))}
     aria-label="Mehr"
     aria-expanded={mehrOffen}
-    onclick={() => {
-      ebenenOffen = false;
-      mehrOffen = !mehrOffen;
-    }}
+    onclick={() => umschalten('mehr')}
   >
     {@html ikon('<circle cx="5" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="19" cy="12" r="1.8" fill="currentColor"/>')}
     <span>Mehr</span>
+  </button>
+{/snippet}
+
+{#snippet meldenKnopfS()}
+  {@const badge = melden.reduce((n, f) => n + (f.badge?.() ?? 0), 0)}
+  <button
+    bind:this={meldenKnopf}
+    class="rand-knopf"
+    class:aktiv={melden.some((f) => istOffen(f.id))}
+    aria-label={badge ? `Melden (${badge} neu)` : 'Melden'}
+    aria-haspopup="menu"
+    aria-expanded={meldenOffen}
+    onclick={() => umschalten('melden')}
+  >
+    {@html ikon('<path d="M5 21V4"/><path d="M5 4h12l-2.5 4.5L17 13H5"/>')}
+    <span>Melden</span>
+    {#if badge > 0}<span class="badge" aria-hidden="true">{badge > 99 ? '99+' : badge}</span>{/if}
   </button>
 {/snippet}
 
@@ -101,10 +146,7 @@
     class="karten-knopf"
     aria-label="Karte und Ebenen wählen"
     aria-expanded={ebenenOffen}
-    onclick={() => {
-      mehrOffen = false;
-      ebenenOffen = !ebenenOffen;
-    }}
+    onclick={() => umschalten('ebenen')}
   >
     {@html ikon('<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>')}
   </button>
@@ -133,13 +175,14 @@
 
   {#if quer.current}
     <aside class="rand links" aria-label="Melden">
-      {#each LINKS as id (id)}{@render knopf(id)}{/each}
+      {@render knopf('status')}
+      {@render meldenKnopfS()}
       <span class="luecke"></span>
       {@render knopf('alarm')}
     </aside>
     <aside class="rand rechts" aria-label="Karte">
       <span class="luecke"></span>
-      {#each RECHTS as id (id)}{@render knopf(id)}{/each}
+      {@render knopf('chat')}
       {@render mehrKnopf()}
     </aside>
     {#if koordLeiste}<footer class="fuss"><KoordLeiste /></footer>{/if}
@@ -148,7 +191,9 @@
     <footer class="fuss">
       {#if koordLeiste}<KoordLeiste />{/if}
       <nav class="dock" aria-label="Hauptaktionen">
-        {#each DOCK as id (id)}{@render knopf(id)}{/each}
+        {@render knopf('status')}
+        {@render meldenKnopfS()}
+        {@render knopf('chat')}
         {@render mehrKnopf()}
       </nav>
     </footer>
@@ -156,9 +201,19 @@
 
   <div class="schwebend">{@render kartenKnoepfe()}</div>
 
-  {#if ebenenOffen || mehrOffen}
+  {#if ebenenOffen || mehrOffen || meldenOffen}
     <!-- Tippen daneben schliesst das Menü -->
-    <div class="hintergrund" aria-hidden="true" onclick={() => (mehrOffen = ebenenOffen = false)}></div>
+    <div class="hintergrund" aria-hidden="true" onclick={zu}></div>
+  {/if}
+  {#if meldenOffen}
+    <div class="pop melden-wahl" role="menu" aria-label="Melden" {@attach nebenMelden}>
+      {#each melden as f (f.id)}
+        <button class="kachel" role="menuitem" aria-current={istOffen(f.id) || undefined} onclick={() => meldeMit(f)}>
+          {#if typeof f.icon === 'string'}{@html f.icon}{:else}<f.icon />{/if}
+          <span>{f.label}</span>
+        </button>
+      {/each}
+    </div>
   {/if}
   {#if ebenenOffen}
     <div class="pop ebenen" role="group" aria-label="Karte"><EbenenListe /></div>
@@ -264,7 +319,7 @@
     height: clamp(var(--haupt), 13dvh, 72px);
     box-shadow: var(--schatten);
     padding-inline: 0;
-    font-size: 0.58rem; /* «SICHTUNG» passt in die schmale Spalte */
+    font-size: 0.58rem; /* «MELDEN» passt in die schmale Spalte */
     letter-spacing: 0;
   }
   .rand :global(.alarm-halten) {
@@ -345,7 +400,7 @@
   .dock {
     width: 100%;
     display: flex;
-    /* waagrecht nicht mitwachsen: die Breite gehört den fünf Knöpfen */
+    /* waagrecht nicht mitwachsen: die Breite gehört den vier Knöpfen */
     gap: min(calc(6 * var(--u)), 6px);
     height: 70px;
     padding: 0 min(calc(8 * var(--u)), 8px) 8px;
@@ -353,7 +408,7 @@
   .dock > :global(*) {
     flex: 1 1 0;
     box-shadow: var(--schatten);
-    /* fünf Knöpfe auf Handybreite: die Beschriftung wächst nur, solange «SICHTUNG» in den Knopf passt */
+    /* vier Knöpfe auf Handybreite: die Beschriftung wächst nur, solange «MELDEN» in den Knopf passt */
     font-size: min(0.6rem, 2.5vw);
     letter-spacing: 0.02em;
   }
@@ -412,6 +467,36 @@
     bottom: calc(var(--unten) + 8px);
     width: min(420px, calc(100vw - var(--rechts) - 16px));
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* Melden-Wahl: zwei grosse Kacheln nebeneinander, den Ort setzt nebenMelden() */
+  .melden-wahl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    width: min(288px, calc(100vw - 16px));
+  }
+  .kachel {
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 6px;
+    min-height: min(104px, 40dvh);
+    padding: 8px 4px;
+    background: var(--bg);
+    font-size: 1rem;
+    font-weight: 700;
+  }
+  .kachel :global(.ikon) {
+    width: 34px;
+    height: 34px;
+  }
+  .kachel span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .kachel[aria-current='true'] {
+    border-color: var(--accent);
+    color: var(--accent);
   }
   .eintrag {
     display: flex;

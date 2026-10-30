@@ -32,7 +32,7 @@
 </script>
 
 <!-- Fläche ausserhalb des Rings: Tippen schliesst (pointerdown, damit die Karte darunter nichts abbekommt) -->
-<div class="aussen" role="presentation" onpointerdown={schliessen} oncontextmenu={(e) => e.preventDefault()}></div>
+<div class="aussen" role="presentation" onpointerdown={schliessen}></div>
 <div class="ring" role="menu" aria-label="Aktionen für {titel}" style:left="{mitte.x}px" style:top="{mitte.y}px">
   <button class="mitte" aria-label="Menü schliessen" onclick={schliessen}>✕</button>
   {#each aktionen as a, i (a)}
