@@ -1,12 +1,11 @@
-// WebSocket: Anmeldung per hallo, Snapshot, Deltas pro Lage, Rechte, Chat-Filter.
+// WebSocket: Anmeldung per hallo, Snapshot, Verteilung der Deltas pro Lage. Die fachlichen Regeln liegen in shared/regeln.
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, Server } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { ClientMsg, MAX_NACHRICHT, PING_MS, type Alarm, type Chat, type Lage, type Meldung, type Position, type ServerMsg, type Teilnehmer } from '../../shared/protocol.ts';
+import { ClientMsg, MAX_NACHRICHT, PING_MS, type Lage, type ServerMsg, type Teilnehmer } from '../../shared/protocol.ts';
+import { empfaengt, istAbgelehnt, sichtbar, sichtbareAuftraege, wende } from '../../shared/regeln/index.ts';
 import type { Db } from './db.ts';
-import { beendeAuftraege, sichtbareAuftraege, verarbeiteZeichnen } from './zeichnen.ts';
-import { verarbeiteRaster } from './raster.ts';
-import { verarbeiteTaufe } from './taufe.ts';
+import { sichtAusDb, speichere } from './regeln.ts';
 import { log, neuerCode, rateLimiter, sha256 } from './sicherheit.ts';
 
 const HALLO_TIMEOUT_MS = 5000;
@@ -15,20 +14,11 @@ const POS_MIN_ABSTAND_MS = 1000;
 const MAX_VERBINDUNGEN_JE_TEILNEHMER = 3;
 /** Je IP gleichzeitig offene Verbindungen ohne hallo. */
 const MAX_OHNE_HALLO_JE_IP = 20;
-export const MAX_MARKER_JE_LAGE = 2000;
-export const MAX_SICHTUNGEN_JE_LAGE = 2000;
 /** Snapshot: so viele Chats werden geladen, bevor nach Empfänger gefiltert wird (davon höchstens 500 gesendet). */
 const CHAT_SNAPSHOT_ROH = 2000;
 
 type Verbindung = { ws: WebSocket; lageId: string; id: string; rolle: Teilnehmer['rolle']; einheit: string; tokenHash: string; lebt: boolean };
 type Ich = { v: Verbindung; t: Teilnehmer; lage: Lage };
-
-export function sichtbar(c: Chat, empfaenger: { id: string; einheit: string }): boolean {
-  if (c.von === empfaenger.id) return true;
-  if (c.an.art === 'alle') return true;
-  if (c.an.art === 'einheit') return c.an.einheit === empfaenger.einheit;
-  return c.an.id === empfaenger.id;
-}
 
 export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage) => string) {
   const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_NACHRICHT });
@@ -68,12 +58,6 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
     if (!verbindungen(lageId).size) lagen.delete(lageId);
   }
 
-  function meldung(lageId: string, von: string, status: string | null, text: string): void {
-    const m: Meldung = { id: randomUUID(), von, status, text: text.slice(0, 200), t: Date.now() };
-    db.speichern(lageId, 'meldung', m, m.t);
-    anAlle(lageId, { typ: 'meldung', meldung: m });
-  }
-
   function snapshot(v: Verbindung, lage: Lage): ServerMsg {
     const ich = { id: v.id, einheit: v.einheit };
     return {
@@ -88,7 +72,7 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
       ebenen: db.ebenenSicherstellen(lage.id),
       zeichnungen: db.eintraege(lage.id, 'zeichnung'),
       taufen: db.eintraege(lage.id, 'taufe'),
-      bloodhound: sichtbareAuftraege(db, lage.id, v),
+      bloodhound: sichtbareAuftraege(db.eintraege(lage.id, 'bloodhound'), v),
       raster: db.eintraege(lage.id, 'raster'),
       alarme: db.eintraege(lage.id, 'alarm').filter((a) => a.aufgehobenAm === null),
       meldungen: db.eintraege(lage.id, 'meldung', 200),
@@ -134,152 +118,39 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
     anAlle(v.lageId, { typ: 'teilnehmer', teilnehmer: mitOnline(v.lageId, t) });
   }
 
-  const aktiveAlarme = (lageId: string, von: string): Alarm[] =>
-    db.eintraege(lageId, 'alarm').filter((a) => a.von === von && a.aufgehobenAm === null);
-
-  /** Position übernehmen: Teilnehmer, Spur (nur neue Fixes, kein Duplikat bei Stillstand), an alle. */
-  function positionVerteilen(ich: Ich, pos: Position): void {
-    if (!ich.t.pos || pos.t > ich.t.pos.t) db.spurAnhaengen(ich.lage.id, ich.t.id, pos);
-    speichereTeilnehmer(ich, { pos });
-    anAlle(ich.lage.id, { typ: 'pos', id: ich.t.id, pos });
-  }
-
-  function speichereTeilnehmer(ich: Ich, aenderung: Partial<Teilnehmer>): Teilnehmer {
-    const t = { ...ich.t, ...aenderung, zuletzt: Date.now() };
-    db.teilnehmerSpeichern(t);
-    return mitOnline(ich.lage.id, t);
+  /** Ein Delta der Regeln verteilen: gefiltert nach Empfänger, `online` aus den Verbindungen; Entfernen und Beenden werfen hinaus. */
+  function verteile(lageId: string, d: ServerMsg): void {
+    if (d.typ === 'teilnehmer') return anAlle(lageId, { typ: 'teilnehmer', teilnehmer: mitOnline(lageId, d.teilnehmer) });
+    if (d.typ === 'teilnehmer.weg') rauswerfen(lageId, d.id);
+    if (d.typ === 'chat' || d.typ === 'bloodhound') {
+      for (const e of verbindungen(lageId)) if (empfaengt(d, e)) senden(e.ws, d);
+      return;
+    }
+    anAlle(lageId, d);
+    if (d.typ === 'lage' && d.lage.beendetAm !== null) {
+      log('info', 'lage beendet', { lageId });
+      rauswerfen(lageId);
+    }
   }
 
   function verarbeite(ich: Ich, m: ClientMsg): void {
     const { v, t, lage } = ich;
-    const leitung = t.rolle === 'leitung';
     const jetzt = Date.now();
-    const u = {
-      db,
-      anAlle,
-      anLeitungUnd: (lageId: string, id: string, msg: ServerMsg) => {
-        for (const e of verbindungen(lageId)) if (e.rolle === 'leitung' || e.id === id) senden(e.ws, msg);
-      },
-      fehler: (text: string) => fehler(v, text),
-      meldung: (lageId: string, von: string, text: string) => meldung(lageId, von, null, text),
-    };
-    if (verarbeiteZeichnen(u, t, lage, m) || verarbeiteRaster(u, t, lage, m) || verarbeiteTaufe(u, t, lage, m)) return;
-    switch (m.typ) {
-      case 'hallo':
-        return fehler(v, 'Bereits angemeldet');
-      case 'pos': {
-        if (jetzt - (letztePos.get(t.id) ?? 0) < POS_MIN_ABSTAND_MS) return;
-        // Emission Control gilt nicht, solange ein eigener Alarm aktiv ist (wie ATAK-Notruf).
-        if (!t.sendetPos && !aktiveAlarme(lage.id, t.id).length) return;
-        letztePos.set(t.id, jetzt);
-        // staleNach ist per Schema schon auf ≤ STALE_MAX_MS begrenzt und wird unverändert mitgespeichert.
-        return positionVerteilen(ich, m.pos);
-      }
-      case 'sendetPos':
-        return anAlle(lage.id, { typ: 'teilnehmer', teilnehmer: speichereTeilnehmer(ich, { sendetPos: m.an }) });
-      case 'status': {
-        // der eigene, inzwischen aus dem Set entfernte Status bleibt für Freitext-Meldungen gültig
-        if (m.status !== t.status && !lage.statusSet.some((s) => s.key === m.status)) return fehler(v, 'Unbekannter Status');
-        anAlle(lage.id, { typ: 'teilnehmer', teilnehmer: speichereTeilnehmer(ich, { status: m.status, statusText: m.text }) });
-        return meldung(lage.id, t.id, m.status, m.text);
-      }
-      case 'marker.setzen': {
-        const alt = m.marker.id ? db.eintrag(lage.id, 'marker', m.marker.id) : undefined;
-        if (alt && alt.von !== t.id && !leitung) return fehler(v, 'Keine Berechtigung für diesen Marker');
-        const id = m.marker.id ?? randomUUID();
-        if (!alt && db.idVergeben('marker', id)) return fehler(v, 'Marker-ID bereits vergeben');
-        if (!alt && db.anzahl(lage.id, 'marker') >= MAX_MARKER_JE_LAGE) return fehler(v, 'Zu viele Marker in dieser Lage');
-        const marker = { ...m.marker, id, von: alt?.von ?? t.id, erstelltAm: alt?.erstelltAm ?? jetzt, geaendertAm: jetzt };
-        db.speichern(lage.id, 'marker', marker, marker.erstelltAm);
-        return anAlle(lage.id, { typ: 'marker', marker });
-      }
-      case 'marker.loeschen': {
-        const alt = db.eintrag(lage.id, 'marker', m.id);
-        if (!alt) return fehler(v, 'Marker nicht gefunden');
-        if (alt.von !== t.id && !leitung) return fehler(v, 'Keine Berechtigung für diesen Marker');
-        db.loeschen(lage.id, 'marker', m.id);
-        beendeAuftraege(u, lage.id, t.id, (a) => a.ziel.art === 'marker' && a.ziel.id === m.id, 'Marker gelöscht');
-        return anAlle(lage.id, { typ: 'marker.geloescht', id: m.id });
-      }
-      case 'chat': {
-        if (m.an.art === 'person' && !db.teilnehmerAktiv(lage.id, m.an.id)) return fehler(v, 'Empfänger nicht gefunden');
-        const chat: Chat = { id: randomUUID(), von: t.id, an: m.an, text: m.text, t: jetzt };
-        db.speichern(lage.id, 'chat', chat, jetzt);
-        for (const e of verbindungen(lage.id)) if (sichtbar(chat, e)) senden(e.ws, { typ: 'chat', chat });
-        return;
-      }
-      case 'sichtung': {
-        const { fotoId } = m.sichtung;
-        if (fotoId !== null && db.foto(fotoId)?.lageId !== lage.id) return fehler(v, 'Foto nicht gefunden');
-        if (db.anzahl(lage.id, 'sichtung') >= MAX_SICHTUNGEN_JE_LAGE) return fehler(v, 'Zu viele Sichtungen in dieser Lage');
-        const sichtung = { ...m.sichtung, id: randomUUID(), von: t.id, erstelltAm: jetzt };
-        db.speichern(lage.id, 'sichtung', sichtung, jetzt);
-        return anAlle(lage.id, { typ: 'sichtung', sichtung });
-      }
-      case 'alarm.ausloesen': {
-        if (!limitAlarme(t.id, jetzt)) return fehler(v, 'Zu viele Alarme – bitte kurz warten');
-        // Pro Person nur ein aktiver Alarm: ein neuer ersetzt den bestehenden.
-        for (const alt of aktiveAlarme(lage.id, t.id)) {
-          const aufgehoben = { ...alt, aufgehobenAm: jetzt };
-          db.speichern(lage.id, 'alarm', aufgehoben, aufgehoben.t);
-          anAlle(lage.id, { typ: 'alarm', alarm: aufgehoben });
-        }
-        if (m.pos) positionVerteilen(ich, m.pos);
-        const pos = m.pos ?? t.pos;
-        const alarm: Alarm = { id: randomUUID(), art: m.art, von: t.id, lat: pos?.lat ?? null, lon: pos?.lon ?? null, t: jetzt, quittiertVon: [], aufgehobenAm: null };
-        db.speichern(lage.id, 'alarm', alarm, jetzt);
-        anAlle(lage.id, { typ: 'alarm', alarm });
-        return meldung(lage.id, t.id, null, `Alarm ausgelöst: ${m.art === 'notfall' ? 'Notfall' : 'Feindkontakt'}`);
-      }
-      case 'alarm.quittieren': {
-        const alarm = db.eintrag(lage.id, 'alarm', m.id);
-        if (!alarm || alarm.aufgehobenAm !== null) return fehler(v, 'Alarm nicht aktiv');
-        if (alarm.quittiertVon.includes(t.id)) return;
-        const neu = { ...alarm, quittiertVon: [...alarm.quittiertVon, t.id] };
-        db.speichern(lage.id, 'alarm', neu, neu.t);
-        return anAlle(lage.id, { typ: 'alarm', alarm: neu });
-      }
-      case 'alarm.aufheben': {
-        const alarm = db.eintrag(lage.id, 'alarm', m.id);
-        if (!alarm || alarm.aufgehobenAm !== null) return fehler(v, 'Alarm nicht aktiv');
-        if (alarm.von !== t.id && !leitung) return fehler(v, 'Nur Auslöser oder Leitung können den Alarm aufheben');
-        const neu = { ...alarm, aufgehobenAm: jetzt };
-        db.speichern(lage.id, 'alarm', neu, neu.t);
-        anAlle(lage.id, { typ: 'alarm', alarm: neu });
-        return meldung(lage.id, t.id, null, `Alarm aufgehoben: ${alarm.art === 'notfall' ? 'Notfall' : 'Feindkontakt'}`);
-      }
-      case 'lage.statusSet': {
-        if (!leitung) return fehler(v, 'Nur für die Leitung');
-        if (new Set(m.statusSet.map((s) => s.key)).size !== m.statusSet.length) return fehler(v, 'Status-Schlüssel doppelt');
-        const neu = { ...lage, statusSet: m.statusSet };
-        db.lageSpeichern(neu);
-        return anAlle(lage.id, { typ: 'lage', lage: neu });
-      }
-      case 'lage.beenden': {
-        if (!leitung) return fehler(v, 'Nur für die Leitung');
-        const neu = { ...lage, beendetAm: jetzt };
-        db.lageSpeichern(neu);
-        anAlle(lage.id, { typ: 'lage', lage: neu });
-        log('info', 'lage beendet', { lageId: lage.id });
-        return rauswerfen(lage.id);
-      }
-      case 'lage.codeErneuern': {
-        if (!leitung) return fehler(v, 'Nur für die Leitung');
-        const teilnehmerCode = neuerCode(8);
-        db.teilnehmerCodeSetzen(lage.id, sha256(teilnehmerCode));
-        log('info', 'teilnehmer-code erneuert', { lageId: lage.id });
-        return senden(v.ws, { typ: 'code', teilnehmerCode });
-      }
-      case 'teilnehmer.entfernen': {
-        if (!leitung) return fehler(v, 'Nur für die Leitung');
-        if (m.id === t.id) return fehler(v, 'Sich selbst entfernen ist nicht möglich');
-        if (!db.teilnehmerEntfernen(lage.id, m.id)) return fehler(v, 'Teilnehmer nicht gefunden');
-        beendeAuftraege(u, lage.id, t.id, (a) => a.an === m.id, 'Empfänger entfernt');
-        beendeAuftraege(u, lage.id, t.id, (a) => a.ziel.art === 'teilnehmer' && a.ziel.id === m.id, 'Ziel entfernt');
-        rauswerfen(lage.id, m.id);
-        return anAlle(lage.id, { typ: 'teilnehmer.weg', id: m.id });
-      }
+    if (m.typ === 'hallo') return fehler(v, 'Bereits angemeldet');
+    if (m.typ === 'lage.codeErneuern') {
+      if (t.rolle !== 'leitung') return fehler(v, 'Nur für die Leitung');
+      const teilnehmerCode = neuerCode(8);
+      db.teilnehmerCodeSetzen(lage.id, sha256(teilnehmerCode));
+      log('info', 'teilnehmer-code erneuert', { lageId: lage.id });
+      return senden(v.ws, { typ: 'code', teilnehmerCode });
     }
+    if (m.typ === 'pos' && jetzt - (letztePos.get(t.id) ?? 0) < POS_MIN_ABSTAND_MS) return;
+    if (m.typ === 'alarm.ausloesen' && !limitAlarme(t.id, jetzt)) return fehler(v, 'Zu viele Alarme – bitte kurz warten');
+    const r = wende(sichtAusDb(db, lage), { autor: t, msg: m, jetzt, neueId: randomUUID });
+    if (istAbgelehnt(r)) return fehler(v, r.abgelehnt);
+    if (m.typ === 'pos' && r.deltas.length) letztePos.set(t.id, jetzt);
+    speichere(db, lage.id, r.aenderungen);
+    for (const d of r.deltas) verteile(lage.id, d);
   }
 
   wss.on('connection', (ws, req) => {

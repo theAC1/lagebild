@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ClientMsg, MAX_TAUF_PUNKTE, STANDARD_TAUFNAMEN, TAUF_FAMILIEN, taufSchluessel, type TaufeInput } from '../../shared/protocol.ts';
+import { ClientMsg, MAX_TAUF_PUNKTE, STANDARD_TAUFNAMEN, TAUF_FAMILIEN, taufSchluessel, type TaufeInput, type Teilnehmer } from '../../shared/protocol.ts';
 import { oeffneDb } from '../src/db.ts';
-import { doppelterListenName, MAX_TAUFEN_ZEICHEN_JE_LAGE, nameFrei, verarbeiteTaufe } from '../src/taufe.ts';
+import { doppelterListenName, istAbgelehnt, MAX_TAUFEN_ZEICHEN_JE_LAGE, nameFrei, wende, type Befehl } from '../../shared/regeln/index.ts';
+import { sichtAusDb, speichere } from '../src/regeln.ts';
 import { testServer, verbinde } from './helfer.ts';
 
 let s: Awaited<ReturnType<typeof testServer>>;
@@ -115,9 +117,12 @@ describe('Server: Taufen', () => {
     const lage = { id: 'L', name: 'L', statusSet: [], erstelltAm: 0, beendetAm: null };
     db.lageErstellen(lage, 'tn', 'ltg');
     const fehler: string[] = [];
-    const u = { db, anAlle: () => {}, anLeitungUnd: () => {}, fehler: (t: string) => void fehler.push(t), meldung: () => {} };
-    const t = { id: 'T', rolle: 'teilnehmer' } as Parameters<typeof verarbeiteTaufe>[1];
-    const sende = (m: ClientMsg) => verarbeiteTaufe(u, t, lage, m);
+    const t = { id: 'T', rolle: 'teilnehmer' } as Teilnehmer;
+    const sende = (m: Befehl) => {
+      const r = wende(sichtAusDb(db, lage), { autor: t, msg: m, jetzt: 1, neueId: randomUUID });
+      if (istAbgelehnt(r)) fehler.push(r.abgelehnt);
+      else speichere(db, lage.id, r.aenderungen);
+    };
     sende({ typ: 'taufe.neu', taufe: gebaeude('Gold') });
     expect(fehler).toEqual([]);
     db.speichern(lage.id, 'taufe', { id: 'polster', name: 'x', polster: 'x'.repeat(MAX_TAUFEN_ZEICHEN_JE_LAGE - db.groesse(lage.id, 'taufe') - 500) } as never, 0);

@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { standardEbeneId, STANDARD_STIL, ZeichnungInput, ClientMsg, type ZeichnungInput as ZInput } from '../../shared/protocol.ts';
+import { standardEbeneId, STANDARD_STIL, ZeichnungInput, ClientMsg, type Teilnehmer, type ZeichnungInput as ZInput } from '../../shared/protocol.ts';
 import { oeffneDb } from '../src/db.ts';
-import { MAX_ZEICHNUNGEN_ZEICHEN_JE_LAGE, verarbeiteZeichnen } from '../src/zeichnen.ts';
+import { istAbgelehnt, MAX_ZEICHNUNGEN_ZEICHEN_JE_LAGE, wende, type Befehl } from '../../shared/regeln/index.ts';
+import { sichtAusDb, speichere } from '../src/regeln.ts';
 import { pause, testServer, verbinde } from './helfer.ts';
 
 let s: Awaited<ReturnType<typeof testServer>>;
@@ -174,9 +176,12 @@ describe('Zeichnungen', () => {
     db.lageErstellen(lage, 'tn', 'ltg');
     const std = db.ebenenSicherstellen(lage.id)[0].id;
     const fehler: string[] = [];
-    const u = { db, anAlle: () => {}, anLeitungUnd: () => {}, fehler: (t: string) => void fehler.push(t), meldung: () => {} };
-    const t = { id: 'T', rolle: 'teilnehmer' } as Parameters<typeof verarbeiteZeichnen>[1];
-    const sende = (m: ClientMsg) => verarbeiteZeichnen(u, t, lage, m);
+    const t = { id: 'T', rolle: 'teilnehmer' } as Teilnehmer;
+    const sende = (m: Befehl) => {
+      const r = wende(sichtAusDb(db, lage), { autor: t, msg: m, jetzt: 1, neueId: randomUUID });
+      if (istAbgelehnt(r)) fehler.push(r.abgelehnt);
+      else speichere(db, lage.id, r.aenderungen);
+    };
     sende({ typ: 'zeichnung.neu', zeichnungen: [linie(std, { id: 'klein' })] });
     expect(fehler).toEqual([]);
     // Budget bis auf ~1000 Zeichen mit einem Füll-Eintrag ausschöpfen
