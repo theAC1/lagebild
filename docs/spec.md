@@ -264,7 +264,8 @@ Entscheide: README «Offline-Gebiete (30.10.)». Nutzungsbedingungen, Drosselung
 - **Keine doppelte Speicherung:** Der Workbox-Cache `swisstopo-kacheln` (angezeigte Kacheln, PWA) bleibt. Offline-Gebiete laden mit `cache: 'no-store'`, die Workbox-Route ignoriert diese Anfragen (`vite.config.ts`). Liegt eine Kachel schon im Workbox-Cache, wird sie verschoben statt neu geladen. Was im Offline-Speicher liegt, fragt die Karte gar nicht erst übers Netz an.
 - **Überlappung:** Gebiete teilen Kacheln. Löschen entfernt nur Kacheln, die kein anderes Gebiet braucht (aus den Rechtecken gerechnet, keine gespeicherten Zähler).
 - **Taufmodus später:** Die Vektorkacheln liegen unter `TAUFE_VT.vorlage` (`lib/karten.ts`). Eine Vektorquelle mit `tiles: [lokal(TAUFE_VT.vorlage)]` bekommt sie über denselben Weg zuerst lokal.
-- **Drosselung:** WMTS ≤ 6 Anfragen/s, Vektorkacheln ≤ 30/min, 4 gleichzeitig, 30 s Pause bei 429/5xx (`features/offline/laden.ts`).
+- **Drosselung:** WMTS ≤ 12 Anfragen/s (60 % des Fair-Use, Juan 30.10.), Vektorkacheln ≤ 30/min, 4 gleichzeitig, 30 s Pause bei 429/5xx (`features/offline/laden.ts`).
+- **Luftbild-Detail:** Vorgabe bis Zoom 19 (10×10 km ≈ 0,9 GB); «Volles Detail» bis Zoom 20 (≈ 3,7 GB) beim Aufziehen wählbar, sinnvoll für kleine Gebiete wie ein Piccolo-Objekt.
 
 ### Offene Punkte
 - Luftbild bis z20 braucht für 10 × 10 km ~3,7 GB und gedrosselt ~9 h (Landeskarte ~740 MB, ~2,3 h). Ob das Luftbild offline bei z19 aufhören soll (~0,9 GB), entscheidet Juan.

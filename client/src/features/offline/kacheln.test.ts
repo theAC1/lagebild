@@ -8,6 +8,8 @@ import {
   enthaelt,
   kachelBei,
   kachelVon,
+  karteDef,
+  LUFTBILD_STANDARD_Z,
   schaetzeBytes,
   UMGEBUNG_Z,
   urlVon,
@@ -36,7 +38,7 @@ describe('Kachel-Aufzählung', () => {
     const bs = bereiche({ bbox: THUN, karten: ['farbe', 'luftbild', 'taufe'] });
     const max = (k: string) => Math.max(...bs.filter((b) => b.karte === k).map((b) => b.z));
     expect(max('farbe')).toBe(19);
-    expect(max('luftbild')).toBe(20);
+    expect(max('luftbild')).toBe(LUFTBILD_STANDARD_Z); // ohne «Volles Detail»
     expect(max('taufe')).toBe(14);
     expect(Math.min(...bs.map((b) => b.z))).toBe(5);
     const z14 = bs.find((b) => b.karte === 'farbe' && b.z === 14)!;
@@ -132,5 +134,19 @@ describe('60-Tage-Ablauf', () => {
     const grenze = { ...gebiet('grenze', THUN), zuletztGenutzt: jetzt - ABLAUF_MS };
     const neu = { ...gebiet('neu', THUN), zuletztGenutzt: jetzt - 86_400_000 };
     expect(abgelaufen([alt, grenze, neu], jetzt).map((g) => g.id)).toEqual(['alt']);
+  });
+});
+
+describe('Luftbild-Detail', () => {
+  const bbox: Bbox = [7.6, 46.74, 7.62, 46.76];
+  const maxZ = (voll?: boolean) => Math.max(...bereiche({ bbox, karten: ['luftbild'], voll }).map((b) => b.z));
+  it('ohne «Volles Detail» endet das Luftbild bei LUFTBILD_STANDARD_Z, mit bei seinem Max-Zoom', () => {
+    expect(maxZ()).toBe(LUFTBILD_STANDARD_Z);
+    expect(maxZ(true)).toBe(karteDef('luftbild').maxzoom);
+    expect(karteDef('luftbild').maxzoom).toBeGreaterThan(LUFTBILD_STANDARD_Z);
+  });
+  it('die Landeskarte bleibt unberührt', () => {
+    const z = (voll?: boolean) => Math.max(...bereiche({ bbox, karten: ['farbe'], voll }).map((b) => b.z));
+    expect(z()).toBe(z(true));
   });
 });

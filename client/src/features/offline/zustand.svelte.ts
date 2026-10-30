@@ -115,17 +115,18 @@ async function halteAn(id: string): Promise<void> {
 
 // --- Aktionen ---
 
-export function neuesGebiet(bbox: Bbox, karten: OfflineKarte[], name: string, jetzt = Date.now()): Gebiet {
+export function neuesGebiet(bbox: Bbox, karten: OfflineKarte[], name: string, jetzt = Date.now(), voll = false): Gebiet {
   const g: Gebiet = {
     id: crypto.randomUUID(),
     name,
     bbox,
     karten,
+    voll,
     erstellt: jetzt,
     zuletztGenutzt: jetzt,
     status: 'laeuft',
     erledigt: 0,
-    gesamt: anzahl(bereiche({ bbox, karten })),
+    gesamt: anzahl(bereiche({ bbox, karten, voll })),
     bytes: 0,
   };
   offline.gebiete = [...offline.gebiete, g];

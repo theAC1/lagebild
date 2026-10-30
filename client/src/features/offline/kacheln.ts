@@ -21,6 +21,8 @@ export interface Gebiet {
   bytes: number;
   /** Aktualisieren: vorhandene Kacheln neu laden statt überspringen. */
   erneuern?: boolean;
+  /** Luftbild bis zum Max-Zoom statt bis LUFTBILD_STANDARD_Z (≈ 4× so viele Daten). */
+  voll?: boolean;
   /** Grund der letzten Unterbrechung, z.B. «Speicher voll». */
   fehler?: string;
 }
@@ -45,6 +47,9 @@ export const OFFLINE_KARTEN: KartenDef[] = [
 ];
 
 export const karteDef = (id: OfflineKarte): KartenDef => OFFLINE_KARTEN.find((k) => k.id === id)!;
+
+/** Luftbild ohne «Volles Detail» bis hierhin: 10×10 km ≈ 0,9 GB statt ≈ 3,7 GB bis z20 (Juan 30.10.). */
+export const LUFTBILD_STANDARD_Z = 19;
 
 /** Tiefste geladene Zoomstufe (Übersicht Schweiz). */
 export const MIN_Z = 5;
@@ -86,13 +91,14 @@ export function erweitere([w, s, e, n]: Bbox, km: number): Bbox {
 const beschneide = ([w, s, e, n]: Bbox): Bbox => [Math.max(w, ABDECKUNG[0]), Math.max(s, ABDECKUNG[1]), Math.min(e, ABDECKUNG[2]), Math.min(n, ABDECKUNG[3])];
 
 /** Kachelbereiche je Karte und Zoom in fester Reihenfolge (Karte, Zoom aufsteigend): grobe Übersicht kommt zuerst. */
-export function bereiche(g: Pick<Gebiet, 'bbox' | 'karten'>): Bereich[] {
+export function bereiche(g: Pick<Gebiet, 'bbox' | 'karten' | 'voll'>): Bereich[] {
   const innen = beschneide(g.bbox);
   const aussen = erweitere(g.bbox, UMGEBUNG_KM);
   const out: Bereich[] = [];
   for (const k of OFFLINE_KARTEN) {
     if (!g.karten.includes(k.id)) continue;
-    for (let z = MIN_Z; z <= k.maxzoom; z++) {
+    const maxz = k.id === 'luftbild' && !g.voll ? Math.min(k.maxzoom, LUFTBILD_STANDARD_Z) : k.maxzoom;
+    for (let z = MIN_Z; z <= maxz; z++) {
       const [w, s, e, n] = z <= UMGEBUNG_Z ? aussen : innen;
       if (w >= e || s >= n) continue;
       out.push({ karte: k.id, z, x0: lon2x(w, z), x1: lon2x(e, z), y0: lat2y(n, z), y1: lat2y(s, z) });
@@ -141,7 +147,7 @@ export function kachelVon(url: string): Kachel | null {
 }
 
 /** Braucht das Gebiet diese Kachel? `nurInnen`: Umgebung (z ≤ UMGEBUNG_Z) nicht mitzählen. */
-export function enthaelt(g: Pick<Gebiet, 'bbox' | 'karten'>, k: Kachel, nurInnen = false): boolean {
+export function enthaelt(g: Pick<Gebiet, 'bbox' | 'karten' | 'voll'>, k: Kachel, nurInnen = false): boolean {
   if (nurInnen && k.z <= UMGEBUNG_Z) return false;
   const b = bereiche(g).find((x) => x.karte === k.karte && x.z === k.z);
   return !!b && k.x >= b.x0 && k.x <= b.x1 && k.y >= b.y0 && k.y <= b.y1;

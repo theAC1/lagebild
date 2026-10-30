@@ -187,9 +187,12 @@ test('Pausieren, Fortsetzen und Weiterladen nach Neuladen', async () => {
   await oeffneVerwaltung();
   await knopf('Neues Gebiet aufziehen').click();
   await ziehe(170, 330);
-  await knopf('Luftbild').click(); // bis z20: mehr Kacheln, das Gebiet ist nicht in ein paar Sekunden fertig
+  await knopf('Luftbild').click();
+  const ohne = Number((await page.getByRole('dialog', { name: 'Offline-Gebiet aufziehen' }).textContent())?.match(/\(([\d']+) Kacheln\)/)?.[1].replace(/'/g, ''));
+  await knopf('Volles Detail').click(); // bis z20: mehr Kacheln, das Gebiet ist nicht in ein paar Sekunden fertig
   const kacheln = Number((await page.getByRole('dialog', { name: 'Offline-Gebiet aufziehen' }).textContent())?.match(/\(([\d']+) Kacheln\)/)?.[1].replace(/'/g, ''));
   expect(kacheln).toBeGreaterThan(300);
+  expect(kacheln).toBeGreaterThan(ohne); // «Volles Detail» lädt das Luftbild eine Stufe tiefer
   await knopf('Weiter').click();
   await knopf('Laden').click();
   const g = gebiete().first();

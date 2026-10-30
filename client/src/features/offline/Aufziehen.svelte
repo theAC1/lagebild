@@ -14,10 +14,11 @@
 
   let bbox = $state<Bbox | null>(null);
   let karten = $state<OfflineKarte[]>(['farbe']);
+  let voll = $state(false); // Luftbild bis Max-Zoom statt LUFTBILD_STANDARD_Z
   let bestaetigen = $state(false);
   let start: LngLat | null = null;
 
-  const bs = $derived(bbox ? bereiche({ bbox, karten }) : []);
+  const bs = $derived(bbox ? bereiche({ bbox, karten, voll }) : []);
   const bytes = $derived(schaetzeBytes(bs));
   const km = $derived(bbox ? masseKm(bbox) : null);
   const frei = $derived(offline.speicher?.frei ?? null);
@@ -89,7 +90,7 @@
   function laden() {
     if (!bbox || zuWenig) return;
     const datum = new Date().toLocaleDateString('de-CH');
-    neuesGebiet(bbox, karten, `${store.lage?.name ?? 'Gebiet'} · ${datum}`);
+    neuesGebiet(bbox, karten, `${store.lage?.name ?? 'Gebiet'} · ${datum}`, Date.now(), voll && karten.includes('luftbild'));
     ende();
   }
 </script>
@@ -109,6 +110,12 @@
         <button aria-pressed={karten.includes(k.id)} onclick={() => umschalten(k.id)}>{k.label}</button>
       {/each}
     </div>
+    {#if karten.includes('luftbild')}
+      <div class="chips" role="group" aria-label="Luftbild-Detail">
+        <button aria-pressed={!voll} onclick={() => (voll = false)}>Luftbild Standard</button>
+        <button aria-pressed={voll} onclick={() => (voll = true)}>Volles Detail</button>
+      </div>
+    {/if}
     <div class="knoepfe">
       <button onclick={ende}>Abbrechen</button>
       <button class="primaer" disabled={!bbox || karten.length === 0} onclick={() => ((bestaetigen = true), void aktualisiereSpeicher())}>Weiter</button>

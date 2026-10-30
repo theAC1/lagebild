@@ -4,8 +4,8 @@ import { anzahl, bereiche, kachelBei, urlVon, type Gebiet } from './kacheln.ts';
 
 /** Gleichzeitige Anfragen eines Geräts. */
 export const PARALLEL = 4;
-/** Mindestabstand zwischen zwei Anfragen je Dienst: WMTS ≤ 6/s (Limit 1200/min), Vektorkacheln ≤ 30/min (Limit 40/min). */
-export const ABSTAND_MS: Record<string, number> = { 'wmts.geo.admin.ch': 1000 / 6, 'vectortiles.geo.admin.ch': 2000 };
+/** Mindestabstand zwischen zwei Anfragen je Dienst: WMTS ≤ 12/s (60 % des Limits 1200/min, Juan 30.10.), Vektorkacheln ≤ 30/min (Limit 40/min). */
+export const ABSTAND_MS: Record<string, number> = { 'wmts.geo.admin.ch': 1000 / 12, 'vectortiles.geo.admin.ch': 2000 };
 /** Pause nach Netzfehler bzw. Serverfehler (429/5xx), bevor dieselbe Kachel nochmals kommt. */
 export const WARTEN_NETZ_MS = 10_000;
 export const WARTEN_SERVER_MS = 30_000;
