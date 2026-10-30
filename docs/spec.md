@@ -600,3 +600,35 @@ Host ist ausgelastet: Werte schwanken um ±15 %.
 | `/api/spuren` 1 h / alles | 2.3 MB / 9.1 MB roh (Cloudflare komprimiert HTTP ohnehin) |
 | Position je Nachricht | 183 B; Server ≈ 1 ms CPU je Position inkl. Verteilen an 50 |
 | `docs/screens/` | 136 MB, 87 PNG, jeder E2E-Lauf schreibt sie neu (bis 7 MB je Bild) |
+
+### Nachher (perf-welle2), gleiche Messung
+
+Browser-Werte aus `e2e/lastmessung.ts` (kein Test, Aufruf im Kopf der Datei), je zwei Läufe vorher/nachher abwechselnd.
+
+| Was | vorher | nachher | Commit |
+|---|---|---|---|
+| Ruhe, 49 Geräte live | 22 Bilder/s, Layout 249 ms/s | 28 Bilder/s, Layout 178 ms/s | Rufnamen entzerren ohne erzwungenes Layout |
+| alle Spuren (1 h) sichtbar | 7.5 Bilder/s | 33 Bilder/s | Spuren höchstens 1×/s an die Karte (Spurende hinkt ≤ 1 s) |
+| Start bis 49 Symbole | 2.4 s | 2.0 s | Taufe-Beschriftung: erst schreiben, dann messen (`ordne()` 498 → 192 ms, läuft auch bei jedem Kartenende) |
+| Start-JS | 2605 kB / gzip 716 kB | 2572 kB / gzip 703 kB | QR-Code und PDF-Druck per `import()` |
+| Snapshot über die Leitung | 1225 kB | 357 kB | permessage-deflate ab 1 KB, ohne Context-Takeover |
+| Server-CPU, 500 Positionen an 50 | 410 ms | 440 ms (Rauschen) | Positionen bleiben unkomprimiert |
+| E2E ganz (86 Tests) | 5.5 min, 87 PNG neu im Repo | 5.0 min, keine Dateien | Doku-Bilder nur mit `E2E_BILDER=1` |
+
+**Bildschirmfotos (Entscheid):** E2E schreibt `docs/screens/*.png` nur noch mit `E2E_BILDER=1`, sonst gar nicht. Format und
+Namen bleiben PNG, damit die Verweise in der Doku gültig bleiben; die vorhandenen 136 MB bleiben in Repo und Historie.
+JPEG hätte die Bilder verkleinert, aber jede Erneuerung ändert dann trotzdem alle Dateien; «nur auf Wunsch» spart beides.
+
+**Bewusst nicht gemacht (Messung rechtfertigt es nicht oder Nutzen zu klein):**
+- milsymbol ohne Buchstaben-SIDC-Sätze: nur −210 kB roh / −26 kB gzip, bräuchte einen Tiefen-Import an den `exports` des
+  Pakets vorbei. MapLibre und milsymbol braucht die Karte beim Start, zod und proj4 ebenso.
+- Cache für milsymbol-SVG: 0.04 ms je Zeichen; Marker werden nur bei Kurs-/Status-/Grössenwechsel neu gebaut.
+- Zeichnungen und Taufnamen als DOM-Marker (~800 bei diesem Lastbild) bremsen das Schwenken spürbar (headless ohne GPU:
+  110 → 24 Bilder/s mit statt ohne). Umbau auf Symbol-Layer wäre gross; erst auf echtem Gerät nachmessen.
+- `interaktion.ts` (Fang projiziert alle Zeichnungen je Mausbewegung) und `ZeichnenLayer` (alles neu je Änderung) betreffen
+  nur das Zeichnen am Desktop; `taufe/darstellung` O(n²) tauchte im Profil nicht auf.
+- `/api/spuren`: 1 h = 2.3 MB roh, 358 kB gzip; Cloudflare komprimiert HTTP ohnehin. Nur lat/lon/t zu senden oder
+  Koordinaten zu runden wäre eine Vertragsänderung.
+- SQLite: alle häufigen Abfragen laufen über Indizes (EXPLAIN geprüft), nur `foto` nach Lage scannt (selten, klein).
+- Nach dem Deploy prüfen: handelt der Cloudflare-Tunnel permessage-deflate aus? (DevTools › Netzwerk › `/ws` ›
+  Antwort-Header `Sec-WebSocket-Extensions`). Sonst bleibt alles wie vorher, nur ohne die Ersparnis.
