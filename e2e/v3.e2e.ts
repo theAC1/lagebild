@@ -43,7 +43,13 @@ const ruhig = (p: Page) => sheets(p).evaluateAll((els) => Promise.all(els.flatMa
 /** Zählt Klicks/Tipps, die ein Ablauf braucht. */
 function zaehler(p: Page) {
   let n = 0;
-  return { tippe: async (name: string | RegExp) => (n++, knopf(p, name).click()), get anzahl() { return n; } };
+  return {
+    tippe: async (name: string | RegExp) => (n++, knopf(p, name).click()),
+    waehle: async (name: string) => (n++, p.getByRole('menuitem', { name, exact: true }).click()),
+    get anzahl() {
+      return n;
+    },
+  };
 }
 
 test.beforeAll(async ({ browser }) => {
@@ -63,14 +69,18 @@ test.afterAll(async () => {
 
 test('Handy quer 844×390: Melden links, Karte rechts, grosse Ziele, schlanke Kopfzeile', async () => {
   const status = await box(leitung, /^Eigener Status/);
-  const sichtung = await box(leitung, 'Sichtung');
+  const melden = await box(leitung, 'Melden');
   const alarm = await box(leitung, /^Alarm/);
   expect(status.x + status.width).toBeLessThan(100);
-  expect(sichtung.y).toBeGreaterThan(status.y); // Status oben, darunter Sichtung, Alarm ganz unten
+  expect(melden.x + melden.width).toBeLessThan(100);
+  expect(melden.y).toBeGreaterThan(status.y); // Status oben, darunter Melden, Alarm ganz unten
   expect(alarm.x + alarm.width).toBeLessThan(100);
   expect(alarm.y + alarm.height).toBeGreaterThan(QUER.height - 80);
+  // Sichtung und Marker nur noch über «Melden»
+  await expect(knopf(leitung, 'Sichtung')).toHaveCount(0);
+  await expect(knopf(leitung, 'Marker')).toHaveCount(0);
 
-  for (const name of ['Marker', 'Chat', 'Mehr']) {
+  for (const name of ['Chat', 'Mehr']) {
     const b = await box(leitung, name);
     expect(b.x).toBeGreaterThan(QUER.width - 100);
     expect(b.y).toBeGreaterThan(QUER.height / 2); // rechts unten
@@ -85,7 +95,7 @@ test('Handy quer 844×390: Melden links, Karte rechts, grosse Ziele, schlanke Ko
   // Karte randlos: ohne offenes Panel über die ganze Fläche, die Knöpfe schweben darüber
   const karte = (await leitung.locator('.maplibregl-canvas').boundingBox())!;
   expect(karte).toMatchObject({ x: 0, y: 0, width: QUER.width, height: QUER.height });
-  expect(Math.min(status.width, status.height, sichtung.height)).toBeGreaterThanOrEqual(56);
+  expect(Math.min(status.width, status.height, melden.height)).toBeGreaterThanOrEqual(56);
 
   // Kopfzeile: Lage, Verbindung, Zahl der Teilnehmenden – keine weiteren Knöpfe
   const kopf = leitung.locator('header.kopf');
@@ -101,6 +111,7 @@ test('Mehr-Menü: übrige Werkzeuge, Panels zwischen linkem Rand und Karte', asy
   const menu = leitung.getByRole('menu', { name: 'Mehr' });
   for (const name of ['Range & Bearing', 'Spuren', 'Zeichnen', 'Leitung', 'Teilnehmende', 'Einstellungen', 'Meldungslog'])
     await expect(menu.getByRole('menuitem', { name })).toBeVisible();
+  for (const name of ['Sichtung', 'Marker']) await expect(menu.getByRole('menuitem', { name })).toHaveCount(0); // nur über «Melden»
   await bild(leitung, 'mehr');
   await menu.getByRole('menuitem', { name: 'Meldungslog' }).click();
   await expect(menu).toHaveCount(0);
@@ -133,7 +144,7 @@ test('Status mit einem Tipp (zwei mit Öffnen), Panel schliesst sich', async () 
 test('Hochformat 390×844: Dock unten, Alarm links darüber, Kartenknöpfe rechts', async () => {
   const dock = bravo.getByRole('navigation', { name: 'Hauptaktionen' });
   const namen = await dock.getByRole('button').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''));
-  expect(namen.map((n) => n.split(/[:(]/)[0].trim())).toEqual(['Eigener Status', 'Marker', 'Sichtung', 'Chat', 'Mehr']);
+  expect(namen.map((n) => n.split(/[:(]/)[0].trim())).toEqual(['Eigener Status', 'Melden', 'Chat', 'Mehr']);
   const d = (await dock.boundingBox())!;
   expect(d.y + d.height).toBeGreaterThan(HOCH.height - 2);
   for (const b of await dock.getByRole('button').evaluateAll((els) => els.map((e) => e.getBoundingClientRect())))
@@ -146,10 +157,38 @@ test('Hochformat 390×844: Dock unten, Alarm links darüber, Kartenknöpfe recht
   await bild(bravo, 'hoch');
 });
 
-test('Sichtung in drei Tipps: Sichtung → Hier → Senden (Chips mit Vorgaben)', async () => {
+test('Melden-Wahl: zwei Kacheln direkt neben dem Knopf (quer rechts, hoch darüber), daneben tippen oder Esc schliesst', async () => {
+  for (const [p, quer] of [[leitung, true], [bravo, false]] as const) {
+    await knopf(p, 'Melden').click();
+    const wahl = p.getByRole('menu', { name: 'Melden' });
+    await expect(wahl.getByRole('menuitem')).toHaveText(['Sichtung', 'Marker']);
+    await expect(knopf(p, 'Melden')).toHaveAttribute('aria-expanded', 'true');
+    await expect(wahl).toBeInViewport({ ratio: 1 });
+    const k = await box(p, 'Melden');
+    const w = (await wahl.boundingBox())!;
+    for (const kachel of await wahl.getByRole('menuitem').all()) expect(Math.min(...Object.values((await kachel.boundingBox())!).slice(2))).toBeGreaterThanOrEqual(56);
+    if (quer) {
+      expect(w.x).toBeGreaterThanOrEqual(k.x + k.width); // rechts daneben, auf Höhe des Knopfs
+      expect(w.x - (k.x + k.width)).toBeLessThan(20);
+      expect(w.y).toBeLessThan(k.y + k.height);
+      expect(w.y + w.height).toBeGreaterThan(k.y);
+    } else {
+      expect(w.y + w.height).toBeLessThanOrEqual(k.y); // darüber
+      expect(k.y - (w.y + w.height)).toBeLessThan(20);
+    }
+    await bild(p, `melden-${quer ? 'quer' : 'hoch'}`);
+    if (quer) await p.mouse.click(QUER.width / 2, QUER.height - 40); // daneben tippen
+    else await p.keyboard.press('Escape');
+    await expect(wahl).toHaveCount(0);
+    await expect(p.locator('.kreuz')).toHaveCount(0); // nichts ausgelöst
+  }
+});
+
+test('Sichtung in vier Tipps: Melden → Sichtung → Hier → Senden (Chips mit Vorgaben)', async () => {
   const vorher = await leitung.locator('.sichtung-symbol').count();
   const z = zaehler(bravo);
-  await z.tippe('Sichtung');
+  await z.tippe('Melden');
+  await z.waehle('Sichtung');
   await expect(bravo.locator('.kreuz')).toBeVisible();
   await z.tippe('Hier');
   const panel = bravo.getByRole('region', { name: 'Sichtung' });
@@ -162,20 +201,21 @@ test('Sichtung in drei Tipps: Sichtung → Hier → Senden (Chips mit Vorgaben)'
   await bild(bravo, 'sichtung-chips');
   await panel.getByRole('group', { name: 'Tätigkeit' }).getByRole('button', { name: 'unbekannt' }).click();
   await z.tippe('Senden');
-  expect(z.anzahl).toBe(3);
+  expect(z.anzahl).toBe(4);
   await expect(bravo.locator('.toast', { hasText: 'Sichtung gemeldet' })).toBeVisible();
   await expect(sheets(bravo)).toHaveCount(0);
   await expect(leitung.locator('.sichtung-symbol')).toHaveCount(vorher + 1);
 });
 
-test('Marker per Fadenkreuz: Marker → Setzen, letztes Zeichen, ohne Bezeichnung; danach bearbeiten', async () => {
+test('Marker per Fadenkreuz: Melden → Marker → Setzen, letztes Zeichen, ohne Bezeichnung; danach bearbeiten', async () => {
   const marker = leitung.locator('.lage-marker');
   const vorher = await marker.count();
   const z = zaehler(leitung);
-  await z.tippe('Marker');
+  await z.tippe('Melden');
+  await z.waehle('Marker');
   await expect(leitung.locator('.kreuz')).toBeVisible();
   await z.tippe('Setzen');
-  expect(z.anzahl).toBe(2);
+  expect(z.anzahl).toBe(3);
   await expect(marker).toHaveCount(vorher + 1);
   await expect(bravo.locator('.lage-marker')).toHaveCount(vorher + 1);
   await expect(marker.last()).toHaveAttribute('aria-label', 'Marker Unbestimmt'); // ohne Bezeichnung: Name aus dem Zeichen
@@ -241,8 +281,8 @@ test('Tablet quer 1180×820: Ränder bleiben, zwei Panels zwischen Rand und Kart
   const links = await box(leitung, /^Eigener Status/);
   const a = (await sheets(leitung).nth(0).boundingBox())!;
   expect(a.x).toBeGreaterThanOrEqual(links.x + links.width);
-  const marker = await box(leitung, 'Marker');
-  expect(marker.x).toBeGreaterThan(1180 - 100);
+  const mehr = await box(leitung, 'Mehr');
+  expect(mehr.x).toBeGreaterThan(1180 - 100);
   await bild(leitung, 'tablet');
   await leitung.keyboard.press('Escape');
   await leitung.keyboard.press('Escape');
@@ -251,7 +291,7 @@ test('Tablet quer 1180×820: Ränder bleiben, zwei Panels zwischen Rand und Kart
 
 test('Niedriges Handy quer 740×360: alle Randknöpfe ganz sichtbar, Hauptaktionen ≥ 56 px', async () => {
   await leitung.setViewportSize({ width: 740, height: 360 });
-  for (const name of [/^Eigener Status/, 'Sichtung', /^Alarm/, 'Karte nach Norden ausrichten', 'Marker', /^Chat/, 'Mehr']) await expect(knopf(leitung, name)).toBeInViewport({ ratio: 1 });
+  for (const name of [/^Eigener Status/, 'Melden', /^Alarm/, 'Karte nach Norden ausrichten', /^Chat/, 'Mehr']) await expect(knopf(leitung, name)).toBeInViewport({ ratio: 1 });
   expect((await box(leitung, 'Mehr')).height).toBeGreaterThanOrEqual(56);
   await leitung.setViewportSize(QUER);
 });

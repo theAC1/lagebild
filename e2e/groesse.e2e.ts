@@ -5,6 +5,7 @@ const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const SIDC = '10031000001211000000';
 const HOCH = { width: 390, height: 844 };
 const QUER = { width: 844, height: 390 };
+const NIEDRIG = { width: 740, height: 360 };
 const KARTEN = ['Karte und Ebenen wählen', 'Eigener Position folgen', 'Karte nach Norden ausrichten'];
 type Box = { x: number; y: number; width: number; height: number };
 
@@ -73,6 +74,23 @@ async function pruefe(p: Page, viewport: typeof HOCH) {
   const lage = (await p.locator('header.kopf .lage').boundingBox())!;
   expect(lage.height).toBeLessThan(kopf.height);
 
+  // Melden-Wahl: ganz im Bild, Kacheln ≥ 56 px, überdecken weder einander noch den Melden-Knopf
+  const melden = knopf(p, 'Melden');
+  await melden.click();
+  const wahl = p.getByRole('menu', { name: 'Melden' });
+  await expect(wahl).toBeInViewport({ ratio: 1 });
+  const mk = (await melden.boundingBox())!;
+  const kacheln: Box[] = [];
+  for (const el of await wahl.getByRole('menuitem').all()) kacheln.push((await el.boundingBox())!);
+  expect(kacheln).toHaveLength(2);
+  expect(schneiden(kacheln[0], kacheln[1]), 'Kacheln ↔ einander').toBe(false);
+  for (const k of kacheln) {
+    expect(Math.min(k.width, k.height), 'Kachel ≥ 56 px').toBeGreaterThanOrEqual(56);
+    expect(schneiden(k, mk), 'Kachel ↔ Melden').toBe(false);
+  }
+  await p.touchscreen.tap(viewport.width / 2, viewport.height * (quer ? 0.85 : 0.4)); // daneben tippen schliesst
+  await expect(wahl).toHaveCount(0);
+
   if (quer) {
     // ohne Panel: freie Karte zwischen den Rändern und unter der Kopfzeile ≥ 55 % der Fläche
     const links = (await p.locator('aside.rand.links').boundingBox())!;
@@ -92,6 +110,7 @@ async function bild(p: Page, name: string) {
 for (const [ansicht, viewport] of [
   ['hoch', HOCH],
   ['quer', QUER],
+  ['niedrig', NIEDRIG],
 ] as const) {
   test(`Touch ${ansicht} ${viewport.width}×${viewport.height}: Normal mit grösserer Schrift, alles ≥ 48 px ohne Überlappung`, async ({ browser }) => {
     const p = await handy(browser, viewport, 'normal', `N-${ansicht}`);

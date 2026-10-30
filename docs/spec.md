@@ -112,7 +112,7 @@ Rechte: alle dürfen zeichnen; bearbeiten/löschen nur Ersteller und Leitung (wi
 Anlass: Juan beim Test auf dem Handy: «die Bedienung [ist] sehr prototypmäßig … nicht da, wo dann auch wirklich ein Button oder so logisch wäre». Störfaktoren laut Juan: Wege zu lang, Knöpfe verstreut, Optik wirkt roh. Dass die Karte verdeckt ist, stört ihn nicht.
 
 ### Grundsatz
-- **Karte zuerst.** Aktionen löst man am Ort aus, per Tippen, Langdruck oder Radial-Menü. Fest sichtbar sind nur vier Hauptaktionen: **Status, Marker, Sichtung, Chat**.
+- **Karte zuerst.** Aktionen löst man am Ort aus, per Tippen, Langdruck oder Radial-Menü. Fest sichtbar sind nur die Hauptaktionen **Status, Melden, Chat** (seit 30.10.: «Melden» öffnet daneben zwei grosse Kacheln **Sichtung** und **Marker**, weil der Unterschied als getrennte Knöpfe nicht klar war).
 - Alles Übrige kommt ins **Mehr-Menü**: Range & Bearing, Spuren, Zeichnen, Leitung, Teilnehmende, Einstellungen.
 - Optimiert wird für das **Querformat**: Handy oder Tablet mit zwei Händen, im Fahrzeug oder am Tisch. Das Hochformat übernimmt das Konzept.
 - **Testbetrieb:** Unter Einstellungen gibt es «Bedienung: Klassisch / Daumen-Ränder», pro Gerät gemerkt. Getestet wird in einer echten Lage. Die Variante, die verliert, wird danach entfernt.
@@ -125,7 +125,7 @@ Juan: «Im Gefecht oder im Einsatz selber hat man keine Zeit, um groß dann mit 
 - Das gilt für beide Varianten (Klassisch und Daumen-Ränder). Die Einstellung «Bedienung» betrifft nur die Anordnung.
 
 ### Meldungen mit Chips
-- **Sichtung (SALUTE):** Der Ablauf ist Tipp auf «Sichtung», dann Fadenkreuz (oder der Langdruck-Punkt), dann «Hier», dann die Chips, dann «Senden». Im Minimum sind das drei Tipps.
+- **Sichtung (SALUTE):** Der Ablauf ist Tipp auf «Melden», dann «Sichtung», dann Fadenkreuz (oder der Langdruck-Punkt), dann «Hier», dann die Chips, dann «Senden». Im Minimum sind das vier Tipps.
   - Art (setzt das Symbol, Vorgabe Feind): Infanterie · Schützenpanzer · Panzer · Rad-Fahrzeug · Drohne · Scharfschütze · Unbekannt (Vorgabe). Ein Chip wechselt die Zugehörigkeit auf Unbekannt oder Neutral.
   - Grösse: 1 Person · Trupp (2–4) · Gruppe (~10) · Zug (~30) · Kompanie+ · unbekannt (Vorgabe).
   - Tätigkeit: bewegt sich · in Stellung · beobachtet · schiesst · sperrt/baut · ruht · unbekannt (Vorgabe). Bei «bewegt sich» erscheint eine Zeile mit der Richtung: N NO O SO S SW W NW.
@@ -140,15 +140,15 @@ Juan: «Im Gefecht oder im Einsatz selber hat man keine Zeit, um groß dann mit 
 
 ### Layout «Daumen-Ränder»
 - **Querformat:**
-  - Linker Rand für das Melden: oben Status mit dem aktuellen Status als Farbe und Text, darunter Sichtung, ganz unten Alarm.
-  - Rechter Rand: oben die Kartenknöpfe (Ebenen, Folgen, Nordung), unten Marker, Chat und Mehr.
+  - Linker Rand für das Melden: oben Status mit dem aktuellen Status als Farbe und Text, darunter Melden, ganz unten Alarm.
+  - Rechter Rand: oben die Kartenknöpfe (Ebenen, Folgen, Nordung), unten Chat und Mehr.
   - Die Kopfzeile ist schlank: Lage, Verbindung, Zahl der Teilnehmenden.
-- **Hochformat:** Ein Dock unten mit Status, Marker, Sichtung, Chat und Mehr. Die Kartenknöpfe liegen rechts, der Alarm-Knopf links unten über dem Dock.
+- **Hochformat:** Ein Dock unten mit Status, Melden, Chat und Mehr. Die Kartenknöpfe liegen rechts, der Alarm-Knopf links unten über dem Dock.
 - Panels öffnen wie in v2: im Querformat als Seitenpanel, im Hochformat als Sheet unten.
 
 ### Abläufe
 - **Status:** Ein Tipp öffnet die Auswahl, ein Tipp auf einen Status meldet ihn. Freitext bleibt optional. Das sind höchstens zwei Tipps.
-- **Marker:** Ein Tipp blendet das Fadenkreuz in der Kartenmitte ein. Man schiebt die Karte und tippt «Setzen». Der Marker entsteht mit dem zuletzt benutzten Symbol und ohne Bezeichnung. Danach kann man ihn bearbeiten (Symbol, Name, Notiz), muss aber nicht.
+- **Marker:** «Melden» → «Marker» blendet das Fadenkreuz in der Kartenmitte ein. Man schiebt die Karte und tippt «Setzen». Der Marker entsteht mit dem zuletzt benutzten Symbol und ohne Bezeichnung. Danach kann man ihn bearbeiten (Symbol, Name, Notiz), muss aber nicht.
 - **Alarm:** 1,5 s gedrückt halten, dabei füllt sich ein Ring. Danach wählt man Notfall oder Feindkontakt. Loslassen vor Ablauf bricht ab. Der Alarm ist ohne Hinsehen auslösbar, versehentliches Auslösen ist ausgeschlossen.
 - **Tag/Nacht automatisch nach Sonnenstand:** Liegt die Sonne über dem Horizont, gilt der Tagmodus (hell), sonst der dunkle Modus. Gerechnet wird mit der eigenen Position, ohne GPS mit der Kartenmitte. Die App prüft minütlich. Es gibt keinen Schalter.
 
