@@ -38,7 +38,7 @@ export function wendeZeichnen(z: Zustand, e: Ereignis & { msg: ZeichnenBefehl })
         if (x.id) ids.add(x.id);
       }
       if (z.anzahl('zeichnung') + m.zeichnungen.length > MAX_ZEICHNUNGEN_JE_LAGE) return nein('Zu viele Zeichnungen in dieser Lage');
-      const neu: Zeichnung[] = m.zeichnungen.map((x) => ({ ...x, id: x.id ?? e.neueId(), von: t.id, erstelltAm: jetzt, geaendertAm: jetzt }));
+      const neu: Zeichnung[] = m.zeichnungen.map((x) => ({ ...x, id: x.id ?? e.neueId(), von: leitung && x.von ? x.von : t.id, erstelltAm: jetzt, geaendertAm: jetzt }));
       if (z.groesse('zeichnung') + zeichen(neu) > MAX_ZEICHNUNGEN_ZEICHEN_JE_LAGE) return nein('Zu viele Zeichnungsdaten in dieser Lage');
       for (const x of neu) l.tu({ was: 'speichern', art: 'zeichnung', obj: x, t: x.erstelltAm });
       l.sende({ typ: 'zeichnungen', zeichnungen: neu });
