@@ -2,6 +2,7 @@
   // Radial «Koordinate» auf leerer Karte: der Punkt in drei Formaten zum Kopieren, dazu Distanz/Azimut von mir.
   // Kompakt, damit sie auch auf 740×360 quer bei «Sehr gross» ganz im Bild steht; Tippen daneben oder Esc schliesst.
   import { azimut, distanz, formatDistanz, formatLv95, formatMgrs, formatRichtung, formatWgs84 } from '../lib/coords.ts';
+  import { rasterAnsprachen } from '../features/raster/zustand.svelte.ts';
   import { getMap, markierePunkt } from '../lib/map.ts';
   import { store } from '../lib/store.svelte.ts';
   import { ikon, toast, ui } from '../lib/ui.svelte.ts';
@@ -14,6 +15,8 @@
       { label: 'LV95', wert: formatLv95(punkt) },
       { label: 'MGRS', wert: formatMgrs(punkt) },
       { label: 'WGS84', wert: formatWgs84(punkt) },
+      // fixierte Führungsraster: «Grande H 09 C» als eigene Zeile, kopierbar wie die Koordinaten
+      ...rasterAnsprachen(punkt).map((wert, i) => ({ label: i ? `Raster ${i + 1}` : 'Raster', wert })),
     ].map((z) => ({ ...z, teile: haelften(z.wert) })),
   );
   // Liegt der Punkt in der unteren Hälfte, steht die Karte oben (und umgekehrt): der Punkt bleibt sichtbar

@@ -1,15 +1,17 @@
 <script lang="ts">
   import { formatKoord, KOORD_FORMATE } from '../lib/coords.ts';
   import { formatAlter, setzeEinstellung, store } from '../lib/store.svelte.ts';
+  import { rasterAnsprachen } from '../features/raster/zustand.svelte.ts';
 
   const format = $derived(store.einstellungen.koordFormat);
+  const raster = $derived(rasterAnsprachen(store.meinePos));
   function naechstes() {
     const i = KOORD_FORMATE.findIndex((f) => f.id === format);
     setzeEinstellung('koordFormat', KOORD_FORMATE[(i + 1) % KOORD_FORMATE.length].id);
   }
 </script>
 
-<button class="leiste" onclick={naechstes} aria-label="Koordinatenformat wechseln">
+<button class="leiste" class:mit-raster={raster.length} onclick={naechstes} aria-label="Koordinatenformat wechseln">
   <span class="fmt">{KOORD_FORMATE.find((f) => f.id === format)?.label}</span>
   {#if store.meinePos}
     <span class="mono wert" class:alt={store.gpsFehler}>{formatKoord(store.meinePos, format)}</span>
@@ -17,6 +19,7 @@
       <!-- alte Koordinate nicht als aktuell ausgeben -->
       <span class="warnung" title={store.gpsFehler}>kein GPS · {formatAlter(Math.max(0, store.jetzt - store.meinePos.t))}</span>
     {:else if store.meinePos.ce != null}<span class="leise">±{Math.round(store.meinePos.ce)} m</span>{/if}
+    {#each raster as a (a)}<span class="mono raster">{a}</span>{/each}
   {:else}
     <span class="leise wert">{store.gpsFehler ?? 'Warte auf GPS …'}</span>
   {/if}
@@ -29,7 +32,7 @@
     min-height: 40px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 0 10px;
     padding: 0 12px;
     border: 0;
     border-radius: 0;
@@ -58,6 +61,18 @@
     font-size: 0.8rem;
     font-weight: 700;
     color: var(--warn);
+  }
+  /* mit Rasterzelle wird es auf dem Handy zu lang: dann zweite Zeile statt abgeschnitten */
+  .mit-raster {
+    flex-wrap: wrap;
+  }
+  .mit-raster .wert {
+    flex-basis: auto;
+  }
+  .raster {
+    flex: none;
+    font-weight: 700;
+    white-space: nowrap;
   }
   .emcon {
     font-size: 0.75rem;

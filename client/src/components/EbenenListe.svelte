@@ -1,5 +1,6 @@
 <script lang="ts">
   // Inhalt des Ebenen-Menüs (Basiskarte + Overlays); Position und Rahmen legt die jeweilige Bedienung fest.
+  import { features } from '../features/registry.ts';
   import { BASISKARTEN, OVERLAYS, type Overlay } from '../lib/karten.ts';
   import { setzeEinstellung, store } from '../lib/store.svelte.ts';
 
@@ -18,6 +19,15 @@
   <button class="ebene" aria-pressed={store.einstellungen.overlays.includes(o.id)} onclick={() => umschalten(o.id)}>
     <span class="haken" aria-hidden="true"></span>{o.label}
   </button>
+{/each}
+{#each features as f (f.id)}
+  {@const liste = f.ebenen?.() ?? []}
+  {#if liste.length}
+    <div class="gruppe">{f.label}</div>
+    {#each liste as e (e.label)}
+      <button class="ebene" aria-pressed={e.an} onclick={e.schalten}><span class="haken" aria-hidden="true"></span>{e.label}</button>
+    {/each}
+  {/if}
 {/each}
 
 <style>

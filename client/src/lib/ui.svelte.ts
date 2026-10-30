@@ -25,7 +25,7 @@ class UiZustand {
   oben = $state<string | null>(null);
   toasts = $state<{ id: number; text: string; knopf?: ToastKnopf }[]>([]);
   /** Aktiver Fadenkreuz-Modus (siehe map.ts waehlePunkt); `knopf` beschriftet die Bestätigung. */
-  punktWahl = $state<{ hinweis: string; knopf: string; fertig: (p: Punkt | null) => void } | null>(null);
+  punktWahl = $state<{ hinweis: string; knopf: string; extra?: ToastKnopf; fertig: (p: Punkt | null) => void } | null>(null);
   /** Radial «Koordinate» auf leerer Karte → Karte mit LV95/MGRS/WGS84 zu diesem Punkt. */
   koordinate = $state<Punkt | null>(null);
   /** Langdruck/Rechtsklick auf ein Symbol oder die leere Karte → Radial-Menü um (x, y) in Bildschirmpixeln. */

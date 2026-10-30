@@ -14,6 +14,7 @@ const feature: Feature = {
   nurLeitung,   // Knopf nur für die Leitung
   badge: () => n, // Zähler am Knopf, reaktiv gelesen (z.B. ungelesen)
   haupt: { aktion?, Knopf? }, // Bedienung «Daumen-Ränder»: fest sichtbare Hauptaktion statt Eintrag im Mehr-Menü
+  ebenen: () => [{ label, an, schalten }], // Schalter in der Ebenen-Auswahl unter der Überschrift `label` (z.B. Führungsraster)
 };
 ```
 
@@ -51,7 +52,7 @@ Konventionen für `params`: Chat `{ an: ChatZiel }`, Range & Bearing `{ ziel: { 
 
 ## lib/map.ts – Karte
 
-`getMap()` (in MapLayer sicher), `onMapReady(cb)`, `kartenMitte()`, `zentriere(p, zoom?)`, `folgeMir()`, `folgeTeilnehmer(id)`, `waehlePunkt(hinweis, knopf = 'Übernehmen'): Promise<Punkt | null>` (Fadenkreuz, Panels werden ausgeblendet), `markierePunkt(p)` → Entfernen-Funktion (Ring am Kartenpunkt).
+`getMap()` (in MapLayer sicher), `onMapReady(cb)`, `kartenMitte()`, `zentriere(p, zoom?)`, `folgeMir()`, `folgeTeilnehmer(id)`, `waehlePunkt(hinweis, knopf = 'Übernehmen', extra?): Promise<Punkt | null>` (Fadenkreuz, Panels werden ausgeblendet; `extra = { label, aktion }` als zusätzlicher Knopf, z.B. «Rasterposition»), `markierePunkt(p)` → Entfernen-Funktion (Ring am Kartenpunkt).
 
 ### Radial-Menü (Langdruck/Rechtsklick auf ein Symbol oder die leere Karte)
 
@@ -78,6 +79,7 @@ onDestroy(ab);
 - `lib/SymbolPicker.svelte`: `<SymbolPicker value={sidc} onchange={(s) => …} />`.
 - `lib/coords.ts`: `formatLv95/formatMgrs/formatWgs84/formatKoord`, `distanz`, `azimut`, `promille`, `formatDistanz`, `formatRichtung`, `versetze`, `kreis`.
 - `lib/team.ts`: `teamFarbe(einheit)` (ATAK-Teamfarbe, z.B. für Spuren je Einheit).
+- `features/raster/zustand.svelte.ts`: `rasterAnsprache(punkt)` → «Grande H 09 C · Piccolo B 03 A» oder `null` (nur fixierte Raster), `rasterAnsprachen(punkt)` als Liste. Geometrie/Ansprache rein in `shared/raster.ts`.
 - `lib/Platzhalter.svelte`: Stub-Panel.
 
 Stil: globale Klassen aus `app.css` (`button.primaer`, `button.gefahr`, `button.icon`, `.segmente`, `.chips`, `.gruppe-titel`, `.rand-knopf`, `label.feld`, `.mono`, `.leise`), Farben nur über Tokens (`--accent`, `--danger`, `--warn`, `--ok`, `--surface`, `--line`, `--text`; auf der Karte `--karte-bg`/`--karte-text`), weil `data-thema` nach Sonnenstand zwischen Nacht (dunkel-taktisch) und Tag (hell) wechselt. Touch-Ziele ≥ 48 px (`--touch`), Hauptaktionen ≥ 56 px (`--haupt`).

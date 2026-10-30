@@ -203,6 +203,33 @@ export const BloodhoundAuftrag = z.object({
 });
 export type BloodhoundAuftrag = z.infer<typeof BloodhoundAuftrag>;
 
+// --- Führungsraster (v4) -------------------------------------------------------
+
+/** Je Lage höchstens ein Raster je Art: Grande = Area of Interest (Achsen, Anfahrten), Piccolo = Area of Operation (Objekt). */
+export const RasterArt = z.enum(['grande', 'piccolo']);
+export type RasterArt = z.infer<typeof RasterArt>;
+export const RASTER_MAX_ZEILEN = 26; // A–Z
+export const RASTER_MAX_SPALTEN = 99; // 01–99
+export const RASTER_MAX_AUSDEHNUNG_M = 100_000;
+/** Rechteck parallel zum LV95-Gitter (nordausgerichtet, ungedreht); e/n = LV95 der Ecke oben links in m. */
+const RasterKern = z.object({
+  art: RasterArt,
+  e: z.number().min(2_400_000).max(2_900_000),
+  n: z.number().min(1_000_000).max(1_400_000),
+  zeilen: z.number().int().min(1).max(RASTER_MAX_ZEILEN),
+  spalten: z.number().int().min(1).max(RASTER_MAX_SPALTEN),
+  zellM: z.number().min(1).max(5000),
+});
+const pruefeRaster = (r: z.infer<typeof RasterKern>, ctx: z.RefinementCtx): void => {
+  if (Math.max(r.zeilen, r.spalten) * r.zellM > RASTER_MAX_AUSDEHNUNG_M) ctx.addIssue({ code: 'custom', path: ['zellM'], message: 'Raster zu gross' });
+};
+export const RasterDef = RasterKern.superRefine(pruefeRaster);
+export type RasterDef = z.infer<typeof RasterDef>;
+/** Vom Server vergeben: id = rasterId(lageId, art); fixiert = für alle fest, nur die Leitung löst es. */
+export const Raster = RasterKern.extend({ id: Id, fixiert: z.boolean(), von: Id, geaendertAm: z.number() }).superRefine(pruefeRaster);
+export type Raster = z.infer<typeof Raster>;
+export const rasterId = (lageId: string, art: RasterArt): string => `${lageId}-raster-${art}`;
+
 export const ChatZiel = z.discriminatedUnion('art', [
   z.object({ art: z.literal('alle') }),
   z.object({ art: z.literal('einheit'), einheit: Text(32).min(1) }),
@@ -283,6 +310,11 @@ export const ClientMsg = z.discriminatedUnion('typ', [
   z.object({ typ: z.literal('bloodhound.quittieren'), id: Id }),
   z.object({ typ: z.literal('bloodhound.beendet'), id: Id }),
   z.object({ typ: z.literal('bloodhound.erreicht'), id: Id }),
+  // Führungsraster: erstellen alle (je Art eins); nicht fixiert ändern/fixieren/löschen Ersteller oder Leitung;
+  // fixiert nur noch die Leitung (lösen, löschen; ändern erst nach dem Lösen).
+  z.object({ typ: z.literal('raster.setzen'), raster: RasterDef }),
+  z.object({ typ: z.literal('raster.fixieren'), art: RasterArt, fixiert: z.boolean() }),
+  z.object({ typ: z.literal('raster.loeschen'), art: RasterArt }),
   z.object({ typ: z.literal('chat'), an: ChatZiel, text: Text(1000).min(1) }),
   z.object({ typ: z.literal('sichtung'), sichtung: SichtungInput }),
   // Position immer mitsenden, auch bei sendetPos=false (wie ATAK-Notruf). Pro Person nur ein aktiver Alarm:
@@ -313,6 +345,7 @@ export type ServerMsg =
       ebenen: Ebene[]; // nach reihenfolge; enthält immer die Standard-Ebene
       zeichnungen: Zeichnung[];
       bloodhound: BloodhoundAuftrag[]; // offene Aufträge: Leitung alle, sonst nur die an mich
+      raster: Raster[]; // Führungsraster der Lage (höchstens Grande und Piccolo)
       alarme: Alarm[]; // nicht aufgehobene
       meldungen: Meldung[]; // letzte 200
       serverZeit: number;
@@ -328,6 +361,8 @@ export type ServerMsg =
   | { typ: 'zeichnungen.geloescht'; ids: string[] }
   // Auftrag neu oder geändert (quittiert/beendet/aufgehoben/erreicht, `ende` gesetzt). Nur an Leitung und Empfänger.
   | { typ: 'bloodhound'; auftrag: BloodhoundAuftrag }
+  | { typ: 'raster'; raster: Raster } // neu oder geändert
+  | { typ: 'raster.geloescht'; art: RasterArt }
   | { typ: 'chat'; chat: Chat }
   | { typ: 'sichtung'; sichtung: Sichtung }
   | { typ: 'alarm'; alarm: Alarm }
