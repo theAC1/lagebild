@@ -30,6 +30,11 @@ describe('Verlauf', () => {
   it('löschen → rückgängig legt neu an', () => {
     expect(nachrichten({ typ: 'loeschen', zeichnungen: [z('a')] }, 'zurueck')).toEqual([{ typ: 'zeichnung.neu', zeichnungen: [z('a')] }]);
   });
+  it('löschen → rückgängig behält den Ersteller (von) der Zeichnung', () => {
+    const msgs = nachrichten({ typ: 'loeschen', zeichnungen: [{ ...z('a'), von: 'fremd' }] }, 'zurueck');
+    expect(msgs[0]).toMatchObject({ typ: 'zeichnung.neu', zeichnungen: [{ id: 'a', von: 'fremd' }] });
+    expect(ClientMsg.safeParse(msgs[0]).success).toBe(true);
+  });
   it('Reihenfolge: zuletzt Getanes zuerst zurück; neue Aktion verwirft Wiederholen', () => {
     const v = new Verlauf();
     v.tue({ typ: 'neu', zeichnungen: [z('a')] });

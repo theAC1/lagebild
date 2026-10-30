@@ -194,8 +194,9 @@ function pruefeZeichnung(z_: ZeichnungPruefbar, ctx: z.RefinementCtx): void {
   if (z_.art === 'text' && !z_.text.length) f('text', 'Text fehlt');
 }
 
-/** Zeichnung ohne Server-Felder. `id` optional (Server vergibt sie sonst), z. B. für Kopieren/Einfügen. */
-export const ZeichnungInput = ZeichnungKern.extend({ id: Id.optional() }).superRefine(pruefeZeichnung);
+/** Zeichnung ohne Server-Felder. `id` optional (Server vergibt sie sonst), z. B. für Kopieren/Einfügen.
+ * `von`: nur die Leitung darf es setzen (Rückgängig nach Löschen einer fremden Zeichnung behält den Ersteller). */
+export const ZeichnungInput = ZeichnungKern.extend({ id: Id.optional(), von: Id.optional() }).superRefine(pruefeZeichnung);
 export type ZeichnungInput = z.infer<typeof ZeichnungInput>;
 /** Änderung: vollständiger neuer Inhalt (ersetzt), `id` Pflicht. Ebene darf wechseln. */
 export const ZeichnungAenderung = ZeichnungKern.extend({ id: Id }).superRefine(pruefeZeichnung);

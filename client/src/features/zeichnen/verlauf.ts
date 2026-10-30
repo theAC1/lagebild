@@ -7,7 +7,7 @@ export type ZInhalt = ZeichnungAenderung;
 export type Eintrag =
   | { typ: 'neu'; zeichnungen: ZInhalt[] }
   | { typ: 'aendern'; vorher: ZInhalt[]; nachher: ZInhalt[] }
-  | { typ: 'loeschen'; zeichnungen: ZInhalt[] };
+  | { typ: 'loeschen'; zeichnungen: (ZInhalt & { von?: string })[] };
 
 /** Liste in Stücke zu höchstens n (Server nimmt max. 100 je Nachricht). */
 export const stuecke = <T>(xs: T[], n = MAX_ZEICHNUNGEN_JE_MSG): T[][] => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, (i + 1) * n));
