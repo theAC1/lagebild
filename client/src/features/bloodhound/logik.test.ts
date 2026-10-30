@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ERREICHT_M, ErreichtWaechter, formatRestzeit, ladeLokal, naechsterTempo, restzeitS, stufe, type TempoZustand } from './logik.ts';
+import { ERREICHT_M, ErreichtWaechter, istErsetzt, formatRestzeit, ladeLokal, naechsterTempo, restzeitS, stufe, type TempoZustand } from './logik.ts';
 
 // 1 m Nord ≈ 1/111195 Grad
 const lauf = (schritte: number, mProS: number): TempoZustand => {
@@ -92,5 +92,15 @@ describe('lokaler Zustand', () => {
     expect(ladeLokal(JSON.stringify({ ziel: { art: 'marker' } }))).toBeNull();
     expect(ladeLokal('kaputt')).toBeNull();
     expect(ladeLokal(null)).toBeNull();
+  });
+});
+
+describe('Auftrag ersetzt', () => {
+  const a = (id: string, an: string, ende: 'aufgehoben' | null) => ({ id, an, ende }) as never;
+  it('ersetzt, wenn für dieselbe Person ein anderer offener Auftrag besteht', () => {
+    const alt = a('1', 'p', 'aufgehoben');
+    expect(istErsetzt([alt, a('2', 'p', null)], alt)).toBe(true);
+    expect(istErsetzt([alt, a('2', 'q', null)], alt)).toBe(false);
+    expect(istErsetzt([alt], alt)).toBe(false);
   });
 });
