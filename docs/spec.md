@@ -270,3 +270,305 @@ Entscheide: README «Offline-Gebiete (30.10.)». Nutzungsbedingungen, Drosselung
 ### Offene Punkte
 - Luftbild bis z20 braucht für 10 × 10 km ~3,7 GB und gedrosselt ~9 h (Landeskarte ~740 MB, ~2,3 h). Ob das Luftbild offline bei z19 aufhören soll (~0,9 GB), entscheidet Juan.
 - Gebiet als Vorschlag aus dem Führungsraster, sobald es das gibt.
+
+## Spec v5: Dezentrale Missionen (30.10.2026, Entscheide im README, Recherche `docs/recherche/dezentral.md`)
+
+Juan: «Keine zentrale Verwaltung oder etwas, sondern immer lokale Missions und Verteilung.» Aus der Server-Lage wird eine Mission auf den Geräten: jedes Gerät hält die ganze Lage, alles ist Ende-zu-Ende verschlüsselt, der Server wird ein blinder Vermittler. Die Technik steht ausführlich in der Recherche; hier steht nur das Verbindliche, dazu die Tickets.
+
+**Quellen in Klammern:** README-Entscheidungslog **M** «Dezentrale Missionen (30.10.)», **G** «Live-Update gesichert (30.10.)», **Ü** «Updates überspringen (30.10.)», **L** «Missionen: Leitung, Aufnahme, Chat, Schutz (30.10.)», **A** «Missionen: Ausfall, Konflikte, Lizenz, Altlagen (30.10.)»; **R§1–R§7**, **R-Arch**, **R-Etappen**, **R-Risiken** = Abschnitte von `docs/recherche/dezentral.md`; **LU** = `docs/recherche/live-update.md` und README «Live-Update der Oberfläche»; **P** = `shared/protocol.ts`. Was dort fehlt, steht unter «Offen für Juan» (O1 …) und ist nicht entschieden.
+
+### 1. Grundsatz und Begriffe
+
+- **Grundsatz:** keine zentrale Datenhaltung. Missionsdaten sind Ende-zu-Ende verschlüsselt, Schlüssel nur auf den Geräten; jedes Gerät hält die ganze Lage; nach Missionsende bleiben die Daten verschlüsselt auf den Geräten, bis sie gelöscht werden (M). Der heutige Server-Modus mit Lage-Code entfällt (M), zuletzt in Etappe 5.
+- **Mission:** eine Lage ohne Server. Eröffnet in der Android-App, erkennbar an einer zufälligen Missions-ID (16 Byte) (M, R-Arch).
+- **Missionsübersicht:** Startseite der Android-App mit allen gespeicherten Missionen: eröffnen, beitreten, löschen (M).
+- **Leitgerät:** das Gerät mit der Rolle Leitung. Anfangs das Gerät, das die Mission eröffnet hat; die Leitung ist übergebbar (M).
+- **Rollen** (M): **Leitung** (alle Rechte wie heute die Leitung), **Gruppenführer** (Leitungsrechte über die eigene Gruppe), **Teilnehmer** (wie heute), **Beobachter** (nur lesen, sendet keine Position).
+- **Gruppe:** heute `Teilnehmer.einheit` («= Gruppe für Chat», P). Wie die Gruppe zugeteilt wird: O2.
+- **Ersatz-Reihenfolge:** Reihenfolge der Gruppenführer, die bei Ausfall des Leitgeräts die neue Leitung bestimmt; Vorgabe ist die Reihenfolge der Ernennung (A).
+- **PWA/iPhone:** nur als Teilnehmer, nur über den Vermittler (M, R§4).
+- **Ereignis:** jede Änderung an der Lage (Marker, Zeichnung, Chat, Status …), vom Autor-Gerät signiert und mit dem Epochenschlüssel verschlüsselt («Umschlag») (R§1).
+- **Ereignislog:** je Gerät ein nur wachsendes Log seiner Ereignisse, verkettet über laufende Nummer und Hash des Vorgängers (R§2).
+- **Reducer:** die heutige Serverlogik als reine Funktion in `shared/regeln/`, die jedes Gerät gleich anwendet und die Ereignisse gegen die Regeln prüft (R§2).
+- **Führungskette:** lineare Folge der Leitungsereignisse (Eröffnung, Aufnahme, Rolle, Übergabe, Ausschluss, Schlüsselwechsel, Beenden), jedes von der amtierenden Leitung signiert (R§1, R-Arch). Wie Aufnahmen durch Gruppenführer dazu passen: O1.
+- **Epoche / Epochenschlüssel `K_e`:** Gruppenschlüssel der Mission; jeder Ausschluss beginnt eine neue Epoche mit neuem Schlüssel (M, R§1).
+- **Schlüsselbund:** alle Epochenschlüssel einer Mission auf einem Gerät, verpackt mit dem Tresorschlüssel (R§1).
+- **Vermittler:** der Dienst auf lage.arvuna.ch, der nur Chiffrat kurz vorhält und verteilt und keine Schlüssel kennt (M, R§3). **Raum:** Postfach beim Vermittler, abgeleitet aus `K_e`. **Vorhalt:** was ein Raum für Nachzügler aufbewahrt.
+- **Hub:** derselbe Vermittler, aber in der Leit-App im Hotspot (R§4).
+- **Stand-Vektor:** je Autor die höchste lückenlose laufende Nummer; zwei Geräte tauschen ihn beim Verbinden und liefern einander das Fehlende (R-Arch). **Stand-Paket:** verdichteter Bestand, den ein neues Gerät beim Beitritt einmalig bekommt (R-Arch).
+- **HLC:** Hybrid Logical Clock, Zeitstempel für die gemeinsame Reihenfolge (R§2).
+- **Protokoll-Hauptversion:** `PROTOKOLL_VERSION` (P), steht in jeder Mission. **Mindestversion:** pro Mission von Ersteller bzw. Leitung gesetzt (Ü); Mass und Prüfung: O9.
+- **Transport-Etappen** (M): 1. Vermittler, 2. Hotspot/WLAN ohne Internet, 3. LoRa-Funk-Mesh. Sie entsprechen den Bau-Etappen 3, 6 und 7 (R-Etappen).
+
+### 2. Abläufe aus Nutzersicht
+
+**Mission eröffnen** (nur Android-App)
+- Missionsübersicht › «Neue Mission»: Name, Statusliste (Vorgabe `STANDARD_STATUS`), Mindestversion. Das Gerät wird Leitung (M, R-Arch «Eröffnen»).
+- Ohne Netz entsteht eine «Solo-Mission»: eigene Spur, Marker, Zeichnen, Nachbereitung auf dem Gerät (R-Etappen 2).
+
+**Beitreten**
+- **Per QR:** Die Leitung zeigt in der Mission einen QR-Code; er gilt 10 min und erneuert sich danach selbst. Wer ihn in der App scannt, ist ohne Freigabe drin (M). Das zeigende Gerät muss dabei online sein (Vermittler oder Hub), über LoRa allein geht kein Beitritt (R§1, R-Arch).
+- Gescannt wird **in der App** (Android-App oder installierte PWA). Die System-Kamera öffnet den Link im Browser; die Seite `/b` zeigt dann «In der Lagebild-App scannen» (R§6).
+- **Per Code:** 10 Zeichen aus dem bestehenden `ALPHABET`, ebenfalls 10 min gültig. Weil der Code keinen Fingerabdruck trägt, nimmt das zeigende Gerät erst nach Antippen von «Aufnehmen» auf und zeigt dazu Rufname und Angaben der Anfrage (R§1 «Code statt QR»). Prüfzahl: O16.
+- **Wer aufnimmt:** die Leitung in alle Gruppen, Gruppenführer in ihre eigene Gruppe (L). Jede Aufnahme sieht die Leitung sofort und kann mit einem Tipp ausschliessen (R§1).
+- Beim Beitritt prüft das aufnehmende Gerät Ablauf und Mindestversion (R-Arch). Ein Gerät mit anderer Protokoll-Hauptversion bekommt «Update für diese Mission nötig» (Ü); neueres Gerät in älterer Mission: O13.
+- Neue Geräte melden Rufname, Einheit, Funktion, Symbol und App-Version (R-Arch «Beitreten»). Sie bekommen den Bestand als Stand-Paket und danach alles live.
+
+**Rollen**
+- Die Leitung ernennt Gruppenführer und Beobachter und setzt Rollen zurück (Ereignis `rolle`, R§2).
+- Gruppenführer: Ändern und Löschen von Objekten der eigenen Gruppe (R§2 Tabelle), Aufnahme in die eigene Gruppe (L). Den übrigen Umfang klärt O3.
+- Der Beobachter sieht alles, sendet nichts und keine Position; der Reducer verwirft Positionen und Änderungen von Beobachtern (M).
+- Wer Gruppenführer oder Leitung werden kann (PWA?): O7.
+
+**Leitungsübergabe und Ersatzleitung**
+- **Übergabe:** Die Leitung übergibt per Tipp an ein anderes Mitglied; ab diesem Glied der Kette gilt das neue Gerät als Leitung, das alte wird Teilnehmer. Schlüssel wandern nicht (R-Arch «Leitungsübergabe»). An wen: O8.
+- **Ersatz-Reihenfolge:** sichtbar und änderbar bei der Leitung; Vorgabe = Reihenfolge der Ernennung (A).
+- **Ausfall:** Ist das Leitgerät 10 min nicht erreichbar, übernimmt der erste erreichbare Gruppenführer der Ersatz-Reihenfolge automatisch (L, A). Gelesen heisst das: Gruppenführer k übernimmt, wenn er seit 10 min weder von der Leitung noch von einem Gruppenführer vor ihm etwas empfangen hat (abgeleitet aus A). Was als «erreichbar» zählt: O4. Gleichzeitige Übernahmen bei geteiltem Netz: O5. Mission ohne Gruppenführer: O6.
+- **Rückkehr:** Das frühere Leitgerät sieht die Übergabe und wird Gruppenführer (A). Leitungsereignisse, die es nach der Übernahme noch offline gemacht hat, verwirft die Kette («Übernahme schlägt gleichzeitige Leitungsereignisse», R-Risiken). Seine gewöhnlichen Ereignisse (Marker, Chat …) gelten.
+
+**Ausschluss und Schlüsselwechsel**
+- Die Leitung schliesst ein Gerät mit einem Tipp aus. Die übrigen Geräte bekommen einen neuen Schlüssel und wechseln in einen neuen Raum (M, R§1).
+- Das ausgeschlossene Gerät sieht «ausgeschlossen» und bekommt nichts Neues mehr. Was es bis dahin hatte, behält es; das lässt sich technisch nicht verhindern und steht so im Bestätigungsdialog (R§1, R-Risiken).
+- Ob Gruppenführer ausschliessen dürfen: O3.
+
+**Mission beenden und löschen**
+- **Beenden:** nur die Leitung (Ereignis `mission.beenden`); alle Geräte schalten auf Nur-Lesen, die Daten bleiben verschlüsselt erhalten (M, R§2 Tabelle).
+- **Löschen:** in der Missionsübersicht; löscht Schlüsselbund und Ereignisse auf dem Gerät. Schon das Löschen des Schlüsselbunds macht den Rest unlesbar (R§2 «Persistenz»). Ob die Leitung für alle löschen kann: O14.
+- **Export GPX/GeoJSON** auf dem Gerät, gleicher Inhalt wie heute (`server/src/export.ts` wandert nach `shared/`, R§2 Tabelle). Wer exportieren darf: O15.
+
+**Chat**
+- Direktnachrichten nur für Absender und Empfänger lesbar (zusätzlich paarweise verschlüsselt); Gruppen- und Allgemein-Chat für alle Geräte der Mission lesbar, die Anzeige filtert nach Gruppe (L, R§2 Tabelle).
+- Bloodhound-Aufträge haben alle Geräte, angezeigt nur bei Leitung und Empfänger (R§2 Tabelle).
+
+**Taufnamen nach Offline-Arbeit**
+- Wählen zwei Geräte offline denselben Taufnamen, gewinnt die frühere Taufe (Reihenfolge nach HLC). Die spätere bleibt sichtbar, ist als «Namenskonflikt» markiert, und ihr Ersteller wird zum Umbenennen aufgefordert (A, R§2 Tabelle).
+- Allgemein: was nach dem Abgleich gegen eine Regel verstösst (z. B. Verschieben eines inzwischen fixierten Rasters), verschwindet mit Hinweis «abgelehnt: …» (R§2 Tabelle).
+
+**Altlagen-Export**
+- Beim Abschalten des Server-Modus werden die Lagen auf dem Server als GPX/GeoJSON exportiert und danach gelöscht (A). Wer exportiert und mit welcher Frist: O17.
+
+**Mischbetrieb, Mindestversion, Updates während der Mission**
+- Geräte ohne Update laufen weiter (Ü). Mischbetrieb bei gleicher Protokoll-Hauptversion: das ältere Gerät zeigt «ältere Version», neue Funktionen fehlen ihm (Ü). Bei anderer Hauptversion: «Update für diese Mission nötig» (Ü).
+- Mindestversion pro Mission setzt Ersteller bzw. Leitung (Ü); Einzelheiten O9.
+- **Während einer laufenden Mission bietet die App nur Updates der Stufe `sicherheit` an, die übrigen nach Missionsende** (Ü, G). Auch Sicherheitsupdates werden nur nach Antippen aktiviert (G, LU). Was «laufend» heisst: O10. PWA: O12.
+- Bei Stufe `sicherheit` sieht die Leitung die betroffenen Geräte in der Geräteliste und kann sie ausschliessen (Ü). Welche Geräte betroffen sind: O11.
+- Die Geräteliste der Leitung zeigt je Gerät die App-Version (R-Etappen 4).
+
+**Geräteschutz**
+- Gespeicherte Missionen liegen im Android-Schlüsseltresor (Keystore), geschützt über die Bildschirmsperre des Handys; keine App-PIN (L).
+- PWA: nicht exportierbarer `CryptoKey` in IndexedDB (R§1); «Zum Home-Bildschirm» empfehlen, damit iOS den Speicher nicht leert (R§7).
+
+### 3. Technik je Baustein
+
+Einzelheiten, Grössen und Quellen stehen in der Recherche; hier nur, was der Bau einhalten muss.
+
+**Schlüssel und Formate** (R§1 «Empfehlung: Schlüssel und Formate»)
+- Nur WebCrypto, keine Krypto-Bibliothek, kein MLS (R§1). Geräte-Signaturschlüssel Ed25519, Tauschschlüssel X25519, beide `extractable: false` in IndexedDB; Geräte-ID = base32(SHA-256(pub))[0..16].
+- Epochenschlüssel AES-256-GCM; daraus per HKDF der Raum beim Vermittler und `K_e^lora`. Schlüsselwechsel spätestens nach 2^30 Ereignissen je Epoche.
+- **Umschlag:** Klartext `{m, e, a, s, p, h, k, b}`, Ed25519-Signatur über genau diese Bytes, dann AES-GCM mit 96-Bit-Zufalls-Nonce über `sig ‖ bytes`. Ereignis-ID = SHA-256 der signierten Bytes, gekürzt auf 16 Byte.
+- **Schlüsselwechsel:** `K_{e+1}` je verbleibendem Gerät per X25519 + HKDF + AES-GCM verpackt, als ein signiertes Ereignis `schluessel` im alten Raum.
+- **QR:** `https://lage.arvuna.ch/b#v=1&m=…&j=…&f=…&x=…[&h=…][&r=…]`, alle Geheimnisse im Fragment. Erzeugen mit `qrcode` (vorhanden), scannen mit `getUserMedia` + `BarcodeDetector`, auf iOS/Firefox mit dem Polyfill `barcode-detector` (Lazy-Import) (R§6).
+- **Tresor:** Android `@aparajita/capacitor-secure-storage` (Keystore, AES-GCM); PWA nicht exportierbarer `CryptoKey` (R§1).
+- **Mindestanforderung:** WebView ≥ 137 bzw. iOS 17 (Ed25519). `android.minWebViewVersion: 137` in `capacitor.config.ts`; die PWA probiert beim Start `generateKey({name: 'Ed25519'})` und meldet klar, wenn es fehlt (R§1, R-Risiken).
+
+**Ereignislog und Reducer** (R§2 «Empfehlung»)
+- Je Gerät ein nur wachsendes Log (Autor, laufende Nummer `s`, Hash des Vorgängers `p`). Doppeltes fällt über die Ereignis-ID weg. Zwei verschiedene Ereignisse mit gleichem (Autor, `s`): Gerät markieren und der Leitung melden. Fehlt ein Vorgänger, trotzdem anwenden und nachfordern.
+- Reihenfolge für alle: (HLC, Autor-ID, `s`). Zustand = Faltung aller gültigen Ereignisse; Verspätetes wird ab dem letzten Zwischenstand davor neu gefaltet (Zwischenstand alle ~500 Ereignisse). Die HLC eines Ereignisses liegt höchstens 5 min nach der Empfangszeit (R-Risiken).
+- `wende(zustand, ereignis) → { zustand, deltas: ServerMsg[] } | { abgelehnt: grund }` in `shared/regeln/`. Die Deltas sind die heutigen `ServerMsg`, damit `store.svelte.ts` nahezu unverändert bleibt.
+- Rechte prüft der Reducer nach dem Stand der Führungskette an der Stelle des Ereignisses. Die Abbildung der heutigen Serverregeln steht in der Tabelle R§2 «Heutige Server-Regeln im neuen Modell» und gilt so.
+- **Positionen** als eigener Strom ausserhalb des Logs (signiert, verschlüsselt); je Autor gilt die letzte. Nach dem Wiederverbinden und am Missionsende liefert jedes Gerät die eigene Spur in Paketen zu 100 Punkten nach (`spur.nachliefern`).
+- **Verdichtung:** je Objekt nur die letzte gültige Fassung plus Grabsteine; Budgets zählen den aktuellen Stand.
+- `teilnehmer.online`/`zuletzt` aus dem letzten empfangenen Ereignis; Alter/Stale nach Empfangszeit; `serverZeit` entfällt.
+
+**Vertrag** (R§2 «Was vom Vertrag bleibt», P)
+- Entitäten, Konstanten und Prüfungen bleiben. `ClientMsg` (ohne `hallo`, `lage.codeErneuern`) wird zum Inhalt `b` der Ereignisse. Neu: `mission.eroeffnen{name, statusSet, protokoll, mindestversion}`, `aufnahme`, `rolle`, `leitung`, `ausschluss{id, bisNummer}`, `schluessel`, `mission.beenden`, `spur.nachliefern`; `Rolle` um `beobachter` und `gruppenfuehrer` erweitert; `appVersion` in `aufnahme`/`teilnehmer`.
+- REST-Bodies (`LageErstellen`, `Beitreten`, `Beigetreten`) entfallen mit Etappe 5; `PING_MS`/`STILLE_MS` wandern ins Vermittler-Protokoll.
+- `PROTOKOLL_VERSION` nach der Regel in P erhöhen, sobald ältere Stände nicht mehr mit neueren zusammenarbeiten.
+
+**Vermittler** (R§3, `server/src/relay.ts`)
+- WebSocket, Steuerung JSON, Inhalt binär: `sub {raum, ab}` (Vorhalt ab Cursor, dann live), `pub {raum, daten, ersetz?}` (Cursor je Raum; von `ersetz` bleibt nur das Neueste, für Positionen). Blobs `PUT/GET /v1/blob/<sha256>`.
+- Räume an die Epoche gebunden; Beitrittsräume aus dem Beitrittsgeheimnis, Lebensdauer 10 min.
+- Vorhalt je Raum 72 h und ≤ 20 MB (Ringpuffer), Gesamtspeicher gedeckelt, der älteste Raum fällt zuerst. Blobs ≤ 8 MB, 14 Tage.
+- Limits wie heute: Nachricht ≤ 256 KB, 50 Nachrichten/10 s je Verbindung, ≤ 20 Verbindungen je IP (/64), ≤ 4 Räume je Verbindung, Blobs 10/min, Ping alle 20 s. `sicherheit.ts` bleibt.
+- Keine Konten, kein Erstell-Passwort. IPs nur im Speicher für Rate-Limits, nie in Logs oder auf der Platte; keine Raum-Statistik. Grössen auf feste Stufen auffüllen (256 B, 1 KB, 4 KB, 16 KB …; Blobs in 64-KB-Stufen).
+- Proof-of-Work oder Ausweise erst, wenn Missbrauch auftritt.
+
+**IndexedDB und Persistenz** (R§2 «Persistenz», R-Arch)
+- Umschläge so speichern, wie sie ankommen (verschlüsselt); nur der Schlüsselbund wird zusätzlich mit dem Tresorschlüssel verpackt. Löschen = Schlüsselbund und Umschläge löschen.
+- Beim ersten Missionsbeitritt `navigator.storage.persist()` (wie bei den Offline-Gebieten).
+- `client/src/lib/mission.svelte.ts` hält Missionsübersicht, Log, Faltung, Persistenz, Nachforderung und Wege und speist `store.svelte.ts`. Wege in `client/src/lib/wege/` (`vermittler.ts`, `hub.ts`, `lora.ts`) mit einer Schnittstelle `senden(bytes)`, `empfangen(cb)`.
+
+**Fotos** (R§2 «Grössen», R-Risiken)
+- Nicht im Log: das Ereignis trägt SHA-256, Grösse und Schlüssel, das Bild liegt verschlüsselt als Blob beim Vermittler bzw. Hub (≤ 8 MB, ≤ 300 je Mission wie heute) und lädt im Hintergrund.
+- Vollständig nur im WLAN, sonst Vorschau; Budget je Mission.
+
+**Hotspot** (R§4) und **LoRa** (R§5): siehe Etappen 6 und 7.
+
+### 4. Etappen-Tickets
+
+Tracer-Bullet-Schnitt nach R-Etappen: jede Etappe ist für sich auslieferbar, die App funktioniert nach jeder. Aufwand in Arbeitstagen (Bau per Agent plus Review). Bis Etappe 5 läuft der Server-Modus parallel weiter (R-Etappen).
+
+#### Etappe 0: Geräteprobe
+- **Ziel:** Gewissheit auf Juans Geräten, dass die Bausteine laufen, bevor gebaut wird (R-Etappen 0).
+- **Umfang:** versteckte Testseite in der App (und als PWA-Seite für das iPhone): Ed25519/X25519 erzeugen, signieren, ableiten; Speichern und Lesen im Tresor (Keystore-Plugin); IndexedDB-Persistenz über Neustart und Live-Update; `BarcodeDetector` bzw. Polyfill scannt einen QR; `ws://` zur Hotspot-IP aus der WebView mit und ohne Netzbindung. Ergebnis je Prüfung als Liste mit OK/Fehler zum Kopieren.
+- **Abnahme:**
+  - Für jedes Testgerät steht ein Protokoll mit WebView-Version und Ergebnis je Prüfung im Repo (`docs/recherche/dezentral.md`, Abschnitt «Nicht verifiziert» ergänzt).
+  - Die Punkte aus «Nicht verifiziert» zur WebView (Mobilfunk-Fehlweg, Local Network Access, Ed25519 ab 137) sind beantwortet oder als «nicht prüfbar» begründet.
+  - iPhone (PWA, iOS ≥ 17): Ed25519 und Scannen per Polyfill geprüft.
+- **Blockiert durch:** –
+- **Aufwand:** ½–1
+- **Braucht Juan/Gerät:** ja (Android-Geräte, iPhone, Hotspot; neue APK wegen Keystore-Plugin, ein Debug-Build reicht).
+
+#### Etappe 1: Regeln herauslösen
+- **Ziel:** die Serverlogik als reine Funktionen in `shared/`, als Grundlage für den Reducer auf den Geräten (R-Etappen 1). Wird parallel gebaut.
+- **Umfang:** Regeln aus `server/src/zeichnen.ts`, `raster.ts`, `taufe.ts` und die Prüfungen aus `ws.ts` (Rechte Ersteller/Leitung, gesperrte Ebene, fixiertes Raster, `nameFrei`, Mengen- und Zeichenbudgets, Positionsrate, Chat-Empfänger) nach `shared/regeln/`; `server/src/export.ts` nach `shared/`. Der Server ruft sie auf und speichert nur noch.
+- **Abnahme:**
+  - `shared/regeln/` importiert nichts aus `server/` und kein `node:*` (läuft im Browser).
+  - In `server/src/zeichnen.ts`, `raster.ts`, `taufe.ts` steht keine Regel mehr, nur Speichern und Verteilen.
+  - Eigene Unit-Tests für die Regeln in `shared/`; `npm run check`, `npm test` und `npm run e2e` grün, E2E-Tests unverändert (kein sichtbarer Unterschied).
+- **Blockiert durch:** –
+- **Aufwand:** 2–3
+- **Braucht Juan/Gerät:** nein.
+
+#### Etappe 2: Mission auf dem Gerät
+- **Ziel:** «Solo-Mission» ohne Netz: eigene Spur, Marker, Zeichnen, Nachbereitung, alles lokal (R-Etappen 2).
+- **Umfang:** Geräteschlüssel; Tresor (Keystore); Missionsübersicht in der Android-App mit Eröffnen und Löschen (M); Ereignislog mit Signatur, HLC und Reducer aus Etappe 1; Persistenz in IndexedDB; Export GPX/GeoJSON auf dem Gerät; `minWebViewVersion: 137`. Der bisherige Lage-Login bleibt erreichbar.
+- **Abnahme:**
+  - Mission im Flugmodus eröffnen, Marker setzen, Linie zeichnen, Spur aufzeichnen, App beenden und neu starten: alles ist noch da.
+  - Ein gefälschtes Ereignis (falsche Signatur) und ein regelwidriges (z. B. Budget überschritten) lehnt der Reducer ab (Unit-Test).
+  - Dieselben Ereignisse in anderer Ankunftsreihenfolge ergeben denselben Zustand (Unit-Test).
+  - Der Export der Solo-Mission als GPX und GeoJSON entspricht dem heutigen Server-Export (Test gegen dieselben Daten).
+  - Mission löschen entfernt Schlüsselbund und Ereignisse (IndexedDB danach ohne Einträge dieser Mission).
+- **Blockiert durch:** 1; Ergebnis von 0 (Keystore, IndexedDB); O14, O15.
+- **Aufwand:** 2–3
+- **Braucht Juan/Gerät:** ja (neue APK wegen nativem Plugin und `capacitor.config.ts`, danach `deploy/min-native-code` setzen; Test am Gerät).
+
+#### Etappe 3: Vermittler und Ende-zu-Ende
+- **Ziel:** dezentrale Missionen über Internet mit dem heutigen Funktionsumfang (R-Etappen 3, Transport-Etappe 1 aus M).
+- **Umfang:** Umschlag; `server/src/relay.ts` mit Räumen, Vorhalt, Limits, Blobs; Beitritt per QR (ohne Freigabe) und Code (mit Freigabe); Stand-Vektor und Stand-Paket; Fotos als Blobs; Direktnachrichten paarweise verschlüsselt (L); Namenskonflikt bei Taufen (A); PWA als Teilnehmer; Protokoll-Hauptversion und Mindestversion je Mission (Ü); Hinweise «ältere Version» und «Update für diese Mission nötig» (Ü); Update-Sperre ausser `sicherheit` während laufender Mission (Ü, G).
+- **Abnahme:**
+  - Zwei Android-Geräte und ein iPhone (PWA) arbeiten in einer Mission; alles aus Spec v1–v4 kommt auf allen an.
+  - Ein QR-Code älter als 10 min wird abgelehnt (Test mit verstellter Uhr des zeigenden Geräts); ein Code-Beitritt erscheint erst nach «Aufnehmen».
+  - Der Vermittler speichert nur Chiffrat und loggt keine IPs (Test: die Vorhalt-Ablage enthält keinen Klartext eines Test-Ereignisses; Log-Ausgabe ohne IP).
+  - Ein Gerät, das 30 min offline war, holt nach dem Wiederverbinden alles nach (Vorhalt bzw. Stand-Vektor); die eigene Spur wird nachgeliefert.
+  - Zwei Geräte taufen offline denselben Namen: nach dem Abgleich gewinnt die frühere Taufe, die spätere zeigt «Namenskonflikt» und fordert ihren Ersteller zum Umbenennen auf.
+  - Eine Direktnachricht kann ein drittes Mitglied nicht entschlüsseln (Unit-Test).
+  - Ein Gerät mit anderer Protokoll-Hauptversion bekommt «Update für diese Mission nötig»; ein Gerät unter der Mindestversion wird nicht aufgenommen.
+  - Während einer laufenden Mission bietet die App einen Stand der Stufe `normal` nicht an, einen der Stufe `sicherheit` schon (Test mit gesiegeltem Test-Manifest).
+  - Die Vermittler-Limits aus R§3 sind per Test belegt.
+  - Review durch den security-reviewer vor dem Merge (R-Risiken «Selbstgebaute Krypto»).
+- **Blockiert durch:** 2; O9, O10, O12, O13, O16.
+- **Aufwand:** 5–7
+- **Braucht Juan/Gerät:** ja (Deploy des Vermittlers auf LXC 124, Test mit mindestens zwei Android-Geräten und iPhone).
+
+#### Etappe 4: Rollen und Schlüssel
+- **Ziel:** Missionen vollständig wie im Entscheid: Rollen, Übergabe, Ersatzleitung, Ausschluss (R-Etappen 4, M, L, A).
+- **Umfang:** Führungskette vollständig; Beobachter; Gruppenführer mit Aufnahme in die eigene Gruppe (L); Ersatz-Reihenfolge (A); Leitungsübergabe; automatische Ersatzleitung nach 10 min (L, A); Ausschluss mit Schlüssel- und Raumwechsel; Geräteliste mit App-Version und Kennzeichnung der von einem Sicherheitsupdate betroffenen Geräte (Ü).
+- **Abnahme:**
+  - Ein Beobachter sendet keine Position und kann nichts ändern (Reducer-Test und am Gerät).
+  - Ein Gruppenführer nimmt ein Gerät in seine Gruppe auf; die Leitung sieht die Aufnahme sofort.
+  - Nach einem Ausschluss liest das ausgeschlossene Gerät keine neuen Ereignisse (Test: es kann `K_{e+1}` nicht auspacken), die übrigen arbeiten im neuen Raum weiter; ein Gerät, das während des Ausschlusses offline war, findet den Wechsel nach dem Verbinden.
+  - Leitgerät 10 min ausgeschaltet: der erste Gruppenführer der Reihenfolge übernimmt; ist auch er stumm, der zweite. Das zurückkehrende Leitgerät zeigt die Übergabe und ist Gruppenführer; seine Offline-Leitungsereignisse sind verworfen.
+  - Gabelungen der Führungskette ergeben in einer Simulation (R-Risiken) auf allen Geräten dieselbe Leitung.
+  - Die Geräteliste zeigt die Version je Gerät und markiert betroffene Geräte, mit Ausschluss per Tipp.
+- **Blockiert durch:** 3; O1–O8, O11.
+- **Aufwand:** 3–4
+- **Braucht Juan/Gerät:** ja (Feldtest mit mindestens drei Geräten für Ersatzleitung und Ausschluss).
+
+#### Etappe 5: Server-Modus abschalten
+- **Ziel:** kein zentraler Datenspeicher mehr; der Server ist nur noch Vermittler und Auslieferung (R-Etappen 5, M).
+- **Umfang:** Altlagen exportieren und löschen (A); `db.ts`, `ws.ts`, die REST-API für Lage, Beitritt, Foto, Spuren und Export sowie `LAGE_ERSTELL_PASSWORT` entfernen; Lage-Login aus der Oberfläche entfernen; README «Betrieb» und Spec nachführen (R§7).
+- **Abnahme:**
+  - Exportdateien aller Altlagen liegen vor (Ablage nach O17); danach ist die SQLite-Datenbank unter `/var/lib/lagebild` gelöscht.
+  - Die bisherigen REST-Pfade für Lage, Beitritt, Foto, Spuren und Export antworten 404; der Dienst startet ohne `/etc/lagebild.env`.
+  - PWA, `/app/web.json`, `web-<code>.zip`, `lagebild.apk` und `version.json` werden weiter ausgeliefert; ein Live-Update läuft durch.
+  - `npm run check`, `npm test`, `npm run e2e` grün (E2E auf Missionen umgestellt).
+- **Blockiert durch:** 3, 4; O17.
+- **Aufwand:** 1–2
+- **Braucht Juan/Gerät:** ja (Export, Löschen und Deploy auf LXC 124).
+
+#### Etappe 6: Hotspot
+- **Ziel:** Übungen ohne Internet im Hotspot des Leitgeräts (R-Etappen 6, Transport-Etappe 2 aus M).
+- **Umfang:** Capacitor-Plugin «Nahnetz»: Hub mit Java-WebSocket (gleiches Protokoll wie der Vermittler), an das WLAN gebundener Client (OkHttp, `Network.getSocketFactory`), eigene IP für `h=` im QR, Vordergrunddienst `connectedDevice`; Brücke Hub ↔ Vermittler, wenn das Leitgerät Mobilfunk hat. Zuerst der normale System-Hotspot, LocalOnlyHotspot später (R§4). `ACCESS_LOCAL_NETWORK` anfragen, sobald targetSdk 37 gilt. Die PWA nimmt lokal nicht teil.
+- **Abnahme:**
+  - Zwei Android-Geräte ohne Mobilfunk im System-Hotspot des Leitgeräts: Beitritt per QR mit `h=`, alle Ereignisse kommen an.
+  - Der Hub läuft bei gesperrtem Bildschirm des Leitgeräts 15 min weiter, Ereignisse kommen ohne Lücke an.
+  - Mit Mobilfunk am Leitgerät sieht ein drittes Gerät über den Vermittler die Ereignisse aus dem Hotspot und umgekehrt; doppelt Empfangenes erscheint einmal.
+- **Blockiert durch:** 3; Ergebnis von 0 (Netzbindung).
+- **Aufwand:** 4–6
+- **Braucht Juan/Gerät:** ja (neue APK, Feldtest mit Hotspot).
+
+#### Etappe 7: LoRa
+- **Ziel:** Positionen, Status, Alarm und Kurzmeldungen ohne WLAN und Mobilfunk (R-Etappen 7, Transport-Etappe 3 aus M).
+- **Umfang:** BLE-Kopplung eines Meshtastic-Knotens je Person (`@capacitor-community/bluetooth-le`); eigener Meshtastic-Kanal mit eigenem PSK, Portnummer im privaten Bereich 256–511; Kompaktformat (~20 B je Position); nur `K_e^lora`, ohne Gerätesignatur; Anzeige «über Funk», ersetzt durch die signierte Fassung, sobald sie über Vermittler oder Hub ankommt; über LoRa nie Leitungsaktionen, Beitritt, Schlüssel, Zeichnungen, Taufen, Fotos (R§5). Meshtastic-Protobufs sind nutzbar, weil Lagebild unter GPL-3.0 steht (A, `LICENSE`). Positionstakt: O18.
+- **Abnahme:**
+  - Zwei Geräte mit gekoppelten Knoten, WLAN und Mobilfunk aus: Position, Status, Alarm und Kurzmeldung kommen an und sind als «über Funk» markiert.
+  - Jede LoRa-Nutzlast ist ≤ 233 Byte (Unit-Test über alle Arten).
+  - Der Sendetakt hält den Duty-Cycle von 10 % je Gerät ein (Rechnung als Test, RIR1008-09).
+  - Ein über LoRa empfangenes Leitungsereignis wird nicht ausgewertet (Test).
+- **Blockiert durch:** 3; O18; Hardware.
+- **Aufwand:** 5–8 + Hardware
+- **Braucht Juan/Gerät:** ja (Meshtastic-Knoten beschaffen, Feldtest).
+
+### Offen für Juan
+
+Nicht entschieden; die Empfehlung steht jeweils fett.
+
+- **O1 Aufnahme durch Gruppenführer und Führungskette** (L verlangt Aufnahme durch Gruppenführer, die Recherche ging von «nur die Leitung hängt an» aus).
+  - **(a) Eine Aufnahme durch einen Gruppenführer ist ein eigenes signiertes Ereignis ausserhalb der linearen Kette, gültig, wenn der Autor an dieser Stelle Gruppenführer ist. Rollen, Übergabe, Ausschluss und Schlüsselwechsel bleiben allein in der Kette der Leitung. Keine Gabelung, weil eine Aufnahme keinen Schlüssel wechselt.**
+  - (b) Der Gruppenführer nimmt nur an; die Leitung muss online bestätigen.
+  - (c) Gruppenführer hängen selbst an die Kette an; Gabelungen löst eine feste Regel.
+- **O2 Wie wird die Gruppe eines Geräts festgelegt?**
+  - **(a) Das aufnehmende Gerät legt sie fest (Gruppenführer: die eigene, Leitung: wählt); wechseln nur durch die Leitung.**
+  - (b) Wie heute: jeder gibt `einheit` beim Beitritt selbst ein; Gruppenführer-Rechte gelten für alle mit gleicher Einheit.
+- **O3 Welche Leitungsrechte hat ein Gruppenführer über seine Gruppe genau?**
+  - **(a) Objekte der Gruppe ändern/löschen, Bloodhound-Aufträge an die Gruppe, Alarme der Gruppe aufheben, Aufnahme in die Gruppe. Nicht: Ausschluss, Schlüsselwechsel, Ebenen, Statusliste, Taufnamenslisten, fixierte Raster (bleiben bei der Leitung).**
+  - (b) Wie (a), zusätzlich Ausschluss von Geräten der eigenen Gruppe (dann wechselt auch der Gruppenführer Schlüssel, die Kette ist nicht mehr linear).
+- **O4 Was heisst «10 min nicht erreichbar»?** Ein Leitgerät mit Emission Control und ohne Eingaben sendet nichts.
+  - **(a) Leitgerät und Gruppenführer senden mindestens jede Minute ein signiertes Lebenszeichen, auch bei Emission Control (ohne Position).**
+  - (b) Nur gewöhnliche Ereignisse zählen; Risiko einer Übernahme bei ruhiger Leitung.
+- **O5 Zwei Gruppenführer übernehmen gleichzeitig** (Netz geteilt, keiner sieht den anderen).
+  - **(a) Nach dem Abgleich gilt die Übernahme des Gruppenführers, der in der Ersatz-Reihenfolge früher steht; die andere und ihre Leitungsereignisse fallen weg (passt zu «Reihenfolge legt die Leitung fest», A).**
+  - (b) Die frühere Übernahme nach HLC gilt.
+- **O6 Das Leitgerät fällt aus, und es gibt keinen Gruppenführer.**
+  - **(a) Die Mission läuft ohne Leitung weiter (keine Aufnahme, kein Ausschluss), alle sehen einen Hinweis; notfalls neue Mission (R Frage 1b). Dazu ein Hinweis an die Leitung, solange kein Gruppenführer ernannt ist.**
+  - (b) Das am längsten aufgenommene Gerät übernimmt automatisch.
+- **O7 Wer kann Gruppenführer oder Leitung werden (Ernennung, Übergabe, Ersatzleitung)?**
+  - **(a) Nur Android-Geräte, die nicht Beobachter sind; PWA-Geräte nur Teilnehmer oder Beobachter (passt zu «PWA nur als Teilnehmer», M).**
+  - (b) PWA-Geräte dürfen Gruppenführer sein, werden bei Übergabe und Ersatzleitung übersprungen.
+- **O8 Leitungsübergabe von Hand: an wen?**
+  - **(a) An jedes Gerät, das nach O7 Leitung werden kann.**
+  - (b) Nur an Gruppenführer.
+- **O9 Mindestversion: worauf bezogen und wann geprüft?**
+  - **(a) Auf den Web-Stand (`webCode`), geprüft bei der Aufnahme. Hebt die Leitung sie während der Mission an, sehen ältere Geräte «Update für diese Mission nötig»; die Leitung sieht sie in der Geräteliste und kann ausschliessen.**
+  - (b) Wie (a), aber Geräte unter der Mindestversion schalten automatisch auf Nur-Lesen.
+  - (c) Auf die APK (`versionCode`).
+- **O10 Wann gilt eine Mission für die Update-Sperre als «laufend»?**
+  - **(a) Solange auf dem Gerät eine nicht beendete Mission geöffnet ist.**
+  - (b) Solange irgendeine nicht beendete Mission gespeichert ist (Risiko: eine Mission ohne Leitung wird nie beendet, die Sperre bleibt).
+- **O11 Welche Geräte sind von einem Sicherheitsupdate «betroffen»?**
+  - **(a) Das Leitgerät merkt sich den höchsten gesiegelten `webCode` der Stufe `sicherheit`, den es gesehen hat; betroffen sind Geräte mit kleinerem Stand. Kein neues Siegel-Format.**
+  - (b) `web.json` bekommt ein gesiegeltes Feld «sicher ab webCode»; die Siegel-Nachricht ändert sich, ältere Apps lehnen neue Manifeste ab, ein Übergang ist nötig.
+- **O12 PWA-Updates während einer Mission** (die PWA hat kein Siegel und keine Stufen, nur den Service-Worker-Hinweis «Neu laden»).
+  - **(a) Bleibt wie heute (nur nach Antippen); den Mischbetrieb sichert die Protokoll-Hauptversion ab.**
+  - (b) Der Hinweis erscheint in der PWA erst nach Missionsende.
+- **O13 Gerät mit neuerer Protokoll-Hauptversion in einer älteren Mission.**
+  - **(a) Nur gleiche Hauptversion; das neuere Gerät sieht «Mission läuft mit älterer Version», bei Bedarf eröffnet die Leitung eine neue Mission.**
+  - (b) Neuere Apps sprechen ältere Hauptversionen mit (Mehraufwand bei jedem Bruch).
+- **O14 Mission löschen.**
+  - **(a) Nur lokal je Gerät; auf fremden Geräten lässt sich Löschen ohnehin nicht durchsetzen (R§1, ausgeschlossene Geräte).**
+  - (b) Zusätzlich «Für alle löschen» der Leitung als Ereignis; Geräte löschen beim Empfang, ohne Gewähr.
+- **O15 Wer darf GPX/GeoJSON exportieren?**
+  - **(a) Nur die Leitung, wie heute («Export der Leitung», Spec v4; README «Datenhaltung»); nach Missionsende das letzte Leitgerät.**
+  - (b) Jedes Mitglied (die Daten liegen ohnehin auf jedem Gerät).
+  - (c) Leitung und Gruppenführer.
+- **O16 Prüfzahl beim Beitritt per Code?**
+  - **(a) Ja: beide Geräte zeigen eine vierstellige Zahl, die Leitung vergleicht vor «Aufnehmen» (der Code trägt keinen Fingerabdruck, R§1).**
+  - (b) Nein, die Freigabe per Rufname genügt.
+- **O17 Altlagen: wer exportiert, mit welcher Frist?**
+  - **(a) Juan exportiert beim Abschalten alle Lagen auf dem Host (GPX und GeoJSON je Lage, Ablage ausserhalb von LXC 124), danach löschen; kein Hinweis in der App (es gibt nur wenige Lagen, R§7).**
+  - (b) Hinweis in der App mit Frist (z. B. 14 Tage), jede Leitung exportiert selbst, danach löscht der Server.
+- **O18 Positionstakt über LoRa** (wird laut A in Etappe 7 entschieden; Optionen aus R Frage 8).
+  - **(a) Alle 5 min, Alarm sofort (trägt ~20 Geräte im Kanal).**
+  - (b) Alle 2 min, nur für kleine Gruppen (≤ 8 Geräte).
+  - (c) Nur auf Abruf und bei Statuswechsel.
