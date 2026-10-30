@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { toDataURL } from 'qrcode';
   import { sendeBestaetigt, store } from '../../lib/store.svelte.ts';
   import { istApp, serverBasis } from '../../lib/umgebung.ts';
   import { lies, schreibe, toast } from '../../lib/ui.svelte.ts';
@@ -22,7 +21,8 @@
     qr = null;
     if (!l) return;
     let aktuell = true;
-    toDataURL(l, { margin: 2, width: 560, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } })
+    import('qrcode') // nur hier gebraucht: nicht im Start-Bundle
+      .then(({ toDataURL }) => toDataURL(l, { margin: 2, width: 560, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } }))
       .then((url) => aktuell && (qr = url))
       .catch(() => toast('QR-Code konnte nicht erzeugt werden.'));
     return () => (aktuell = false);
