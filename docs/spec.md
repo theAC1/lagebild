@@ -183,7 +183,7 @@ Zweck: ein für die Aktion fixiertes Gitter, damit auch Leute nur mit Funk präz
   - Erstellen (auflegen): alle, solange es in der Lage noch kein Raster dieser Art gibt.
   - Nicht fixiert: Erstellerin bzw. Ersteller und Leitung dürfen es verschieben, ändern, fixieren und löschen.
   - Fixiert: für alle fest. Nur die Leitung darf es lösen oder löschen; verschieben und ändern geht erst nach dem Lösen (auch für die Leitung). Nach dem Lösen dürfen wieder Ersteller und Leitung anpassen.
-- Server prüft das (`server/src/raster.ts`) und verteilt jede Änderung an alle. Meldungslog: aufgelegt, fixiert, gelöst, gelöscht (verschieben nicht, sonst flutet es das Log).
+- Server prüft das (Regeln in `shared/regeln/raster.ts`) und verteilt jede Änderung an alle. Meldungslog: aufgelegt, fixiert, gelöst, gelöscht (verschieben nicht, sonst flutet es das Log).
 
 ### Ansprache in der App
 - **Koordinatenleiste:** zusätzlich die eigene Rasterzelle samt Quadrant, z.B. «Grande H 09 C», bei beiden Rastern beide. Es zählen nur fixierte Raster (eine Vorschau kann sich noch bewegen). Auf schmalen Handys rutscht die Ansprache in eine zweite Zeile.
@@ -211,7 +211,7 @@ A3 im PDF (in `druck.ts` nur ein anderes Format, bräuchte eine Auswahl); Landes
 
 ## Geländetaufe (30.10.2026, Entscheide im README «Geländetaufe & Führungsraster», «Stossrichtung/Fassaden», «Taufe-Details»)
 
-Feature `client/src/features/taufe`, Server `server/src/taufe.ts`, Vertrag `Taufe`/`TaufListen` in `shared/protocol.ts`. Grundlage: `docs/recherche/gelaendetaufe.md`.
+Feature `client/src/features/taufe`, Regeln `shared/regeln/taufe.ts`, Vertrag `Taufe`/`TaufListen` in `shared/protocol.ts`. Grundlage: `docs/recherche/gelaendetaufe.md`.
 
 ### Familien und Namen
 - Gebäude = Metalle/Elemente/Edelsteine, Strassen = Tiere, Gewässer = Wassertiere, Wald = Forest/Woods …, Flächen = Floor/Field/Weed/Ruins … Vorgabelisten je Familie (`STANDARD_TAUFNAMEN`, je ~30 Namen aus Juans Muster ergänzt, ohne Wörter des NATO-Alphabets).

@@ -1,10 +1,8 @@
 // SQLite-Zugriff (node:sqlite). Entitäten werden als JSON gespeichert; der Vertrag ist die Struktur.
 import { DatabaseSync } from 'node:sqlite';
 import { STANDARD_EBENE_NAME, standardEbeneId } from '../../shared/protocol.ts';
-import type { Alarm, BloodhoundAuftrag, Chat, Ebene, Lage, Marker, Meldung, Position, Raster, Rolle, Sichtung, Spuren, Taufe, Teilnehmer, Zeichnung } from '../../shared/protocol.ts';
-
-type Eintraege = { marker: Marker; chat: Chat; sichtung: Sichtung; alarm: Alarm; meldung: Meldung; ebene: Ebene; zeichnung: Zeichnung; bloodhound: BloodhoundAuftrag; raster: Raster; taufe: Taufe };
-export type Art = keyof Eintraege;
+import type { Ebene, Lage, Position, Rolle, Spuren, Teilnehmer } from '../../shared/protocol.ts';
+import type { Art, Eintraege } from '../../shared/regeln/typen.ts';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS lage (
