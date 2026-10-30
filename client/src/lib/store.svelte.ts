@@ -20,6 +20,7 @@ import {
   type Zeichnung,
 } from '../../../shared/protocol.ts';
 import { apiUrl, wsUrl } from './umgebung.ts';
+import { raeumeAuf } from './speicher.ts';
 import { lies, schliesseAlle, schreibe, toast, ui } from './ui.svelte.ts';
 import type { KoordFormat } from './coords.ts';
 import type { Bediengroesse } from './groesse.svelte.ts';
@@ -161,6 +162,7 @@ export function wende(m: ServerMsg): void {
     case 'snapshot':
       store.ich = m.ich;
       store.lage = m.lage;
+      raeumeAuf(m.lage.id);
       store.zeitversatz = m.serverZeit - Date.now();
       posEmpfang.clear();
       for (const t of m.teilnehmer) merkeEmpfang(t, t.zuletzt);
