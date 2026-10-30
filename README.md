@@ -48,3 +48,9 @@ E2E braucht einmalig `npx playwright install chromium`. Die Tests (`e2e/*.e2e.ts
 | Hauptaktionen (29.10.) | Status, Marker, Sichtung, Chat mit einem Tipp; Rest im Mehr-Menü |
 | Abläufe (29.10.) | Marker per Fadenkreuz mit letztem Symbol, Details danach; Alarm 1,5 s gedrückt halten; Tag/Nacht automatisch nach Sonnenstand; Optik dunkel-taktisch + heller Tagmodus |
 | Bediengrösse (29.10.) | Juan: «Passe die Grösse der Bedienelemente auf dem Smartphone an. Aktuell ist alles zu klein eingestellt.» → Einstellung «Bediengrösse» Normal/Gross/Sehr gross (×1/×1.2/×1.4); auf Touch ist Normal schon ×1.25 (Schrift 18 px), Desktop-Normal bleibt wie bisher; Kartenzeichen ×1/×1.15/×1.3 |
+| Karte randlos (30.10.) | Juan: «Karte viel prominenter … Buttons eigentlich wirklich mehr auf die Seite verschwinden» → Bedienelemente schweben kompakt über der randlosen Karte; Touch-Normal ohne +25 % auf Trefferflächen (wirkte wie «Sehr gross») |
+| Melden (30.10.) | Juan versteht den Unterschied Sichtung/Marker nicht klar → ein Knopf «Melden», danach zwei Kacheln Sichtung + Marker; Zeichnen bleibt unter «Mehr» |
+| Zeichnen mobil (30.10.) | Pfeilkopf passt nicht → korrigieren; Farbe, Dicke, Darstellung von Linie/Pfeil/Kreis auch auf dem Handy im Detailfenster; Farben als feste taktische Palette |
+| Browser-Gesten (30.10.) | Lang-Drücken öffnet das Browser-Menü, Antippen markiert Text → in der PWA sperren (gilt für iOS/Desktop weiter) |
+| Native App (30.10.) | Android-App (Capacitor) neben gehärteter PWA; APK-Download/QR, kein Store; Oberfläche in der APK mit Hinweis «Update verfügbar»; Hintergrund-GPS nur per Schalter |
+| Etappen ab 30.10. | Kleinigkeiten → Android-App → Offline-Gebiete → Kartenpaket (Führungsraster, Geländetaufe mit swisstopo-Daten/Objekterkennung, ruhigere Darstellung; eigene Frage-Runde + Recherche). Geofence und ATAK-Anbindung: vorerst kein Bedarf |
