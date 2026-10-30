@@ -1,6 +1,6 @@
 // Export einer Lage als GPX 1.1 (trk je Teilnehmer, wpt für Marker/Sichtungen) und GeoJSON.
-import type { Ebene, Lage, Marker, Punkt, Raster, Sichtung, Spuren, Taufe, Teilnehmer, Zeichnung } from '../../shared/protocol.ts';
-import { rahmen, RASTER_NAME } from '../../shared/raster.ts';
+import type { Ebene, Lage, Marker, Punkt, Raster, Sichtung, Spuren, Taufe, Teilnehmer, Zeichnung } from './protocol.ts';
+import { rahmen, RASTER_NAME } from './raster.ts';
 
 export type ExportDaten = { lage: Lage; teilnehmer: Teilnehmer[]; marker: Marker[]; sichtungen: Sichtung[]; ebenen: Ebene[]; zeichnungen: Zeichnung[]; raster: Raster[]; taufen: Taufe[]; spuren: Spuren };
 

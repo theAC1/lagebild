@@ -7,7 +7,7 @@ import { extname, join, resolve, sep } from 'node:path';
 import type { z } from 'zod';
 import { Beitreten, LageErstellen, STANDARD_STATUS, type Beigetreten, type Lage, type LageErstellt, type Teilnehmer } from '../../shared/protocol.ts';
 import { oeffneDb, type Db } from './db.ts';
-import { geojson, gpx, type ExportDaten } from './export.ts';
+import { geojson, gpx, type ExportDaten } from '../../shared/export.ts';
 import { clientIp, corsKopf, gleich, log, neuerCode, neuesToken, rateLimiter, sha256 } from './sicherheit.ts';
 import { starteWs } from './ws.ts';
 
