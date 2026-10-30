@@ -2,6 +2,10 @@
 // Datenmodell bewusst CoT-nah (uid, Zeit, stale, lat/lon/ce, Symbol), damit eine spätere TAK-Bridge einfach bleibt.
 import { z } from 'zod';
 
+/** Hauptversion dieses Vertrags. Erhöhen, wenn ältere Stände nicht mehr mit neueren zusammenarbeiten; steht im Live-Update
+ *  (web.json, gesiegelt) und in Einstellungen › Über. */
+export const PROTOKOLL_VERSION = 1;
+
 // --- Grundtypen -------------------------------------------------------------
 
 export const Id = z.string().min(1).max(64);
