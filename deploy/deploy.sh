@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Baut lokal (Proxmox-Host) und spielt Server + client/dist in LXC 124 ein. Daten (/var/lib/lagebild) bleiben.
+# Baut lokal (Proxmox-Host) und spielt Server + client/dist in LXC 124 ein, danach das App-Web-Bundle (web.sh). Daten (/var/lib/lagebild) bleiben.
 set -euo pipefail
 CT=${CT:-124}
 cd "$(dirname "$0")/.."
@@ -12,3 +12,6 @@ tar -czf - package.json package-lock.json shared server/src client/dist deploy/l
     [ -f /etc/lagebild.env ] || { umask 077; echo "LAGE_ERSTELL_PASSWORT=$(head -c 18 /dev/urandom | base64)" > /etc/lagebild.env; echo "Zufälliges Erstell-Passwort gesetzt – mit set-passwort ersetzen"; }
     systemctl daemon-reload; systemctl enable -q lagebild; systemctl restart lagebild; sleep 2; systemctl is-active lagebild'
 pct exec "$CT" -- bash -c 'node -e "fetch(\"http://127.0.0.1:8080/\").then(r=>{console.log(\"HTTP\",r.status);process.exit(r.ok?0:1)})"'
+
+# Live-Update der Android-App: Oberfläche als Bundle + web.json bereitstellen (siehe deploy/web.sh)
+deploy/web.sh # (Arbeitsverzeichnis ist oben auf die Repo-Wurzel gesetzt)
