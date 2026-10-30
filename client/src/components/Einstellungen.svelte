@@ -2,8 +2,9 @@
   import { staleNachFuer } from '../../../shared/protocol.ts';
   import { KOORD_FORMATE } from '../lib/coords.ts';
   import { BEDIENGROESSEN } from '../lib/groesse.svelte.ts';
-  import { aktualisiereWachhalten, setzeSendetPos } from '../lib/position.svelte.ts';
+  import { aktualisiereHintergrund, aktualisiereWachhalten, setzeSendetPos } from '../lib/position.svelte.ts';
   import { abmelden, setzeEinstellung, store, type Einstellungen } from '../lib/store.svelte.ts';
+  import { istApp } from '../lib/umgebung.ts';
 
   const INTERVALLE: Einstellungen['intervallS'][] = [5, 10, 30];
   const AUSRICHTUNGEN: { id: Einstellungen['ausrichtung']; label: string }[] = [
@@ -17,6 +18,11 @@
   ];
   const staleS = $derived(staleNachFuer(store.einstellungen.intervallS * 1000) / 1000);
   let verlassenFragen = $state(false);
+
+  function hintergrund(an: boolean) {
+    setzeEinstellung('hintergrund', an);
+    aktualisiereHintergrund();
+  }
 
   function wachhalten(an: boolean) {
     setzeEinstellung('wachhalten', an);
@@ -87,6 +93,16 @@
     </span>
     <input type="checkbox" role="switch" checked={store.einstellungen.wachhalten} onchange={(e) => wachhalten(e.currentTarget.checked)} />
   </label>
+
+  {#if istApp()}
+    <label class="schalter">
+      <span>
+        <strong>Position im Hintergrund senden</strong>
+        <span class="leise">Sendet auch bei gesperrtem Bildschirm oder anderer App. Zeigt dauerhaft die Benachrichtigung «Lagebild sendet Position» und braucht mehr Akku.</span>
+      </span>
+      <input type="checkbox" role="switch" checked={store.einstellungen.hintergrund} onchange={(e) => hintergrund(e.currentTarget.checked)} />
+    </label>
+  {/if}
 
   <div>
     <div class="titel">Koordinatenformat</div>

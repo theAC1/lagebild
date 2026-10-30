@@ -6,3 +6,5 @@ data
 test-results
 playwright-report
 .claude/worktrees/
+client/dist-app
+android/.gradle

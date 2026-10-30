@@ -1,6 +1,7 @@
 <script lang="ts">
   import { toDataURL } from 'qrcode';
   import { sendeBestaetigt, store } from '../../lib/store.svelte.ts';
+  import { istApp, serverBasis } from '../../lib/umgebung.ts';
   import { lies, schreibe, toast } from '../../lib/ui.svelte.ts';
   import { codesKey, leseCodes, zugangsLink, type GemerkteCodes } from './logik.ts';
 
@@ -14,7 +15,7 @@
     codes = lageId ? leseCodes(lies(codesKey(lageId))) : {};
   });
 
-  const link = $derived(codes.teilnehmerCode ? zugangsLink(location.origin, codes.teilnehmerCode) : null);
+  const link = $derived(codes.teilnehmerCode ? zugangsLink(serverBasis(istApp(), location.origin), codes.teilnehmerCode) : null);
 
   $effect(() => {
     const l = link;
