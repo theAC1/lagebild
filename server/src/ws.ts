@@ -35,6 +35,8 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
   const lagen = new Map<string, Set<Verbindung>>();
   // Limits je Teilnehmer, nicht je Verbindung: sonst vervielfacht jede weitere Verbindung desselben Tokens sie
   const limitNachrichten = rateLimiter(50, 10_000);
+  // Jeder Alarm bleibt gespeichert (aufgehoben) und alle werden je Alarm/Snapshot gelesen: eine Flut wächst unbegrenzt
+  const limitAlarme = rateLimiter(10, 60_000);
   const letztePos = new Map<string, number>();
   const ohneHallo = new Map<string, number>();
 
@@ -215,6 +217,7 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
         return anAlle(lage.id, { typ: 'sichtung', sichtung });
       }
       case 'alarm.ausloesen': {
+        if (!limitAlarme(t.id, jetzt)) return fehler(v, 'Zu viele Alarme – bitte kurz warten');
         // Pro Person nur ein aktiver Alarm: ein neuer ersetzt den bestehenden.
         for (const alt of aktiveAlarme(lage.id, t.id)) {
           const aufgehoben = { ...alt, aufgehobenAm: jetzt };
