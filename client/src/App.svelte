@@ -23,7 +23,7 @@
   import { aktualisiereWachhalten, starteGps, stoppeGps } from './lib/position.svelte.ts';
   import { store, verbinde } from './lib/store.svelte.ts';
   import { pruefeThema } from './lib/thema.ts';
-  import { neuLaden, update } from './lib/update.svelte.ts';
+  import { apkHerunterladen, neuLaden, update } from './lib/update.svelte.ts';
   import { begrenzePanels, DETAIL, ikon, istOffen, maxPanels, merkeQuelle, oeffne, schliesse, setzeLeisteZu, ui, type PanelZustand } from './lib/ui.svelte.ts';
 
   const EINGEBAUT: Record<string, string> = { teilnehmer: 'Teilnehmende', einstellungen: 'Einstellungen' };
@@ -191,6 +191,9 @@
 <div class="toasts" aria-live="polite">
   {#if update.bereit}
     <button class="toast neu" onclick={() => neuLaden(true)}>Neue Version bereit · <u>Neu laden</u></button>
+  {/if}
+  {#if update.appNeu}
+    <button class="toast neu" onclick={() => apkHerunterladen()}>Neue App-Version · <u>Herunterladen</u></button>
   {/if}
   {#each ui.toasts as t (t.id)}
     <div class="toast">

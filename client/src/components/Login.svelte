@@ -4,6 +4,8 @@
   import { anmelden, postJson } from '../lib/store.svelte.ts';
   import { STANDARD_SIDC } from '../lib/symbol.ts';
   import { lies, schreibe } from '../lib/ui.svelte.ts';
+  import { liesAppVersion, type AppVersion } from '../lib/appVersion.ts';
+  import { istApp } from '../lib/umgebung.ts';
 
   const PROFIL_KEY = 'lagebild.profil';
   // ATAK-Rollen als Vorschlag (Bridge: Grfhr/Zfhr→Team Lead, KP→HQ, San→Medic, Funker→RTO, Schfs→Sniper, Beob→FO, Hundeführer→K9)
@@ -27,6 +29,14 @@
   let lageName = $state('');
   let passwort = $state('');
   let erstellt = $state<LageErstellt | null>(null);
+
+  // Android-Browser: Link zur App, nur wenn der Server eine APK anbietet
+  let apk = $state<AppVersion>();
+  if (!istApp() && /Android/i.test(navigator.userAgent))
+    fetch('/app/version.json')
+      .then((r) => (r.ok ? r.json() : undefined))
+      .then((j) => (apk = liesAppVersion(j)))
+      .catch(() => {});
 
   let laeuft = $state(false);
   let fehler = $state<string | null>(null);
@@ -146,10 +156,17 @@
         </form>
       {/if}
     {/if}
+    {#if apk}
+      <a class="app-link leise" href="/app/lagebild.apk" download>Android-App installieren ({apk.versionName})</a>
+    {/if}
   </div>
 </div>
 
 <style>
+  .app-link {
+    justify-self: center;
+    font-size: 0.85rem;
+  }
   .huelle {
     position: fixed;
     inset: 0;

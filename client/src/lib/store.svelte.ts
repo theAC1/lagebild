@@ -18,6 +18,7 @@ import {
   type Teilnehmer,
   type Zeichnung,
 } from '../../../shared/protocol.ts';
+import { apiUrl, wsUrl } from './umgebung.ts';
 import { lies, schliesseAlle, schreibe, toast, ui } from './ui.svelte.ts';
 import type { KoordFormat } from './coords.ts';
 import type { Bediengroesse } from './groesse.svelte.ts';
@@ -46,6 +47,8 @@ export interface Einstellungen {
   bedienung: 'klassisch' | 'daumen';
   /** Grösse der Bedienelemente (lib/groesse.svelte.ts) */
   groesse: Bediengroesse;
+  /** Nur Android-App: Position auch bei gesperrtem Bildschirm/anderer App senden (Foreground-Service) */
+  hintergrund: boolean;
 }
 const STANDARD_EINST: Einstellungen = {
   intervallS: 10,
@@ -58,6 +61,7 @@ const STANDARD_EINST: Einstellungen = {
   koordLeiste: false,
   bedienung: 'daumen',
   groesse: 'normal',
+  hintergrund: false,
 };
 
 function ladeEinstellungen(): Einstellungen {
@@ -257,7 +261,7 @@ export function verbinde(): void {
   clearTimeout(wiederTimer);
   if (!store.token || store.beendet || ws) return;
   store.verbindung = 'verbinde';
-  const s = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+  const s = new WebSocket(wsUrl());
   ws = s;
   zuletztGehoert = Date.now();
   s.onopen = () => {
@@ -447,7 +451,7 @@ export async function api(pfad: string, init: RequestInit = {}): Promise<Respons
   if (store.token) headers.set('Authorization', `Bearer ${store.token}`);
   let r: Response;
   try {
-    r = await fetch(pfad, { ...init, headers });
+    r = await fetch(apiUrl(pfad), { ...init, headers });
   } catch {
     throw new Error('Server nicht erreichbar.');
   }

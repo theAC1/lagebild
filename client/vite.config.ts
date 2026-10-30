@@ -5,12 +5,13 @@ import { uiSkala } from './uiSkala.ts';
 
 const backend = 'http://localhost:8080';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   // Einstellung «Bediengrösse»: px in den eigenen Stilen skalieren mit --ui/--schrift (siehe uiSkala.ts)
   css: { postcss: { plugins: [uiSkala()] } },
   plugins: [
     svelte(),
     VitePWA({
+      disable: mode === 'app', // APK (vite build --mode app): kein Service Worker, die Oberfläche steckt in der APK
       registerType: 'prompt', // Hinweis «Neu laden» in lib/update.svelte.ts
       includeAssets: ['icons/icon.svg'],
       manifest: {
@@ -54,5 +55,5 @@ export default defineConfig({
     },
   },
   // MapLibre + milsymbol: bewusst ein Bundle, wird vom Service Worker vorab gecacht
-  build: { chunkSizeWarningLimit: 2500 },
-});
+  build: { chunkSizeWarningLimit: 2500, outDir: mode === 'app' ? 'dist-app' : 'dist' },
+}));
