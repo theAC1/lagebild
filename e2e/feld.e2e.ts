@@ -189,15 +189,18 @@ test.describe('schmale Handys und Querformat', () => {
     await leitung.screenshot({ path: 'docs/screens/e2e-360-alarm.png', animations: 'disabled' });
   });
 
-  test('Kontextmenü und Leitungs-Tabs passen auf 360 px', async () => {
+  test('Radial-Menü, Koordinate und Leitungs-Tabs passen auf 360 px', async () => {
     const karte = leitung.locator('.maplibregl-canvas');
     const k = (await karte.boundingBox())!;
     await leitung.mouse.click(k.x + k.width / 3, k.y + k.height / 2, { button: 'right' });
-    const menu = leitung.locator('.karte-menu');
+    const ring = leitung.getByRole('menu', { name: 'Aktionen für Punkt' });
+    for (const el of await ring.getByRole('menuitem').all()) await expect(el).toBeInViewport({ ratio: 1 });
+    await ring.getByRole('menuitem', { name: 'Koordinate' }).click();
+    const menu = leitung.getByRole('dialog', { name: 'Koordinate' });
     await expect(menu).toBeVisible();
     const breite = await menu.locator('button').evaluateAll((els) => Math.max(...els.map((e) => e.getBoundingClientRect().right)));
     expect(breite).toBeLessThanOrEqual(360);
-    await menu.getByRole('button', { name: 'Schliessen', exact: true }).click();
+    await leitung.keyboard.press('Escape');
 
     await leitung.locator('nav.werkzeuge button.werkzeug', { hasText: 'Leitung' }).click();
     for (const tab of await leitung.getByRole('tab').all()) await expect(tab).toBeInViewport({ ratio: 1 });

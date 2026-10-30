@@ -95,10 +95,10 @@ test('persönliches Bloodhound per Rechtsklick-Radial, überlebt Reload, Beenden
   await expect(leiste(leitung)).toHaveCount(0);
 });
 
-test('Kontextmenü «Bloodhound hierhin» startet auf einen Kartenpunkt', async () => {
+test('Radial auf leerer Karte: «Bloodhound» startet auf einen Kartenpunkt', async () => {
   const k = (await leitung.locator('.maplibregl-canvas').boundingBox())!;
   await leitung.mouse.click(k.x + k.width * 0.5, k.y + k.height * 0.7, { button: 'right' });
-  await leitung.locator('.karte-menu').getByText('Bloodhound hierhin').click();
+  await leitung.getByRole('menu', { name: 'Aktionen für Punkt' }).getByRole('menuitem', { name: 'Bloodhound', exact: true }).click();
   await expect(leiste(leitung)).toContainText('Kartenpunkt');
   await leiste(leitung).getByRole('button', { name: 'Bloodhound beenden' }).click();
 });

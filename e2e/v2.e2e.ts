@@ -54,9 +54,10 @@ async function pruefeQuerLayout(p: Page, breite: number) {
   // Karte bleibt bedienbar, während das Panel offen ist
   const k2 = (await karte(p).boundingBox())!;
   await p.mouse.click(k2.x + k2.width * 0.5, k2.y + k2.height * 0.8, { button: 'right' });
-  await expect(p.locator('.karte-menu')).toBeVisible();
+  const ring = p.getByRole('menu', { name: 'Aktionen für Punkt' });
+  await expect(ring.getByRole('menuitem').first()).toBeVisible(); // der Ring selbst ist 0×0
   await p.keyboard.press('Escape');
-  await expect(p.locator('.karte-menu')).toHaveCount(0);
+  await expect(ring).toHaveCount(0);
   await expect(sheets(p)).toHaveCount(1);
 }
 
@@ -169,15 +170,20 @@ test('Desktop: Rechtsklick auf Teilnehmer öffnet Radial-Menü, Esc schliesst', 
   await expect(sheets(leitung)).toHaveCount(0);
 });
 
-test('Desktop: Doppelklick auf Symbol = Details, Rechtsklick auf leere Karte = Kontextmenü', async () => {
+test('Desktop: Doppelklick auf Symbol = Details, Rechtsklick auf leere Karte = Radial-Menü', async () => {
   await bravoSymbol(leitung).dblclick();
   await expect(leitung.getByRole('region', { name: 'Teilnehmer' })).toContainText('Bravo');
   await leitung.keyboard.press('Escape');
 
   const k = (await karte(leitung).boundingBox())!;
   await leitung.mouse.click(k.x + 40, k.y + k.height - 60, { button: 'right' });
-  await expect(leitung.locator('.karte-menu')).toBeVisible();
+  const ring = leitung.getByRole('menu', { name: 'Aktionen für Punkt' });
+  for (const name of ['Koordinate', 'Marker hier', 'Sichtung hier', 'R&B', 'Bloodhound']) await expect(ring.getByRole('menuitem', { name })).toBeVisible();
+  await ring.getByRole('menuitem', { name: 'Koordinate' }).click();
+  const koord = leitung.getByRole('dialog', { name: 'Koordinate' });
+  await expect(koord).toBeInViewport({ ratio: 1 });
   await leitung.keyboard.press('Escape');
+  await expect(koord).toHaveCount(0);
 });
 
 test('Koordinatenzeile: standardmässig aus, Klick aufs eigene Symbol schaltet (gemerkt); Radial am eigenen Symbol', async () => {
