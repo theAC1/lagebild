@@ -430,11 +430,17 @@
       border-left: 1px solid var(--line);
     }
     .werkzeug {
-      flex: 1 1 0;
+      /* nie niedriger als Symbol plus (getrennte, zweizeilige) Beschriftung; passt nicht alles, scrollt die Leiste */
+      flex: 1 0 auto;
       min-height: 44px;
       max-height: 76px;
       min-width: 0;
       font-size: 0.68rem;
+    }
+    /* «Führungsraster», «Geländetaufe» sind breiter als die Leiste: trennen statt in die Karte ragen */
+    .werkzeug span {
+      max-width: 100%;
+      hyphens: auto;
     }
     .einklappen {
       display: grid;
