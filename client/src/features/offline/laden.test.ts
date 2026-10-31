@@ -3,16 +3,8 @@ import { anzahl, bereiche, type Gebiet } from './kacheln.ts';
 import { ABSTAND_MS, drossel, ladeGebiet, type Stand, type Werkzeug } from './laden.ts';
 
 const g0: Gebiet = {
-  id: 'g',
-  name: 'Test',
-  bbox: [7.6, 46.75, 7.605, 46.755],
-  karten: ['farbe', 'taufe'],
-  erstellt: 0,
-  zuletztGenutzt: 0,
-  status: 'laeuft',
-  erledigt: 0,
-  gesamt: 0,
-  bytes: 0,
+  id: 'g', name: 'Test', bbox: [7.6, 46.75, 7.605, 46.755], karten: ['farbe', 'taufe'],
+  erstellt: 0, zuletztGenutzt: 0, status: 'laeuft', erledigt: 0, gesamt: 0, bytes: 0,
 };
 const GESAMT = anzahl(bereiche(g0));
 
@@ -44,11 +36,11 @@ function werkzeug(holen?: (url: string) => Promise<Response>) {
     schlafe: async (ms) => void (uhr += ms),
     jetzt: () => uhr,
   };
-  return { w, speicher, ansicht, geholt, uhr: () => uhr };
+  return { w, speicher, ansicht, geholt };
 }
 
 describe('ladeGebiet', () => {
-  it('lädt jede Kachel genau einmal und zählt die Bytes', async () => {
+  it('lädt jede Kachel genau einmal und zählt die Bytes; Aktualisieren lädt vorhandene neu', async () => {
     const { w, speicher, geholt } = werkzeug();
     let stand: Stand | null = null;
     expect(await ladeGebiet(g0, w, () => true, (s) => (stand = s))).toBe('fertig');
@@ -56,6 +48,8 @@ describe('ladeGebiet', () => {
     expect(geholt).toHaveLength(GESAMT);
     expect(speicher.daten.size).toBe(GESAMT);
     expect(stand).toEqual({ erledigt: GESAMT, bytes: GESAMT * 10, wartet: false });
+    await ladeGebiet({ ...g0, erneuern: true }, w, () => true, () => {});
+    expect(geholt).toHaveLength(2 * GESAMT);
   });
 
   it('Wiederaufnahme nach Abbruch: nichts doppelt, nichts fehlt', async () => {
@@ -72,19 +66,17 @@ describe('ladeGebiet', () => {
     expect(speicher.daten.size).toBe(GESAMT);
   });
 
-  it('wartet ohne Netz und lädt danach weiter', async () => {
+  it('wartet ohne Netz und lädt danach weiter; 404/400 gilt als erledigt, Serverfehler wird wiederholt', async () => {
     let fehler = 3;
-    const { w } = werkzeug(async () => {
+    const offline = werkzeug(async () => {
       if (fehler-- > 0) throw new TypeError('Failed to fetch');
       return new Response(new Uint8Array(1));
     });
     const wartet: boolean[] = [];
-    expect(await ladeGebiet(g0, w, () => true, (s) => wartet.push(s.wartet))).toBe('fertig');
+    expect(await ladeGebiet(g0, offline.w, () => true, (s) => wartet.push(s.wartet))).toBe('fertig');
     expect(wartet).toContain(true);
     expect(wartet.at(-1)).toBe(false);
-  });
 
-  it('404/400 gilt als erledigt, Serverfehler wird wiederholt', async () => {
     let n = 0;
     const { w, speicher } = werkzeug(async () => {
       n++;
@@ -94,6 +86,14 @@ describe('ladeGebiet', () => {
     });
     expect(await ladeGebiet(g0, w, () => true, () => {})).toBe('fertig');
     expect(speicher.daten.size).toBe(GESAMT - 1);
+  });
+
+  it('Speicher voll bricht mit Fehler ab', async () => {
+    const { w, speicher } = werkzeug();
+    speicher.put = async () => {
+      throw new DOMException('voll', 'QuotaExceededError');
+    };
+    await expect(ladeGebiet(g0, w, () => true, () => {})).rejects.toThrow('voll');
   });
 
   it('verschiebt schon angezeigte Kacheln aus dem Workbox-Cache statt sie neu zu laden', async () => {
@@ -106,20 +106,6 @@ describe('ladeGebiet', () => {
     expect(speicher.daten.has(url)).toBe(true);
   });
 
-  it('Aktualisieren lädt auch vorhandene Kacheln neu', async () => {
-    const { w, geholt } = werkzeug();
-    await ladeGebiet(g0, w, () => true, () => {});
-    await ladeGebiet({ ...g0, erneuern: true }, w, () => true, () => {});
-    expect(geholt).toHaveLength(2 * GESAMT);
-  });
-
-  it('Speicher voll bricht mit Fehler ab', async () => {
-    const { w, speicher } = werkzeug();
-    speicher.put = async () => {
-      throw new DOMException('voll', 'QuotaExceededError');
-    };
-    await expect(ladeGebiet(g0, w, () => true, () => {})).rejects.toThrow('voll');
-  });
 });
 
 describe('drossel', () => {

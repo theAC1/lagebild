@@ -13,11 +13,9 @@ const sig = 'B8y2W3v6vqZ0siCBAsnRjdwddi8vY25n6yN--VGYR15E_5kyqOqqT0EXPp9-f9kosCo
 const gut = { webCode: 500, webName: '1.0.9', minNativeCode: 100, url: '/app/web-500.zip', sha256: hash, stufe: 'normal', protokoll: 1, sig };
 
 describe('Web-Manifest', () => {
-  it('liest ein gültiges Manifest', () => {
+  it('liest ein gültiges Manifest (webName fällt auf den webCode zurück); lehnt Ungültiges, fremde Adressen, falschen Hash und fehlendes Siegel ab', () => {
     expect(liesWebManifest(gut)).toEqual({ webCode: 500, webName: '1.0.9', minNativeCode: 100, pfad: '/app/web-500.zip', sha256: hash, stufe: 'normal', protokoll: 1, sig });
     expect(liesWebManifest({ ...gut, webName: undefined })?.webName).toBe('500');
-  });
-  it('lehnt Ungültiges, fremde Adressen und fehlendes Siegel ab', () => {
     const schlecht = [
       null, 'x', {}, { ...gut, webCode: 0 }, { ...gut, webCode: 1.5 }, { ...gut, minNativeCode: -1 }, { ...gut, minNativeCode: '1' },
       { ...gut, url: 'https://evil.example/app/web-500.zip' }, { ...gut, url: '/app/web-499.zip' }, { ...gut, url: '/app/../x.zip' },
@@ -25,35 +23,27 @@ describe('Web-Manifest', () => {
       { ...gut, sig: undefined }, { ...gut, sig: '' }, { ...gut, sig: sig.slice(1) }, { ...gut, sig: sig.slice(0, -1) + '=' }, { ...gut, sig: 1 },
       { ...gut, stufe: undefined }, { ...gut, stufe: 'dringend' }, { ...gut, protokoll: undefined }, { ...gut, protokoll: 0 }, { ...gut, protokoll: '1' },
     ];
-    for (const x of schlecht) expect(liesWebManifest(x)).toBeUndefined();
+    for (const x of schlecht) expect(liesWebManifest(x), JSON.stringify(x)).toBeUndefined();
   });
 });
 
 describe('Siegel', () => {
   const m = liesWebManifest(gut)!;
-  it('Nachricht bindet Stand, Mindest-APK, Protokoll, Stufe und Inhalt', () => {
+  it('Nachricht bindet Stand, Mindest-APK, Protokoll, Stufe und Inhalt; Testvektor wird akzeptiert', async () => {
     expect(siegelNachricht(m)).toBe(`lagebild-web|500|100|1|normal|${hash}`);
-  });
-  it('gültige Signatur (Testvektor) wird akzeptiert', async () => {
     expect(await siegelGueltig(m, TEST_SCHLUESSEL)).toBe(true);
   });
-  it('manipulierter webCode, minNativeCode oder sha256 wird abgelehnt', async () => {
-    expect(await siegelGueltig({ ...m, webCode: 501, pfad: '/app/web-501.zip' }, TEST_SCHLUESSEL)).toBe(false);
-    expect(await siegelGueltig({ ...m, minNativeCode: 99 }, TEST_SCHLUESSEL)).toBe(false);
-    expect(await siegelGueltig({ ...m, sha256: 'b'.repeat(64) }, TEST_SCHLUESSEL)).toBe(false);
-  });
-  it('manipulierte Stufe oder Protokoll wird abgelehnt', async () => {
-    expect(await siegelGueltig({ ...m, stufe: 'wichtig' }, TEST_SCHLUESSEL)).toBe(false);
-    expect(await siegelGueltig({ ...m, stufe: 'sicherheit' }, TEST_SCHLUESSEL)).toBe(false);
-    expect(await siegelGueltig({ ...m, protokoll: 2 }, TEST_SCHLUESSEL)).toBe(false);
-  });
-  it('kaputte Signatur wird abgelehnt', async () => {
+  it('jedes manipulierte Feld (webCode, minNativeCode, sha256, Stufe, Protokoll), kaputte Signatur und fremder Schlüssel werden abgelehnt', async () => {
+    const varianten = [
+      { ...m, webCode: 501, pfad: '/app/web-501.zip' }, { ...m, minNativeCode: 99 }, { ...m, sha256: 'b'.repeat(64) },
+      { ...m, stufe: 'wichtig' as const }, { ...m, stufe: 'sicherheit' as const }, { ...m, protokoll: 2 },
+    ];
+    for (const v of varianten) expect(await siegelGueltig(v, TEST_SCHLUESSEL), JSON.stringify(v)).toBe(false);
+    // kaputte Signatur, fremder Schlüssel
     const kippe = sig[10] === 'A' ? 'B' : 'A';
     expect(await siegelGueltig({ ...m, sig: sig.slice(0, 10) + kippe + sig.slice(11) }, TEST_SCHLUESSEL)).toBe(false);
     expect(await siegelGueltig({ ...m, sig: 'A'.repeat(86) }, TEST_SCHLUESSEL)).toBe(false);
     expect(await siegelGueltig({ ...m, sig: '!!' }, TEST_SCHLUESSEL)).toBe(false);
-  });
-  it('fremder Schlüssel wird abgelehnt', async () => {
     expect(await siegelGueltig(m, UPDATE_SCHLUESSEL)).toBe(false);
     expect(await siegelGueltig(m, { kty: 'EC', crv: 'P-256', x: 'x', y: 'y' })).toBe(false);
   });
@@ -66,32 +56,18 @@ describe('Siegel', () => {
   });
 });
 
-describe('Aktion', () => {
+describe('Entscheid', () => {
   const m = liesWebManifest(gut)!;
-  it('lädt nur neuere Stände, die zur APK passen', () => {
-    expect(webAktion(m, 499, 100)).toBe('laden');
-    expect(webAktion(m, 500, 100)).toBe('aktuell');
-    expect(webAktion(m, 600, 100)).toBe('aktuell');
-    expect(webAktion(m, 499, 101)).toBe('laden');
-  });
-  it('zu hoher nativer Mindestcode: nicht anwenden', () => {
+  it('lädt nur neuere Stände, die zur APK passen; Bundle nur über https', () => {
+    expect([webAktion(m, 499, 100), webAktion(m, 500, 100), webAktion(m, 600, 100), webAktion(m, 499, 101)]).toEqual(['laden', 'aktuell', 'aktuell', 'laden']);
     expect(webAktion(m, 499, 99)).toBe('apk-noetig');
     expect(webAktion(m, 499, NaN)).toBe('aktuell');
     expect(webAktion(undefined, 1, 1)).toBe('aktuell');
-  });
-});
-
-describe('bundleUrl', () => {
-  const m = liesWebManifest(gut)!;
-  it('nur über https', () => {
     expect(bundleUrl('https://lage.arvuna.ch/', m)).toBe('https://lage.arvuna.ch/app/web-500.zip');
     expect(bundleUrl('http://10.0.2.2:8080', m)).toBeUndefined();
   });
-});
-
-describe('Stufen', () => {
-  const a = (webCode: number, stufe: Stufe): Angebot => ({ webCode, stufe, protokoll: 1 });
-  it('überspringen nur bei normal, ein höherer webCode erscheint wieder', () => {
+  it('zeigen: überspringbar nur Stufe normal und nur bis zum gemerkten webCode', () => {
+    const a = (webCode: number, stufe: Stufe): Angebot => ({ webCode, stufe, protokoll: 1 });
     expect(zeigen(a(500, 'normal'), undefined)).toBe(true);
     expect(zeigen(a(500, 'normal'), 500)).toBe(false);
     expect(zeigen(a(499, 'normal'), 500)).toBe(false);
@@ -132,7 +108,11 @@ describe('webUpdater', () => {
     return { lader, bereit, speicher, w: webUpdater(u), neuesManifest: (x: unknown) => (m = x) };
   };
 
-  it('gesiegelter Stand wird geladen und angeboten, aber erst aktivieren() setzt ihn', async () => {
+  it('gesiegelter Stand wird einmal geladen und angeboten; erst aktivieren() setzt ihn, ohne bereiten Stand tut es nichts', async () => {
+    const leer = umgebung([]);
+    await leer.w.aktivieren();
+    expect(leer.lader.set).not.toHaveBeenCalled();
+
     const { lader, bereit, w } = umgebung([]);
     await w.start();
     await w.pruefe();
@@ -145,7 +125,7 @@ describe('webUpdater', () => {
     expect(lader.set).toHaveBeenCalledWith({ id: 'neu-500' });
   });
 
-  it('beim nächsten Start: geladener Stand wird erneut angeboten (mit seiner Stufe), nicht übernommen', async () => {
+  it('Neustart: geladener Stand (pending) wird mit seiner Stufe erneut angeboten, nicht übernommen; ohne passendes Bundle oder mit error nichts', async () => {
     const erst = umgebung([], gesiegelt(520, 'sicherheit', 2));
     await erst.w.pruefe();
     // Neustart offline: gleicher Gerätespeicher, das Bundle liegt als pending da
@@ -157,24 +137,21 @@ describe('webUpdater', () => {
     expect(lader.download).not.toHaveBeenCalled();
     await w.aktivieren();
     expect(lader.set).toHaveBeenCalledWith({ id: 'neu-520' });
-  });
 
-  it('gemerkter Stand ohne passendes Bundle wird nicht angeboten', async () => {
     const speicher = new Map([['lagebild.update.angebot', JSON.stringify({ id: 'weg', webCode: 520, stufe: 'normal', protokoll: 1 })]]);
-    const { lader, bereit, w } = umgebung([{ id: 'weg', version: '520', status: 'error' }], undefined, speicher);
-    await w.start();
-    await w.aktivieren();
-    expect(bereit).not.toHaveBeenCalled();
-    expect(lader.set).not.toHaveBeenCalled();
+    const weg = umgebung([{ id: 'weg', version: '520', status: 'error' }], undefined, speicher);
+    await weg.w.start();
+    await weg.w.aktivieren();
+    expect(weg.bereit).not.toHaveBeenCalled();
+    expect(weg.lader.set).not.toHaveBeenCalled();
+
+    const fehl = umgebung([{ id: 'x', version: '500', status: 'error' }]);
+    await fehl.w.pruefe(); // schon einmal nicht gestartet: nicht erneut laden
+    expect(fehl.lader.download).not.toHaveBeenCalled();
+    expect(fehl.bereit).not.toHaveBeenCalled();
   });
 
-  it('ohne bereiten Stand tut aktivieren() nichts', async () => {
-    const { lader, w } = umgebung([]);
-    await w.aktivieren();
-    expect(lader.set).not.toHaveBeenCalled();
-  });
-
-  it('ohne gültiges Siegel: nichts laden, nichts anbieten', async () => {
+  it('ohne gültiges Siegel: nichts laden, nichts anbieten, nichts setzen', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const echt = gesiegelt(500);
     const schlecht = [{ ...echt, sig: undefined }, { ...echt, minNativeCode: 99 }, { ...echt, sha256: 'b'.repeat(64) }, { ...echt, stufe: 'wichtig' }, { ...echt, protokoll: 2 }, gut];
@@ -183,21 +160,14 @@ describe('webUpdater', () => {
       await w.start();
       await w.pruefe();
       await w.aktivieren();
-      expect(lader.download).not.toHaveBeenCalled();
+      expect(lader.download, JSON.stringify(manifest)).not.toHaveBeenCalled();
       expect(lader.set).not.toHaveBeenCalled();
       expect(bereit).not.toHaveBeenCalled();
     }
     warn.mockRestore();
   });
 
-  it('fehlgeschlagener Stand (error) wird nicht erneut geladen', async () => {
-    const { lader, bereit, w } = umgebung([{ id: 'x', version: '500', status: 'error' }]);
-    await w.pruefe();
-    expect(lader.download).not.toHaveBeenCalled();
-    expect(bereit).not.toHaveBeenCalled();
-  });
-
-  it('Überspringen (normal): gleicher Stand nicht mehr, auch nach Neustart; ein höherer erscheint wieder', async () => {
+  it('Überspringen (normal): gleicher Stand nicht mehr, auch nach Neustart; höherer erscheint wieder; wichtig/sicherheit nicht überspringbar', async () => {
     const { lader, bereit, speicher, w, neuesManifest } = umgebung([]);
     await w.pruefe();
     w.ueberspringen();
@@ -214,23 +184,19 @@ describe('webUpdater', () => {
     neuesManifest(gesiegelt(501));
     await w.pruefe();
     expect(bereit).toHaveBeenLastCalledWith({ webCode: 501, stufe: 'normal', protokoll: 1 });
-  });
 
-  it('wichtig und sicherheit lassen sich nicht überspringen', async () => {
     for (const stufe of ['wichtig', 'sicherheit'] as const) {
-      const { lader, bereit, speicher, w } = umgebung([], gesiegelt(500, stufe));
-      await w.pruefe();
-      w.ueberspringen();
-      expect(speicher.has('lagebild.update.uebersprungen')).toBe(false);
-      await w.aktivieren(); // bleibt bereit
-      expect(bereit).toHaveBeenCalledOnce();
-      expect(lader.set).toHaveBeenCalledWith({ id: 'neu-500' });
+      const u = umgebung([], gesiegelt(500, stufe));
+      await u.w.pruefe();
+      u.w.ueberspringen();
+      expect(u.speicher.has('lagebild.update.uebersprungen')).toBe(false);
+      await u.w.aktivieren(); // bleibt bereit
+      expect(u.bereit).toHaveBeenCalledOnce();
+      expect(u.lader.set).toHaveBeenCalledWith({ id: 'neu-500' });
     }
-  });
-
-  it('übersprungene Version verdeckt keine wichtige mit gleichem oder tieferem Code', async () => {
-    const { bereit, w } = umgebung([], gesiegelt(500, 'wichtig'), new Map([['lagebild.update.uebersprungen', '600']]));
-    await w.pruefe();
-    expect(bereit).toHaveBeenCalledOnce();
+    // übersprungene Version verdeckt keine wichtige mit gleichem oder tieferem Code
+    const w2 = umgebung([], gesiegelt(500, 'wichtig'), new Map([['lagebild.update.uebersprungen', '600']]));
+    await w2.w.pruefe();
+    expect(w2.bereit).toHaveBeenCalledOnce();
   });
 });

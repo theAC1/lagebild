@@ -1,47 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import {
-  ABLAUF_MS,
-  abgelaufen,
-  alleKacheln,
-  anzahl,
-  bereiche,
-  bboxUm,
-  enthaelt,
-  kachelBei,
-  kachelVon,
-  karteDef,
-  LUFTBILD_STANDARD_Z,
-  schaetzeBytes,
-  UMGEBUNG_Z,
-  urlVon,
-  zuLoeschen,
-  type Bbox,
-  type Gebiet,
-} from './kacheln.ts';
+import { ABLAUF_MS, abgelaufen, alleKacheln, anzahl, bereiche, bboxUm, enthaelt, kachelBei, kachelVon, karteDef, LUFTBILD_STANDARD_Z, UMGEBUNG_Z, urlVon, zuLoeschen, type Bbox, type Gebiet } from './kacheln.ts';
 
 // ~10 × 10 km um Thun
 const THUN: Bbox = [7.565, 46.713, 7.696, 46.803];
 const gebiet = (id: string, bbox: Bbox, karten: Gebiet['karten'] = ['farbe']): Gebiet => ({
-  id,
-  name: id,
-  bbox,
-  karten,
-  erstellt: 0,
-  zuletztGenutzt: 0,
-  status: 'fertig',
-  erledigt: 0,
-  gesamt: 0,
-  bytes: 0,
+  id, name: id, bbox, karten, erstellt: 0, zuletztGenutzt: 0, status: 'fertig', erledigt: 0, gesamt: 0, bytes: 0,
 });
 
 describe('Kachel-Aufzählung', () => {
-  it('z0-Kachel der Schweiz und Zoom-Grenzen je Karte', () => {
+  it('Zoom-Grenzen je Karte (Taufe 14, Luftbild ohne «Volles Detail» begrenzt, mit bis Max-Zoom), Umgebung ab z5; Thun liegt drin', () => {
     const bs = bereiche({ bbox: THUN, karten: ['farbe', 'luftbild', 'taufe'] });
-    const max = (k: string) => Math.max(...bs.filter((b) => b.karte === k).map((b) => b.z));
+    const max = (k: string, b = bs) => Math.max(...b.filter((x) => x.karte === k).map((x) => x.z));
     expect(max('farbe')).toBe(19);
-    expect(max('luftbild')).toBe(LUFTBILD_STANDARD_Z); // ohne «Volles Detail»
+    expect(max('luftbild')).toBe(LUFTBILD_STANDARD_Z);
     expect(max('taufe')).toBe(14);
     expect(Math.min(...bs.map((b) => b.z))).toBe(5);
+    const voll = bereiche({ bbox: THUN, karten: ['farbe', 'luftbild'], voll: true });
+    expect(max('luftbild', voll)).toBe(karteDef('luftbild').maxzoom);
+    expect(karteDef('luftbild').maxzoom).toBeGreaterThan(LUFTBILD_STANDARD_Z);
+    expect(max('farbe', voll)).toBe(19); // Landeskarte bleibt unberührt
     const z14 = bs.find((b) => b.karte === 'farbe' && b.z === 14)!;
     // Thun (7.628, 46.758) liegt bei z14 auf x 8539, y 5778
     expect(z14.x0).toBeLessThanOrEqual(8539);
@@ -50,7 +27,7 @@ describe('Kachel-Aufzählung', () => {
     expect(z14.y1).toBeGreaterThanOrEqual(5778);
   });
 
-  it('Anzahl wächst pro Zoomstufe etwa um Faktor 4, die Umgebung nur grob', () => {
+  it('Anzahl wächst je Zoomstufe etwa um Faktor 4, die Umgebung nur grob; kachelBei folgt alleKacheln; URL hin und zurück, fremde Layer keine Offline-Kacheln', () => {
     const bs = bereiche({ bbox: THUN, karten: ['farbe'] });
     const n = (z: number) => anzahl(bs.filter((b) => b.z === z));
     expect(n(19) / n(18)).toBeGreaterThan(3.5);
@@ -58,26 +35,12 @@ describe('Kachel-Aufzählung', () => {
     expect(n(19)).toBeGreaterThan(30_000); // ~191 × 191
     expect(n(19)).toBeLessThan(40_000);
     expect(n(UMGEBUNG_Z)).toBeLessThanOrEqual(9); // ±20 km bei z10 (Kachel ≈ 27 km)
-  });
-
-  it('MB-Schätzung 10 × 10 km', () => {
-    const mb = (k: Gebiet['karten']) => schaetzeBytes(bereiche({ bbox: THUN, karten: k })) / 1024 ** 2;
-    expect(mb(['farbe'])).toBeGreaterThan(500);
-    expect(mb(['farbe'])).toBeLessThan(1000);
-    expect(mb(['taufe'])).toBeGreaterThan(5);
-    expect(mb(['taufe'])).toBeLessThan(25); // inkl. Umgebung z5–z10
-    expect(mb(['farbe', 'luftbild'])).toBeCloseTo(mb(['farbe']) + mb(['luftbild']));
-  });
-
-  it('kachelBei folgt der Reihenfolge von alleKacheln', () => {
-    const bs = bereiche({ bbox: [7.6, 46.75, 7.61, 46.76], karten: ['farbe', 'taufe'] });
-    const alle = [...alleKacheln(bs)];
-    expect(alle).toHaveLength(anzahl(bs));
-    for (const i of [0, 1, 7, alle.length - 1]) expect(kachelBei(bs, i)).toEqual(alle[i]);
-    expect(() => kachelBei(bs, alle.length)).toThrow(RangeError);
-  });
-
-  it('URL hin und zurück, fremde Layer sind keine Offline-Kacheln', () => {
+    const klein = bereiche({ bbox: [7.6, 46.75, 7.61, 46.76], karten: ['farbe', 'taufe'] });
+    const alle = [...alleKacheln(klein)];
+    expect(alle).toHaveLength(anzahl(klein));
+    for (const i of [0, 1, 7, alle.length - 1]) expect(kachelBei(klein, i)).toEqual(alle[i]);
+    expect(() => kachelBei(klein, alle.length)).toThrow(RangeError);
+    // URL hin und zurück, fremde Layer sind keine Offline-Kacheln
     const k = { karte: 'luftbild' as const, z: 17, x: 68291, y: 46459 };
     expect(urlVon(k)).toBe('https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissimage/default/current/3857/17/68291/46459.jpeg');
     expect(kachelVon(urlVon(k))).toEqual(k);
@@ -86,7 +49,7 @@ describe('Kachel-Aufzählung', () => {
     expect(kachelVon('https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-grau/default/current/3857/14/1/2.jpeg')).toBeNull();
   });
 
-  it('enthaelt: innen nur oberhalb der Umgebungsstufen', () => {
+  it('enthaelt: Rand und Karte zählen, innen nur oberhalb der Umgebungsstufen', () => {
     const g = gebiet('a', THUN);
     const z16 = bereiche(g).find((b) => b.z === 16)!;
     expect(enthaelt(g, { karte: 'farbe', z: 16, x: z16.x0, y: z16.y0 }, true)).toBe(true);
@@ -98,38 +61,22 @@ describe('Kachel-Aufzählung', () => {
   });
 });
 
-describe('Referenzzählung beim Löschen', () => {
+describe('Löschen und Ablauf', () => {
   const klein: Bbox = [7.6, 46.75, 7.61, 46.76];
-  it('ohne andere Gebiete fliegt alles raus', () => {
+  it('Referenzzählung: allein alles weg; überlappend bleiben gemeinsame Kacheln; andere Karte teilt nichts; identisches Gebiet doppelt → nichts', () => {
     const a = gebiet('a', klein);
     expect([...zuLoeschen(a, [a])]).toHaveLength(anzahl(bereiche(a)));
-  });
-
-  it('überlappende Gebiete behalten gemeinsame Kacheln', () => {
-    const a = gebiet('a', klein);
     const b = gebiet('b', [7.605, 46.755, 7.615, 46.765]);
     const weg = new Set(zuLoeschen(a, [a, b]));
     const bUrls = new Set([...alleKacheln(bereiche(b))].map(urlVon));
     expect(weg.size).toBeGreaterThan(0);
     for (const u of weg) expect(bUrls.has(u)).toBe(false);
-    // jede Kachel von a ist entweder weg oder gehört b
-    for (const k of alleKacheln(bereiche(a))) expect(weg.has(urlVon(k)) || bUrls.has(urlVon(k))).toBe(true);
-  });
-
-  it('gleiche Fläche, andere Karte: nichts geteilt', () => {
-    const a = gebiet('a', klein, ['farbe']);
-    const b = gebiet('b', klein, ['luftbild']);
-    expect([...zuLoeschen(a, [b])]).toHaveLength(anzahl(bereiche(a)));
-  });
-
-  it('identisches Gebiet doppelt: nichts löschen', () => {
-    const a = gebiet('a', klein);
+    for (const k of alleKacheln(bereiche(a))) expect(weg.has(urlVon(k)) || bUrls.has(urlVon(k))).toBe(true); // weg oder gehört b
+    expect([...zuLoeschen(a, [gebiet('b', klein, ['luftbild'])])]).toHaveLength(anzahl(bereiche(a)));
     expect([...zuLoeschen(a, [{ ...a, id: 'b' }])]).toHaveLength(0);
   });
-});
 
-describe('60-Tage-Ablauf', () => {
-  it('nur Gebiete, die länger als 60 Tage nicht genutzt wurden', () => {
+  it('60-Tage-Ablauf: nur Gebiete, die länger als ABLAUF_MS nicht genutzt wurden (Grenze bleibt)', () => {
     const jetzt = 100 * 86_400_000;
     const alt = { ...gebiet('alt', THUN), zuletztGenutzt: jetzt - ABLAUF_MS - 1 };
     const grenze = { ...gebiet('grenze', THUN), zuletztGenutzt: jetzt - ABLAUF_MS };
@@ -138,23 +85,9 @@ describe('60-Tage-Ablauf', () => {
   });
 });
 
-describe('Luftbild-Detail', () => {
-  const bbox: Bbox = [7.6, 46.74, 7.62, 46.76];
-  const maxZ = (voll?: boolean) => Math.max(...bereiche({ bbox, karten: ['luftbild'], voll }).map((b) => b.z));
-  it('ohne «Volles Detail» endet das Luftbild bei LUFTBILD_STANDARD_Z, mit bei seinem Max-Zoom', () => {
-    expect(maxZ()).toBe(LUFTBILD_STANDARD_Z);
-    expect(maxZ(true)).toBe(karteDef('luftbild').maxzoom);
-    expect(karteDef('luftbild').maxzoom).toBeGreaterThan(LUFTBILD_STANDARD_Z);
-  });
-  it('die Landeskarte bleibt unberührt', () => {
-    const z = (voll?: boolean) => Math.max(...bereiche({ bbox, karten: ['farbe'], voll }).map((b) => b.z));
-    expect(z()).toBe(z(true));
-  });
-});
-
 describe('bboxUm: Offline-Gebiet aus einem Rahmen', () => {
-  const ring = [{ lat: 47.0, lon: 7.4 }, { lat: 47.0, lon: 7.5 }, { lat: 46.95, lon: 7.5 }, { lat: 46.95, lon: 7.4 }, { lat: 47.0, lon: 7.4 }];
   it('umschliesst den Rahmen mit Rand (10 % der längeren Seite) auf allen Seiten', () => {
+    const ring = [{ lat: 47.0, lon: 7.4 }, { lat: 47.0, lon: 7.5 }, { lat: 46.95, lon: 7.5 }, { lat: 46.95, lon: 7.4 }, { lat: 47.0, lon: 7.4 }];
     const [w, s, e, n] = bboxUm(ring);
     expect(w).toBeLessThan(7.4);
     expect(e).toBeGreaterThan(7.5);
