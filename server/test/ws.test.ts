@@ -192,6 +192,23 @@ describe('WebSocket', () => {
     expect(fuerLtg.ereignisse.map((e: { d: { typ: string } }) => e.d.typ)).toEqual(['marker', 'marker.geloescht', 'chat']);
   });
 
+  it('Protokoll einer Bestandslage: Einträge von vor dem Protokoll bleiben, wenn neue Deltas dazukommen', async () => {
+    const { l, a, b, bB } = await szenario();
+    const setze = async (bezeichnung: string) => {
+      a.senden({ typ: 'marker.setzen', marker: { sidc: SIDC, lat: 47, lon: 8, bezeichnung, notiz: '' } });
+      await b.warte('marker', (m) => m.marker.bezeichnung === bezeichnung);
+    };
+    await setze('Alt');
+    // Lage von vor dem Protokoll: Eintrag da, Protokoll leer
+    const roh = new DatabaseSync(join(s.dataDir, 'lagebild.sqlite'));
+    roh.prepare('DELETE FROM protokoll WHERE lage_id = ?').run(l.lageId);
+    roh.close();
+    await pause(5);
+    await setze('Neu');
+    const p = await (await s.api('/api/protokoll', { token: bB.token })).json();
+    expect(p.ereignisse.map((e: { d: { marker: { bezeichnung: string } } }) => e.d.marker.bezeichnung)).toEqual(['Alt', 'Neu']);
+  });
+
   it('Protokoll voll: nichts mehr aufzeichnen, Leitung einmal warnen, live läuft weiter', async () => {
     const { l, ltg, a, b } = await szenario();
     const roh = new DatabaseSync(join(s.dataDir, 'lagebild.sqlite'));

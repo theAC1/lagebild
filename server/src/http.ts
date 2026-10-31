@@ -153,7 +153,7 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
     };
   }
 
-  /** Lagen von vor dem Protokoll (31.10.): Ereignisse aus den gespeicherten Einträgen; Änderungen und Löschungen fehlen. */
+  /** Lagen von vor dem Protokoll (31.10.): Ereignisse aus den gespeicherten Einträgen; frühere Änderungen und Löschungen fehlen. */
   function ausBestand(lage: Lage): ProtokollEintrag[] {
     const e = <A extends Art>(art: A): Eintraege[A][] => db.eintraege(lage.id, art);
     const liste: ProtokollEintrag[] = [
@@ -266,7 +266,10 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
       const sieht = (e: ProtokollEintrag): boolean =>
         e.d.typ === 'chat' ? sichtbar(e.d.chat, ich) : e.d.typ === 'meldung' ? meldungSichtbar(e.d.meldung, ich) : true;
       // ponytail: ganzes Protokoll in einer Antwort; bei sehr langen Lagen seitenweise laden
-      const p: Protokoll = { teilnehmer: db.teilnehmerListe(lage.id, true), ereignisse: (roh.length ? roh : ausBestand(lage)).filter(sieht), spuren: db.spuren(lage.id) };
+      // Bestandslagen: was vor dem ersten Protokolleintrag entstand, kommt aus den Einträgen
+      const erst = roh[0]?.t ?? Infinity;
+      const ereignisse = [...ausBestand(lage).filter((e) => e.t < erst), ...roh];
+      const p: Protokoll = { teilnehmer: db.teilnehmerListe(lage.id, true), ereignisse: ereignisse.filter(sieht), spuren: db.spuren(lage.id) };
       return antwort(res, 200, p);
     }
     if (route === 'GET /api/export.gpx' || route === 'GET /api/export.geojson') {

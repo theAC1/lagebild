@@ -652,7 +652,7 @@ Gebaut in der heutigen Server-Lage. Die Regeln liegen als Reducer in `shared/reg
 
 ### Annahmen (kleinste vernünftige, von Juan zu bestätigen)
 - Bestandslagen: offene starten in LV (seit Erstellung), beendete in AN (LV bis zum Beenden). Migration beim Lesen in `server/src/db.ts`, ohne Schema-Umbau.
-- Bestandslagen ohne Protokoll: die Wiedergabe baut die Ereignisse aus den gespeicherten Einträgen (Erstell- und Endzeiten); Änderungen und Löschungen von früher fehlen.
+- Bestandslagen: was vor dem ersten Protokolleintrag entstand, baut der Server aus den gespeicherten Einträgen (Erstell- und Endzeiten) und stellt es vor das Protokoll; Änderungen und Löschungen von früher fehlen.
 - Neue Lagen aus dem Client beginnen in AP (`phase: 'ap'`); ohne Angabe (ältere Web-Stände, API) in LV.
 - In AP keine Sichtungen (sie sind Beobachtungen der Mission) und darum auch keine Foto-Uploads (409), Chat ja.
 - In AN keine neuen Beitritte und keine Fotos; der Chat ist lesbar (in der Wiedergabe bis zum Zeitpunkt), Senden wird abgelehnt.
