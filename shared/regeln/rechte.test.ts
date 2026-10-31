@@ -81,6 +81,11 @@ describe('Zeichnen und Ebenen', () => {
     expect(grund(w.tu('b', { typ: 'zeichnung.loeschen', ids: ['z1'] }))).toBe('Keine Berechtigung für diese Zeichnung');
     expect(grund(w.tu('ltg', { typ: 'zeichnung.aendern', zeichnungen: [{ ...linie({ bezeichnung: 'x' }), id: 'z1' }] }))).toBeUndefined();
     expect(w.daten.eintraege.zeichnung![0]).toMatchObject({ bezeichnung: 'x', von: 'a' });
+    // Undo der Leitung legt eine gelöschte fremde Zeichnung mit dem alten Ersteller neu an; Teilnehmer können `von` nicht setzen
+    w.tu('ltg', { typ: 'zeichnung.loeschen', ids: ['z1'] });
+    w.tu('ltg', { typ: 'zeichnung.neu', zeichnungen: [linie({ id: 'z1', von: 'a' })] });
+    w.tu('b', { typ: 'zeichnung.neu', zeichnungen: [linie({ id: 'z2', von: 'a' })] });
+    expect(w.daten.eintraege.zeichnung!.map((z) => [z.id, z.von])).toEqual([['z1', 'a'], ['z2', 'b']]);
   });
 
   it('gesperrte Ebene: nur Leitung zeichnet hinein, nichts wird herausgeschoben', () => {
@@ -145,13 +150,22 @@ describe('Leitung vs. Teilnehmer', () => {
     expect(grund(w.tu('a', { typ: 'alarm.aufheben', id }))).toBe('Alarm nicht aktiv');
   });
 
-  it('Bloodhound: Empfänger quittiert, nur Leitung hebt auf', () => {
+  it('Bloodhound: Ziel und Empfänger geprüft; Empfänger quittiert/beendet, nur Leitung hebt auf; neuer Auftrag ersetzt den alten', () => {
     const w = welt();
+    expect(grund(w.tu('ltg', { typ: 'bloodhound.auftrag', an: 'a', ziel: { art: 'marker', id: 'gibts-nicht' } }))).toBe('Ziel nicht gefunden');
+    expect(grund(w.tu('ltg', { typ: 'bloodhound.auftrag', an: 'niemand', ziel: { art: 'punkt', punkt: { lat: 1, lon: 1 } } }))).toBe('Empfänger nicht gefunden');
+    expect(grund(w.tu('ltg', { typ: 'bloodhound.auftrag', an: 'a', ziel: { art: 'teilnehmer', id: 'a' } }))).toBe('Ziel ist der Empfänger selbst');
     w.tu('ltg', { typ: 'bloodhound.auftrag', an: 'a', ziel: { art: 'teilnehmer', id: 'b' } });
     const id = w.daten.eintraege.bloodhound![0].id;
     expect(grund(w.tu('b', { typ: 'bloodhound.quittieren', id }))).toBe('Nur der Empfänger kann den Auftrag bearbeiten');
+    expect(grund(w.tu('ltg', { typ: 'bloodhound.erreicht', id }))).toBe('Nur der Empfänger kann den Auftrag bearbeiten');
     expect(grund(w.tu('a', { typ: 'bloodhound.aufheben', id }))).toBe('Nur für die Leitung');
     expect(grund(w.tu('a', { typ: 'bloodhound.quittieren', id }))).toBeUndefined();
-    expect(grund(w.tu('ltg', { typ: 'bloodhound.auftrag', an: 'a', ziel: { art: 'teilnehmer', id: 'a' } }))).toBe('Ziel ist der Empfänger selbst');
+    expect(w.daten.eintraege.bloodhound![0]).toMatchObject({ quittiertAm: expect.any(Number), ende: null });
+    w.tu('ltg', { typ: 'bloodhound.auftrag', an: 'a', ziel: { art: 'punkt', punkt: { lat: 47, lon: 8 } } });
+    expect(w.daten.eintraege.bloodhound!.map((x) => x.ende)).toEqual(['aufgehoben', null]);
+    const neu = w.daten.eintraege.bloodhound![1].id;
+    expect(grund(w.tu('a', { typ: 'bloodhound.beendet', id: neu }))).toBeUndefined();
+    expect(grund(w.tu('a', { typ: 'bloodhound.beendet', id: neu }))).toBe('Auftrag nicht aktiv');
   });
 });

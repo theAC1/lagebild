@@ -63,8 +63,11 @@ describe('Position und Alarm', () => {
   it('Status nur aus dem Set; der eigene entfernte bleibt gültig', () => {
     const w = welt();
     expect(grund(w.tu('a', { typ: 'status', status: 'gibtsnicht', text: '' }))).toBe('Unbekannter Status');
-    expect(deltas(w.tu('a', { typ: 'status', status: 'bereit', text: 'Alles gut' }))).toEqual(['teilnehmer', 'meldung']);
-    expect(w.daten.eintraege.meldung!.at(-1)).toMatchObject({ von: 'a', status: 'bereit', text: 'Alles gut' });
+    expect(deltas(w.tu('a', { typ: 'status', status: 'halt', text: 'Alles gut' }))).toEqual(['teilnehmer', 'meldung']);
+    expect(w.daten.eintraege.meldung!.at(-1)).toMatchObject({ von: 'a', status: 'halt', text: 'Alles gut' });
+    w.tu('ltg', { typ: 'lage.statusSet', statusSet: [{ key: 'ok', label: 'OK', farbe: '#00ff00' }] });
+    expect(grund(w.tu('a', { typ: 'status', status: 'halt', text: 'Brücke gesperrt' }))).toBeUndefined(); // eigener entfernter Status
+    expect(grund(w.tu('b', { typ: 'status', status: 'halt', text: '' }))).toBe('Unbekannter Status'); // fremder entfernter nicht
   });
 });
 
