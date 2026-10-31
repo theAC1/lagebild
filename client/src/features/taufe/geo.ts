@@ -369,6 +369,22 @@ function ordneRinge(ringe: Ring[]): Ring[][] {
   return polygone;
 }
 
+// --- Gezeichnete Flächen ------------------------------------------------------------------------------
+
+/** Kreuzen sich zwei nicht benachbarte Kanten des Linienzugs (geschlossen: inkl. Schlusskante)? Berührung zählt nicht. */
+export function kreuztSich(ps: XY[], geschlossen: boolean): boolean {
+  const n = ps.length;
+  const kanten = geschlossen ? n : n - 1;
+  const seite = (a: XY, b: XY, c: XY) => Math.sign((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
+  for (let i = 0; i < kanten; i++)
+    for (let j = i + 2; j < kanten; j++) {
+      if (geschlossen && i === 0 && j === n - 1) continue; // Schlusskante grenzt an die erste
+      const [a, b, c, d] = [ps[i], ps[(i + 1) % n], ps[j], ps[(j + 1) % n]];
+      if (seite(a, b, c) * seite(a, b, d) < 0 && seite(c, d, a) * seite(c, d, b) < 0) return true;
+    }
+  return false;
+}
+
 // --- Vereinfachen und als GeoJSON ausgeben -----------------------------------------------------------
 
 /** Douglas-Peucker (Welteinheiten); Endpunkte bleiben. */

@@ -367,7 +367,8 @@ type Zug =
 export function starteInteraktion(m: MapLibreMap): () => void {
   const container = m.getContainer();
   let zug: Zug | null = null;
-  const blockiert = () => !!ui.punktWahl || !!ui.radial || !!zn.eingabe;
+  // Taufmodus (features/taufe) hat die Karte für sich: Tipps öffnen dort keine Zeichnung
+  const blockiert = () => !!ui.punktWahl || !!ui.radial || !!zn.eingabe || document.body.classList.contains('taufmodus');
   const imKarte = (x: number, y: number): Px | null => {
     const r = container.getBoundingClientRect();
     const p = { x: x - r.left, y: y - r.top };

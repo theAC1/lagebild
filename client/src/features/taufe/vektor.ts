@@ -27,8 +27,6 @@ const L = (id: string, sourceLayer: string, rest: Omit<LayerSpecification, 'id' 
 
 /** Hervorhebung (dezent sichtbar) und breite, unsichtbare Trefferlinien. Reihenfolge = Zeichenreihenfolge. */
 export const VT_LAYER: LayerSpecification[] = [
-  L('tv-landuse', 'landuse', { type: 'fill', paint: { 'fill-color': '#e8c547', 'fill-opacity': 0.12, 'fill-outline-color': '#e8c547' } }),
-  L('tv-landcover', 'landcover', { type: 'fill', paint: { 'fill-color': ['match', ['get', 'class'], 'wood', '#8d5a2b', '#e8c547'], 'fill-opacity': ['match', ['get', 'class'], 'wood', 0.22, 0.1] } }),
   L('tv-water', 'water', { type: 'fill', paint: { 'fill-color': '#29b6f6', 'fill-opacity': 0.2 } }),
   L('tv-waterway', 'waterway', { type: 'line', paint: { 'line-color': '#29b6f6', 'line-width': 2, 'line-opacity': 0.8 } }),
   L('tv-waterway-treffer', 'waterway', { type: 'line', paint: { 'line-color': '#000', 'line-width': 16, 'line-opacity': 0 } }),
@@ -38,7 +36,7 @@ export const VT_LAYER: LayerSpecification[] = [
   L('tv-building-rand', 'building', { type: 'line', paint: { 'line-color': '#ffffff', 'line-width': 1, 'line-opacity': 0.8 } }),
 ];
 /** Abgefragt beim Tippen (Vorrang regelt familien.waehleTreffer). */
-export const VT_TREFFER = ['tv-building', 'tv-waterway-treffer', 'tv-strasse-treffer', 'tv-water', 'tv-landcover', 'tv-landuse'];
+export const VT_TREFFER = ['tv-building', 'tv-waterway-treffer', 'tv-strasse-treffer', 'tv-water'];
 
 export function fuegeVektorHinzu(m: MapLibreMap, vor?: string): void {
   m.addSource(VT, { type: 'vector', tiles: VT_KACHELN, minzoom: 0, maxzoom: 14, bounds: [3.57, 44.18, 13.66, 48.88], attribution: SWISSTOPO });
@@ -69,10 +67,9 @@ export function linienStuecke(m: MapLibreMap, sourceLayer: string): Linie[] {
   });
 }
 
-/** Flächenstücke derselben Art (bei Landnutzung/-bedeckung dieselbe Klasse) wie das getippte Objekt. */
-export function flaechenStuecke(m: MapLibreMap, sourceLayer: string, klasse: unknown): Flaeche[] {
-  const filter: FilterSpecification | undefined = sourceLayer === 'landcover' || sourceLayer === 'landuse' ? ['==', ['get', 'class'], String(klasse ?? '')] : FILTER[sourceLayer];
-  return quellObjekte(m, sourceLayer, filter).flatMap(({ f, k }) => {
+/** Flächenstücke derselben Ebene (Gebäude, Gewässer) wie das getippte Objekt. */
+export function flaechenStuecke(m: MapLibreMap, sourceLayer: string): Flaeche[] {
+  return quellObjekte(m, sourceLayer, FILTER[sourceLayer]).flatMap(({ f, k }) => {
     const g = f.geometry;
     const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
     return polys.map((p) => ({ ringe: p.map((r) => r.map(zuWelt)), kachel: k }));

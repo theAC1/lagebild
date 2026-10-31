@@ -1,6 +1,7 @@
 <script lang="ts">
   // Geländetaufe auf der Karte: Layer «Geländetaufe» (SpotMap-Darstellung), Taufmodus mit unsichtbarer Vektorebene,
-  // Antippen → Familie → Namenswahl im Panel, Strassen verlängern, Fassaden umfärben, Fläche zeichnen.
+  // Antippen → Familie → Namenswahl im Panel, Gebäudeteile sammeln, Strassen verlängern, Fassaden umfärben,
+  // Fläche/Wald Punkt für Punkt zeichnen (punkte.ts).
   import { Marker, type GeoJSONSource, type LayerSpecification, type MapMouseEvent, type PointLike } from 'maplibre-gl';
   import { MAX_TAUF_PUNKTE, type Taufe } from '../../../../shared/protocol.ts';
   import { onDestroy } from 'svelte';
@@ -12,6 +13,7 @@
   import { abschnitt, alsGeometrie, vereineFlaeche, type XY } from './geo.ts';
   import Modus from './Modus.svelte';
   import { flaechenStuecke, fuegeVektorHinzu, linienStuecke, VT, VT_LAYER, VT_TREFFER, welt, weltJePixel, zeigeVektor } from './vektor.ts';
+  import { alsPolygon, griffe, griffGetippt, startePunkte, tippe as tippePunkt } from './punkte.ts';
   import { beendeModus, faerbeUm, MIN_ZOOM, sammleTeil, tz, verlaengere } from './zustand.svelte.ts';
 
   const m = getMap();
@@ -40,7 +42,8 @@
     // Taufmodus: gewähltes Objekt, Fläche im Bau
     { id: 'taufe-hilfe-flaeche', type: 'fill', source: HILFE, filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': ZIEL_FARBE, 'fill-opacity': 0.25 } },
     { id: 'taufe-hilfe-linie', type: 'line', source: HILFE, filter: ['!=', ['geometry-type'], 'Point'], layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': ZIEL_FARBE, 'line-width': 4, 'line-dasharray': [2, 1] } },
-    { id: 'taufe-hilfe-punkt', type: 'circle', source: HILFE, filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 6, 'circle-color': ZIEL_FARBE, 'circle-stroke-color': '#161b1f', 'circle-stroke-width': 2 } },
+    { id: 'taufe-hilfe-mitte', type: 'circle', source: HILFE, filter: ['==', ['get', 'rolle'], 'mitte'], paint: { 'circle-radius': 5, 'circle-color': '#ffffff', 'circle-opacity': 0.85, 'circle-stroke-color': '#161b1f', 'circle-stroke-width': 1.5 } },
+    { id: 'taufe-hilfe-punkt', type: 'circle', source: HILFE, filter: ['==', ['get', 'rolle'], 'punkt'], paint: { 'circle-radius': ['case', ['get', 'gewaehlt'], 10, 7], 'circle-color': ['case', ['get', 'gewaehlt'], '#e53935', ZIEL_FARBE], 'circle-stroke-color': '#161b1f', 'circle-stroke-width': 2 } },
     { id: 'taufe-kanten-treffer', type: 'line', source: KANTEN, paint: { 'line-color': '#000', 'line-width': 22, 'line-opacity': 0 } },
   ];
   const ANZEIGE = layer.filter((l) => 'source' in l && l.source === Q).map((l) => l.id);
@@ -67,10 +70,12 @@
   $effect(() => {
     const f: GeoJSON.Feature[] = [];
     if (tz.wahl) f.push({ type: 'Feature', properties: {}, geometry: tz.wahl.geometrie as GeoJSON.Geometry });
-    const ps = tz.zeichnen;
-    if (ps?.length) {
-      f.push(...ps.map((p): GeoJSON.Feature => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: p } })));
-      if (ps.length >= 2) f.push({ type: 'Feature', properties: {}, geometry: ps.length >= 3 ? { type: 'Polygon', coordinates: [[...ps, ps[0]]] } : { type: 'LineString', coordinates: ps } });
+    const e = tz.zeichnen;
+    if (e?.punkte.length) {
+      const ps = e.punkte.map((p) => [p.lon, p.lat]);
+      if (!tz.wahl && ps.length >= 2) f.push({ type: 'Feature', properties: {}, geometry: ps.length >= 3 ? alsPolygon(e.punkte) : { type: 'LineString', coordinates: ps } } as GeoJSON.Feature);
+      // Griffe: Stützpunkte (gewählter grösser), Mittelgriffe klein
+      f.push(...griffe(e).map((g): GeoJSON.Feature => ({ type: 'Feature', properties: { rolle: g.art, gewaehlt: g.art === 'punkt' && g.i === e.griff }, geometry: { type: 'Point', coordinates: [g.p.lon, g.p.lat] } })));
     }
     quelle(HILFE).setData({ type: 'FeatureCollection', features: f });
   });
@@ -204,7 +209,7 @@
     const treffer = m.queryRenderedFeatures(umTipp(e.point, 12), { layers: VT_TREFFER }).map((f) => ({ sourceLayer: f.sourceLayer ?? '', properties: f.properties, f }));
     const w = waehleTreffer(treffer);
     const ziel = tz.verlaengern ? store.taufen.get(tz.verlaengern) : undefined;
-    if (!w) return toast(ziel ? 'Hier ist kein Abschnitt zum Anhängen.' : 'Hier ist nichts taufbar – fehlt das Objekt, «Fläche zeichnen».');
+    if (!w) return toast(ziel ? 'Hier ist kein Abschnitt zum Anhängen.' : 'Hier ist nichts taufbar – Fläche, Wald oder fehlendes Objekt: «Fläche zeichnen».');
     const tipp: XY = welt(e.lngLat);
     const sl = w.k.sourceLayer;
     const objektart = `${sl}/${w.k.properties.class ?? ''}`;
@@ -218,7 +223,7 @@
       tz.wahl = { familie: w.familie, geometrie: alsGeometrie({ linien: [l] }, MAX_TAUF_PUNKTE), quelle: 'vt', objektart, vorlage: (w.k.properties.name as string) || undefined, familieWaehlbar: false };
     } else {
       if (ziel) return toast('Beim Verlängern nur Strassen- bzw. Gewässerabschnitte antippen – «Fertig» beendet es.');
-      const stuecke = flaechenStuecke(m, sl, w.k.properties.class);
+      const stuecke = flaechenStuecke(m, sl);
       let polygone = vereineFlaeche(stuecke, tipp);
       // Tipp knapp neben dem Umriss (Trefferbox): mit einem Punkt im getippten Stück nochmals
       if (!polygone.length && w.k.f.geometry.type === 'Polygon') polygone = vereineFlaeche(stuecke, welt({ lng: w.k.f.geometry.coordinates[0][0][0], lat: w.k.f.geometry.coordinates[0][0][1] }));
@@ -231,15 +236,16 @@
   }
 
   function klick(e: MapMouseEvent) {
-    if (ui.punktWahl || (!tz.modus && !tz.umfaerben)) return;
+    if (ui.punktWahl || (!tz.modus && !tz.umfaerben && !tz.zeichnen)) return;
     if (tz.umfaerben) {
       const t = store.taufen.get(tz.umfaerben);
       const k = m.queryRenderedFeatures(umTipp(e.point, 6), { layers: ['taufe-kanten-treffer'] })[0];
       if (t && k) faerbeUm(t, Number(k.properties.kante));
       return;
     }
+    // Zeichnen: jeder Tipp ein Punkt – auch auf Taufen und Symbolen (die sind im Taufmodus durchlässig)
     if (tz.zeichnen) {
-      tz.zeichnen = [...tz.zeichnen, [e.lngLat.lng, e.lngLat.lat]];
+      if (!griffGetippt(e.point)) tippePunkt(m, { lat: e.lngLat.lat, lon: e.lngLat.lng });
       return;
     }
     if (!tz.verlaengern) {
@@ -252,10 +258,15 @@
     nimmObjekt(e);
   }
   m.on('click', klick);
+  const abPunkte = startePunkte(m);
+  // Neue Fläche: Namenswahl geschlossen oder getauft → Entwurf weg
+  $effect(() => {
+    if (tz.zeichnen?.fertig && !tz.zeichnen.id && !tz.wahl) tz.zeichnen = null;
+  });
 
   function taste(e: KeyboardEvent) {
     if (e.key !== 'Escape' || e.defaultPrevented || ui.radial || ui.koordinate || ui.punktWahl) return;
-    if (tz.zeichnen) tz.zeichnen = null;
+    if (tz.zeichnen && !tz.wahl) tz.zeichnen = null;
     else if (tz.umfaerben) tz.umfaerben = null;
     else if (tz.modus && !ui.panels.length) beendeModus();
     else return;
@@ -265,6 +276,7 @@
 
   onDestroy(() => {
     m.off('click', klick);
+    abPunkte();
     m.off('moveend', spaeter);
     m.off('zoomend', zoomEnde);
     removeEventListener('keydown', taste, true);
@@ -285,6 +297,10 @@
 <Modus />
 
 <style>
+  /* Taufmodus: Symbole sind durchlässig – ein Tipp darauf trifft das Objekt bzw. setzt den Punkt darunter */
+  :global(body.taufmodus .maplibregl-marker) {
+    pointer-events: none;
+  }
   :global(.tf-anker) {
     width: 0;
     height: 0;

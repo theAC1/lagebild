@@ -1,5 +1,5 @@
 // Zustand und Aktionen der Geländetaufe: Taufmodus, getipptes Objekt (wartet auf den Namen), Verlängern, Umfärben.
-import { MAX_TAUF_PUNKTE, type Fassade, type Taufe, type TaufeAenderung, type TaufFamilie, type TaufGeometrie } from '../../../../shared/protocol.ts';
+import { MAX_TAUF_PUNKTE, type Fassade, type Punkt, type Taufe, type TaufeAenderung, type TaufFamilie, type TaufGeometrie } from '../../../../shared/protocol.ts';
 import { OHNE_QUITTUNG, sendeBestaetigt, store } from '../../lib/store.svelte.ts';
 import { toast } from '../../lib/ui.svelte.ts';
 import { fassadenFarben, fassadeVonKante, naechsteFassade } from './fassaden.ts';
@@ -22,6 +22,9 @@ export type Wahl = {
   teile?: Ring[][][];
 };
 
+/** Fläche im Bau (`fertig` = abgeschlossen, Punkte nur noch bearbeiten); `id` = gespeicherte Taufe, `griff` = gewählter Punkt. */
+export type Entwurf = { punkte: Punkt[]; fertig: boolean; id?: string; griff?: number };
+
 class TaufZustand {
   modus = $state(false);
   wahl = $state.raw<Wahl | null>(null);
@@ -29,8 +32,8 @@ class TaufZustand {
   verlaengern = $state<string | null>(null);
   /** Taufe, deren Fassaden per Tipp umgefärbt werden */
   umfaerben = $state<string | null>(null);
-  /** Punkte einer Fläche im Bau (Taufmodus «Fläche zeichnen») */
-  zeichnen = $state.raw<[number, number][] | null>(null);
+  /** Fläche/Wald im Bau oder Punkte einer gezeichneten Taufe in Bearbeitung */
+  zeichnen = $state.raw<Entwurf | null>(null);
   zoom = $state(0);
 }
 

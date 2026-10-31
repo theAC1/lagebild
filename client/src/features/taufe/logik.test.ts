@@ -4,7 +4,7 @@ import { familieVon, freieNamen, listeAusText, waehleTreffer } from './familien.
 import { fassadeAus, fassadenFarben, fassadeVonKante, kanten } from './fassaden.ts';
 
 describe('Familie aus Layer und Klasse', () => {
-  it('Vektorkachel-Layer → Familie; bei Überlagerung Gebäude vor Fläche, Fussweg zählt nicht', () => {
+  it('Vektorkachel-Layer → Familie; Wald/Flächen nicht antippbar (31.10.: nur zeichnen), Gebäude vor Strasse, Fussweg zählt nicht', () => {
     const faelle: [string, Record<string, string>, string | null][] = [
       ['building', { class: 'roof' }, 'gebaeude'],
       ['building', { class: 'underground' }, null],
@@ -13,13 +13,13 @@ describe('Familie aus Layer und Klasse', () => {
       ['transportation', { class: 'rail' }, null],
       ['waterway', { class: 'stream' }, 'gewaesser'],
       ['water', { class: 'pool' }, null],
-      ['landcover', { class: 'wood', subclass: 'forest' }, 'wald'],
-      ['landuse', { class: 'residential' }, 'flaeche'],
+      ['landcover', { class: 'wood', subclass: 'forest' }, null],
+      ['landuse', { class: 'residential' }, null],
       ['place', { class: 'neighbourhood' }, null],
     ];
     for (const [layer, props, erwartet] of faelle) expect(familieVon(layer, props), `${layer}/${props.class}`).toBe(erwartet);
     const t = (sourceLayer: string, c: string) => ({ sourceLayer, properties: { class: c } });
-    expect(waehleTreffer([t('landuse', 'residential'), t('building', 'roof')])?.familie).toBe('gebaeude');
+    expect(waehleTreffer([t('transportation', 'minor'), t('building', 'roof')])?.familie).toBe('gebaeude');
     expect(waehleTreffer([t('landcover', 'wood'), t('transportation', 'path'), t('transportation', 'track')])?.k).toEqual(t('transportation', 'track'));
     expect(waehleTreffer([t('landcover', 'wood'), t('waterway', 'stream')])?.familie).toBe('gewaesser');
     expect(waehleTreffer([t('transportation', 'path')])).toBeNull();

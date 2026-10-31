@@ -2,26 +2,25 @@
   // Leiste des Taufmodus über der Karte: deutlich sichtbar (gelber Rahmen), Hinweis, Fläche zeichnen, Fertig.
   import { store } from '../../lib/store.svelte.ts';
   import { FAMILIE_LABEL } from './familien.ts';
+  import { abschliessen, loeschePunkt, zurueck } from './punkte.ts';
   import { beendeModus, MIN_ZOOM, tz } from './zustand.svelte.ts';
-  import { oeffne } from '../../lib/ui.svelte.ts';
 
   const verlaengert = $derived(tz.verlaengern ? store.taufen.get(tz.verlaengern) : undefined);
   const umgefaerbt = $derived(tz.umfaerben ? store.taufen.get(tz.umfaerben) : undefined);
+  const bearbeitet = $derived(tz.zeichnen?.id ? store.taufen.get(tz.zeichnen.id) : undefined);
+  const ZIEHEN = 'Punkte ziehen, Mitte antippen fügt einen ein';
   const hinweis = $derived.by(() => {
-    if (tz.zeichnen) return tz.zeichnen.length < 3 ? `Eckpunkte antippen (${tz.zeichnen.length}/3)` : `${tz.zeichnen.length} Punkte – abschliessen oder weiter antippen`;
+    const e = tz.zeichnen;
+    if (e) {
+      const n = e.punkte.length;
+      if (e.fertig) return ZIEHEN;
+      return n < 3 ? `Eckpunkte antippen (${n}/3)` : `${n} Punkte – weiter antippen oder abschliessen`;
+    }
     if (tz.zoom < MIN_ZOOM - 0.01) return `Näher zoomen (ab Stufe ${MIN_ZOOM})`;
     if (verlaengert) return `Weitere Abschnitte antippen: hängt an «${verlaengert.name}»`;
     if (tz.wahl?.teile) return 'Weitere Gebäudeteile antippen: dazu, nochmals: weg';
-    return 'Objekt antippen und Namen wählen';
+    return 'Objekt antippen – Fläche und Wald zeichnen';
   });
-
-  function abschliessen() {
-    const ps = tz.zeichnen;
-    if (!ps || ps.length < 3) return;
-    tz.zeichnen = null;
-    tz.wahl = { familie: 'flaeche', geometrie: { type: 'Polygon', coordinates: [[...ps, ps[0]]] }, quelle: 'gezeichnet', objektart: 'gezeichnet', familieWaehlbar: true };
-    oeffne('taufe');
-  }
 </script>
 
 {#if umgefaerbt}
@@ -33,21 +32,27 @@
     </div>
     <button class="primaer" onclick={() => (tz.umfaerben = null)}>Fertig</button>
   </section>
-{:else if tz.modus}
+{:else if tz.modus || tz.zeichnen}
   <div class="tf-rahmen" aria-hidden="true"></div>
   <section class="tf-modus" aria-label="Taufmodus">
     <div class="text">
-      <strong>Taufmodus{#if verlaengert} · {FAMILIE_LABEL[verlaengert.familie]} verlängern{/if}</strong>
+      <strong>{#if bearbeitet}Punkte «{bearbeitet.name}»{:else if tz.zeichnen && !tz.zeichnen.fertig}Fläche zeichnen{:else}Taufmodus{#if verlaengert} · {FAMILIE_LABEL[verlaengert.familie]} verlängern{/if}{/if}</strong>
       <span>{hinweis}</span>
     </div>
     <div class="knoepfe">
       {#if tz.zeichnen}
-        <button onclick={() => (tz.zeichnen = tz.zeichnen!.length ? tz.zeichnen!.slice(0, -1) : null)}>{tz.zeichnen.length ? 'Zurück' : 'Abbrechen'}</button>
-        <button class="primaer" disabled={tz.zeichnen.length < 3} onclick={abschliessen}>Abschliessen</button>
+        {#if tz.zeichnen.griff !== undefined}<button onclick={loeschePunkt}>Punkt löschen</button>{/if}
+        {#if tz.zeichnen.id}
+          <button onclick={() => (tz.zeichnen = null)}>Abbrechen</button>
+          <button class="primaer" onclick={abschliessen}>Speichern</button>
+        {:else if !tz.zeichnen.fertig}
+          <button onclick={zurueck}>{tz.zeichnen.punkte.length ? 'Zurück' : 'Abbrechen'}</button>
+          <button class="primaer" disabled={tz.zeichnen.punkte.length < 3} onclick={abschliessen}>Abschliessen</button>
+        {/if}
       {:else if verlaengert}
         <button class="primaer" onclick={() => (tz.verlaengern = null)}>Fertig verlängern</button>
       {:else}
-        <button onclick={() => ((tz.zeichnen = []), (tz.wahl = null))}>Fläche zeichnen</button>
+        <button onclick={() => ((tz.zeichnen = { punkte: [], fertig: false }), (tz.wahl = null))}>Fläche zeichnen</button>
         <button class="primaer" onclick={beendeModus}>Fertig</button>
       {/if}
     </div>
@@ -107,6 +112,7 @@
       flex-wrap: nowrap;
       padding: 4px 6px 4px 10px;
     }
+    .text strong,
     .text span {
       overflow: hidden;
       text-overflow: ellipsis;

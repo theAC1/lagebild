@@ -9,8 +9,8 @@ export const STRASSEN_KLASSEN = ['motorway', 'trunk', 'primary', 'secondary', 't
 export const GEBAEUDE_OHNE = ['underground', 'chimney', 'covered_bridge'];
 export const BAECHE = ['river', 'stream', 'canal', 'drain', 'ditch'];
 
-/** Vorrang bei Überlagerung: Gebäude > Gewässer (Linie) > Strasse > Gewässer (Fläche) > Wald > Fläche. */
-export const VORRANG = ['building', 'waterway', 'transportation', 'water', 'landcover', 'landuse'];
+/** Vorrang bei Überlagerung: Gebäude > Gewässer (Linie) > Strasse > Gewässer (Fläche). */
+export const VORRANG = ['building', 'waterway', 'transportation', 'water'];
 
 export function familieVon(sourceLayer: string, props: Record<string, unknown>): TaufFamilie | null {
   const klasse = String(props.class ?? '');
@@ -23,10 +23,7 @@ export function familieVon(sourceLayer: string, props: Record<string, unknown>):
       return BAECHE.includes(klasse) ? 'gewaesser' : null;
     case 'water':
       return klasse === 'pool' ? null : 'gewaesser';
-    case 'landcover':
-      return klasse === 'wood' ? 'wald' : 'flaeche';
-    case 'landuse':
-      return 'flaeche';
+    // Wald und Flächen werden gezeichnet, nicht erkannt (Juan, 31.10.: Tipp auf die Wiese nahm «einen Riesenbereich»)
     default:
       return null;
   }

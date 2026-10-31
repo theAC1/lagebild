@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { abschnitt, alsGeometrie, ausWelt, haengeAn, linienAufKachel, schneideLinie, schneideRing, vereineFlaeche, vereinePolygone, zuWelt, type Flaeche, type Ring, type XY } from './geo.ts';
+import { abschnitt, alsGeometrie, ausWelt, haengeAn, kreuztSich, linienAufKachel, schneideLinie, schneideRing, vereineFlaeche, vereinePolygone, zuWelt, type Flaeche, type Ring, type XY } from './geo.ts';
 
 const K0 = { x: 0, y: 0, z: 14 };
 const K1 = { x: 1, y: 0, z: 14 }; // rechts daneben: Grenze bei x = 4096
@@ -109,6 +109,16 @@ describe('Mehrteilige Gebäude (31.10.: Teile zusammen antippen)', () => {
     expect(p[0][0]).toHaveLength(5);
     expect(bbox(p[0][0])).toEqual([0, 0, 20, 10]);
     expect(bbox(p[1][0])).toEqual([50, 0, 60, 10]);
+  });
+});
+
+describe('Fläche zeichnen (31.10.)', () => {
+  it('Selbstüberschneidung: Schleife (nur über die Schlusskante) und gekreuzter Zug erkannt, U-Form nicht', () => {
+    const quadrat: XY[] = [[0, 0], [10, 0], [10, 10], [0, 10]];
+    const schleife: XY[] = [[0, 0], [10, 0], [0, 10], [10, 10]];
+    const u: XY[] = [[0, 0], [10, 0], [10, 10], [8, 10], [8, 2], [2, 2], [2, 10], [0, 10]];
+    for (const [ps, geschlossen, soll] of [[quadrat, true, false], [schleife, true, true], [schleife, false, false], [u, true, false], [[[0, 0], [10, 0], [10, 10], [-1, 5]], false, false], [[[0, 0], [10, 0], [10, 10], [5, -1]], false, true]] as [XY[], boolean, boolean][])
+      expect(kreuztSich(ps, geschlossen), JSON.stringify(ps)).toBe(soll);
   });
 });
 

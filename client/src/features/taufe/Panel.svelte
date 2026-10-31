@@ -93,7 +93,7 @@
       <p>Taufmodus läuft: Objekt auf der Karte antippen.</p>
     {:else}
       <button class="primaer gross" onclick={starte}>Taufmodus starten</button>
-      <p class="leise">Gebäude, Strassen, Gewässer, Wald und Flächen antippen und aus der Namensliste taufen. Fehlt ein Objekt, im Taufmodus eine Fläche zeichnen.</p>
+      <p class="leise">Gebäude, Strassen und Gewässer antippen und aus der Namensliste taufen. Flächen, Wald und fehlende Objekte im Taufmodus Punkt für Punkt zeichnen.</p>
     {/if}
   </div>
   {#if nachFamilie.length}

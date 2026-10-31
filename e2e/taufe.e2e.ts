@@ -2,7 +2,7 @@
 // Gebäude/Strasse taufen, verlängern, Stossrichtung, Layer aus/an, doppelter Name. Gegen den echten Server.
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
 import { kachel, ll, MITTE } from './taufe-kacheln.ts';
-import { dokuBild, HOCH, QUER } from './hilfen.ts';
+import { dokuBild, HOCH, QUER, wische } from './hilfen.ts';
 
 const SIDC = '10031000001211000000';
 const TAG = new Date('2026-10-30T11:00:00+01:00');
@@ -158,19 +158,6 @@ test('Strasse taufen (Abschnitt bis zur Kreuzung) und verlängern; Fussweg zähl
   await expect(p.getByRole('region', { name: 'Taufmodus' })).toContainText('Objekt antippen');
 });
 
-test('Wald und Fläche per Tipp aus ihren Listen', async () => {
-  const p = leitung.page;
-  await tippe(p, -50, 150);
-  const wahl = p.getByRole('region', { name: 'Namen wählen' });
-  await expect(wahl.getByRole('heading', { name: 'Wald taufen' })).toBeVisible();
-  await wahl.getByRole('button', { name: 'Forest', exact: true }).click();
-  await tippe(p, 10, -170);
-  await expect(wahl.getByRole('heading', { name: 'Fläche taufen' })).toBeVisible();
-  await wahl.getByRole('button', { name: 'Floor', exact: true }).click();
-  await expect(label(bravo.page, 'Floor')).toBeVisible();
-  await expect(label(bravo.page, 'Forest')).toBeVisible();
-});
-
 test('Stossrichtung setzen → Fassaden; Zielobjekt hebt hervor', async () => {
   const p = leitung.page;
   await tippe(p, 30, 30); // bestehende Taufe «Gold» → Details
@@ -282,3 +269,33 @@ test('quer: mehrteiliges Gebäude – Teile antippen sammelt (dazu/weg), getauft
   expect(ausdehnung(iridium)).toEqual([-160, 20, -110, 40]);
 });
 
+test('quer: Wald Punkt für Punkt zeichnen (Doppeltipp zählt nicht), Punkt ziehen, Zwischenpunkt per Mittelgriff', async () => {
+  const p = bravo.page;
+  const modus = p.getByRole('region', { name: 'Taufmodus' });
+  await knopf(p, 'Fläche zeichnen').click();
+  await tippe(p, -100, -10);
+  await tippe(p, -40, -10);
+  await tippe(p, -40, -10); // Doppeltipp
+  await expect(modus).toContainText('Eckpunkte antippen (2/3)');
+  await tippe(p, -70, -60);
+  await knopf(p, 'Abschliessen').click();
+  const wahl = p.getByRole('region', { name: 'Namen wählen' });
+  await expect(wahl).toBeVisible();
+  const zieh = async (von: [number, number], nach: [number, number]) => {
+    const [a, b] = [await px(p, ...von), await px(p, ...nach)];
+    await wische(p, { x: a[0], y: a[1] }, { x: b[0], y: b[1] });
+  };
+  await zieh([-70, -60], [-70, -75]); // Punkt ziehen (Finger)
+  await zieh([-70, -10], [-70, 5]); // Mittelgriff zwischen den ersten Punkten ziehen = neuer Punkt
+  await p.waitForTimeout(300);
+  await querBild(p, 'flaeche');
+  await wahl.getByRole('group', { name: 'Familie' }).getByRole('button', { name: 'Wald' }).click();
+  await wahl.getByRole('button', { name: 'Forest', exact: true }).click();
+  await expect(label(leitung.page, 'Forest')).toBeVisible();
+  const forest = await taufeNamens('Forest');
+  expect(forest.properties.familie).toBe('wald');
+  expect((forest.geometry.coordinates as number[][][])[0]).toHaveLength(5);
+  const soll = [-100, -75, -40, 5]; // getippt: ±1 m (1 px ≈ 0,8 m)
+  ausdehnung(forest).forEach((v, i) => expect(Math.abs(v - soll[i]), `Ausdehnung ${i}`).toBeLessThanOrEqual(1));
+  await knopf(p, 'Fertig').click();
+});

@@ -40,6 +40,14 @@
     tz.verlaengern = t.id;
     schliesse();
   }
+  /** Gezeichnete Fläche/Wald: Punkte ziehen, einfügen, löschen (Juan, 31.10.) */
+  function punkte() {
+    if (!t || t.geometrie.type !== 'Polygon') return;
+    tz.modus = true;
+    tz.wahl = null;
+    tz.zeichnen = { punkte: t.geometrie.coordinates[0].slice(0, -1).map(([lon, lat]) => ({ lat, lon })), fertig: true, id: t.id };
+    schliesse();
+  }
   function umfaerben() {
     if (!t) return;
     tz.umfaerben = t.id;
@@ -126,6 +134,7 @@
     <div class="aktionen">
       <button onclick={zentriere}>Zentrieren</button>
       {#if linie}<button onclick={verlaengern}>Verlängern</button>{/if}
+      {#if t.quelle === 'gezeichnet' && t.geometrie.type === 'Polygon'}<button onclick={punkte}>Punkte bearbeiten</button>{/if}
       <button class="gefahr" onclick={() => (loeschenFragen = true)}>Löschen</button>
     </div>
   {/if}
