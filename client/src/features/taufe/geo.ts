@@ -228,27 +228,33 @@ const imPolygon = (p: XY, ringe: Ring[]): boolean => ringe.length > 0 && imRing(
  */
 export function vereineFlaeche(stuecke: Flaeche[], tipp: XY): Ring[][] {
   const kn = new Knoten();
-  type Teil = { kanten: [number, number][]; kachel: Kachel; ringe: Ring[] };
+  type Box = [number, number, number, number];
+  type Teil = { kanten: [number, number][]; kachel: Kachel; ringe: Ring[]; box: Box };
   const teile: Teil[] = [];
-  const aufGitter = (v: number) => Math.abs(v / EXTENT - Math.round(v / EXTENT)) * EXTENT <= FANG;
+  // Naht = Rand der eigenen Kachel. Nicht ans z14-Raster binden: ab Zoom 15 schneidet MapLibre die z14-Kacheln
+  // in z15/z16-Stücke (zoomLevelsToOverscale), deren Ränder dazwischen liegen (Fehler «schräge Fassade», 31.10.).
+  const aufRand = (p: XY, [x0, y0, x1, y1]: Box, tol = FANG) => Math.abs(p[0] - x0) <= tol || Math.abs(p[0] - x1) <= tol || Math.abs(p[1] - y0) <= tol || Math.abs(p[1] - y1) <= tol;
   for (const s of stuecke) {
     const box = kachelBox(s.kachel);
     const ringe = s.ringe.map((r) => schneideRing(r, box)).filter((r): r is Ring => !!r);
     // nur Stücke, die getippt sind oder an eine Kachelgrenze stossen, können zur Fläche gehören
-    if (!ringe.length || !(imPolygon(tipp, ringe) || ringe.some((r) => r.some((p) => aufGitter(p[0]) || aufGitter(p[1]))))) continue;
-    const kanten: [number, number][] = [];
-    for (const r of ringe) for (let i = 0; i + 1 < r.length; i++) kanten.push([kn.id(r[i]), kn.id(r[i + 1])]);
-    teile.push({ kanten: kanten.filter(([a, b]) => a !== b), kachel: s.kachel, ringe });
+    if (ringe.length && (imPolygon(tipp, ringe) || ringe.some((r) => r.some((p) => aufRand(p, box))))) teile.push({ kanten: [], kachel: s.kachel, ringe, box });
+  }
+  // echte Ecken zuerst als Knoten: ein Schnittpunkt (liegt exakt auf dem Rand) fängt sich an ihnen, nicht umgekehrt
+  for (const t of teile) for (const r of t.ringe) for (const p of r) if (!aufRand(p, t.box, 1e-6)) kn.id(p);
+  for (const t of teile) {
+    for (const r of t.ringe) for (let i = 0; i + 1 < r.length; i++) t.kanten.push([kn.id(r[i]), kn.id(r[i + 1])]);
+    t.kanten = t.kanten.filter(([a, b]) => a !== b);
   }
   const start = teile.findIndex((t) => imPolygon(tipp, t.ringe));
   if (start < 0) return [];
 
-  // Kanten auf einer Kachelgrenze an allen dort liegenden Knoten teilen, damit Gegenkanten exakt passen
+  // Kanten auf dem Kachelrand an allen dort liegenden Knoten teilen, damit Gegenkanten exakt passen
   const P = kn.punkte;
-  const teileKante = ([a, b]: [number, number]): [number, number][] => {
-    const achse: 0 | 1 | -1 = aufGitter(P[a][0]) && aufGitter(P[b][0]) && Math.abs(P[a][0] - P[b][0]) <= FANG ? 0 : aufGitter(P[a][1]) && aufGitter(P[b][1]) && Math.abs(P[a][1] - P[b][1]) <= FANG ? 1 : -1;
-    if (achse < 0) return [[a, b]];
-    const ax = achse as 0 | 1;
+  const teileKante = ([a, b]: [number, number], [x0, y0, x1, y1]: Box): [number, number][] => {
+    const auf = (ax: 0 | 1, v: number) => Math.abs(P[a][ax] - v) <= FANG && Math.abs(P[b][ax] - v) <= FANG;
+    const ax: 0 | 1 | -1 = auf(0, x0) || auf(0, x1) ? 0 : auf(1, y0) || auf(1, y1) ? 1 : -1;
+    if (ax < 0) return [[a, b]];
     const quer = (1 - ax) as 0 | 1;
     const [lo, hi] = [Math.min(P[a][quer], P[b][quer]), Math.max(P[a][quer], P[b][quer])];
     const dazwischen = P.map((p, i) => i)
@@ -257,7 +263,7 @@ export function vereineFlaeche(stuecke: Flaeche[], tipp: XY): Ring[][] {
     const kette = [a, ...dazwischen, b];
     return kette.slice(1).map((x, i) => [kette[i], x]);
   };
-  for (const t of teile) t.kanten = t.kanten.flatMap(teileKante);
+  for (const t of teile) t.kanten = t.kanten.flatMap((k) => teileKante(k, t.box));
 
   // Nachbarschaft: Gegenkante (b→a) in einem Stück aus einer anderen Kachel
   const wo = new Map<string, number[]>();
