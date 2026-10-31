@@ -664,8 +664,9 @@ Gebaut in der heutigen Server-Lage. Die Regeln liegen als Reducer in `shared/reg
 
 ### Wiedergabe (AN, Panel «Wiedergabe», öffnet beim Wechsel nach AN von selbst)
 - Zeigt alles mit Zeitstempel auf der Karte wie zum Zeitpunkt: Positionen (aus den Spuren), Status, Marker, Sichtungen, Zeichnungen, Taufen, Alarme, Bloodhound-Linien, Chat und Meldungslog bis dahin. Die Anzeige nutzt die normalen Kartenlayer: das Panel ersetzt den Lagezustand im Client durch den Stand zum Zeitpunkt und stellt beim Schliessen den Live-Stand wieder her.
-- Zeitleiste mit Schieber, Play/Pause, Tempo 1× / 10× / 60×, Sprung zum vorigen und nächsten Ereignis; vor- und zurückspulen über den Schieber.
-- Nur LV-Zeiträume: AP-Abschnitte dazwischen überspringt die Wiedergabe; die Zeitleiste markiert die Naht mit «AP».
+- Zeitleiste mit Schieber, Play/Pause, Tempo 1× / 10× / 60×, Sprung zum vorigen und nächsten Ereignis; vor- und zurückspulen über den Schieber. Start pausiert am Anfang der ersten LV. Desktop: Leertaste spielt/pausiert, Alt+← / Alt+→ springen zum Ereignis.
+- Nur LV-Zeiträume: AP-Abschnitte dazwischen überspringt die Wiedergabe; die Zeitleiste markiert die Naht mit der übersprungenen Phase («AP», nach AN → LV «AN»).
+- «Zuletzt: …» unter der Zeitleiste nennt das letzte Ereignis bis zum Zeitpunkt.
 - Darunter die Ereignisliste; Tippen auf eine Zeile springt zum Zeitpunkt, die aktuelle Zeile ist hervorgehoben.
 
 ### Ereignisprotokoll (Server)
@@ -679,7 +680,7 @@ Gebaut in der heutigen Server-Lage. Die Regeln liegen als Reducer in `shared/reg
 - **CSV** (Semikolon, UTF-8 mit BOM, für Excel) und **PDF** (A4 quer, Text in Courier, ohne neue Abhängigkeit, `features/wiedergabe/pdf.ts`), je ein Tipp, für alle Mitglieder.
 
 ### Debriefing-Notizen
-- Nur in AN, nur die Leitung: «Notiz hier» hängt einen Text an den aktuellen Zeitpunkt der Wiedergabe; löschen per ×. Notizen erscheinen in der Ereignisliste, in der Wiedergabe («Zuletzt: …») und im Export.
+- Nur in AN, nur die Leitung: «+ Notiz bei 14:03:27» hängt einen Text an den aktuellen Zeitpunkt der Wiedergabe (grüner Punkt auf der Zeitleiste); löschen per ×. Notizen erscheinen in der Ereignisliste, in der Wiedergabe («Zuletzt: …») und im Export.
 
 ### Vertrag (`shared/protocol.ts`)
 - `Phase` = `ap | lv | an`; `Lage.phasen: {phase, t}[]` (≤ 200, letzte = aktuelle, `phaseVon`) ersetzt `Lage.beendetAm`.

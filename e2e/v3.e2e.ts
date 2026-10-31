@@ -99,11 +99,12 @@ test('Handy quer 844×390: Melden links, Karte rechts, grosse Ziele, schlanke Ko
   expect(karte).toMatchObject({ x: 0, y: 0, width: QUER.width, height: QUER.height });
   expect(Math.min(status.width, status.height, melden.height)).toBeGreaterThanOrEqual(56);
 
-  // Kopfzeile: Lage, Verbindung, Zahl der Teilnehmenden – keine weiteren Knöpfe
+  // Kopfzeile: Phasenschild (für die Leitung ein Knopf), Lage, Verbindung, Zahl der Teilnehmenden – keine weiteren Knöpfe
   const kopf = leitung.locator('header.kopf');
   await expect(kopf).toContainText('Übung Aare');
   await expect(kopf.getByRole('button', { name: 'Teilnehmende (2)' })).toBeVisible();
-  await expect(kopf.getByRole('button')).toHaveCount(1);
+  await expect(kopf.getByRole('button', { name: /^Phase: Lageverfolgung/ })).toHaveText('LV');
+  await expect(kopf.getByRole('button')).toHaveCount(2);
   await expect(leitung.locator('html')).toHaveAttribute('data-thema', 'nacht');
   await bild(leitung, 'quer-dunkel');
 });
