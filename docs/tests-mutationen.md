@@ -1,7 +1,7 @@
 # Mutationsnachweis der Unit-Tests
 
 Je Zeile: eine gezielte Änderung am Produktivcode (Bedingung umgedreht, Prüfung entfernt, Grenzwert verschoben), der danach rote Test, Mutation zurückgenommen.
-Stand 2026-10-31: 207 von 207 Mutationen rot. Erzeugt mit einem Runner-Skript (exakte Textersetzung, Testdatei laufen lassen, Datei wiederherstellen).
+Stand 2026-10-31: 214 von 214 Mutationen rot (davon 7 aus der Taufe-Überarbeitung 31.10., von Hand). Erzeugt mit einem Runner-Skript (exakte Textersetzung, Testdatei laufen lassen, Datei wiederherstellen).
 
 ## client/src/features/alarm/logik.test.ts
 
@@ -129,13 +129,19 @@ Stand 2026-10-31: 207 von 207 Mutationen rot. Erzeugt mit einem Runner-Skript (e
 | `client/src/features/taufe/geo.ts:190` | `if (schonDa) return teile;` → `if (false) return teile;` | verlängern | rot |
 | `client/src/features/taufe/geo.ts:169` | `while (grad(jetzt) === 2) {` → `while (grad(jetzt) >= 2) {` | läuft über die Kachelnaht | rot |
 | `client/src/features/taufe/geo.ts:68` | `const b: XY = [ax + t1 * dx, ay + t1 * dy];` → `const b: XY = [bx, by];` | Linie endet genau | rot |
+| `client/src/features/taufe/geo.ts:236` | `aufRand`: Rand der eigenen Kachel → z14-Raster (der alte Fehler) | Regression 31.10. | rot |
+| `client/src/features/taufe/geo.ts:244` | `if (!aufRand(p, t.box, 1e-6)) kn.id(p);` → `if (false) kn.id(p);` | Regression 31.10. | rot |
+| `client/src/features/taufe/geo.ts:333` | Ringe nicht gleichsinnig drehen (`… ? r : [...r].reverse()` → `r`) | gemeinsame Wand verschwindet | rot |
+| `client/src/features/taufe/geo.ts:340` | Kanten nicht an fremden Ecken teilen (`.filter(… x.d <= tol …)` → `.filter(() => false)`) | gemeinsame Wand verschwindet | rot |
+| `client/src/features/taufe/geo.ts:377` | `const kanten = geschlossen ? n : n - 1;` → `const kanten = n - 1;` | Selbstüberschneidung | rot |
 
 ## client/src/features/taufe/logik.test.ts
 
 | Produktivcode | Mutation | roter Test | Ergebnis |
 |---|---|---|---|
 | `client/src/features/taufe/familien.ts:9` | `export const GEBAEUDE_OHNE = ['underground', 'chimney', 'covered_bridg` → `export const GEBAEUDE_OHNE = ['chimney',` | Vektorkachel-Layer | rot |
-| `client/src/features/taufe/familien.ts:13` | `export const VORRANG = ['building', 'waterway', 'transportation', 'wat` → `export const VORRANG = ['landuse', 'wate` | Vektorkachel-Layer | rot |
+| `client/src/features/taufe/familien.ts:13` | `export const VORRANG = ['building', 'waterway', 'transportation', 'water']` → `['transportation', 'waterway', 'building', 'water']` | Vektorkachel-Layer | rot |
+| `client/src/features/taufe/familien.ts:27` | `case 'landuse': return 'flaeche';` wieder eingefügt | Vektorkachel-Layer | rot |
 | `client/src/features/taufe/fassaden.ts:50` | `if (Math.abs(d) <= 45) return 'schwarz';` → `if (Math.abs(d) < 45) return 'schwarz';` | Normalen zeigen nach aussen | rot |
 | `client/src/features/taufe/fassaden.ts:37` | `norm360(richtung + (aussenRechts ? 90 : -90))` → `norm360(richtung + (aussenRechts ? -90 :` | Normalen zeigen nach aussen | rot |
 | `client/src/features/taufe/fassaden.ts:59` | `farbe: ueber.get(kante.i) ?? fassadeAus(kante.normale, t.stoss!)` → `farbe: fassadeAus(kante.normale, t.stoss` | umgefärbte Fassade | rot |

@@ -14,7 +14,7 @@ Tabelle: [tests-mutationen.md](tests-mutationen.md). Vorgehen: exakte Textersetz
 Test rot? → Datei wiederherstellen. Dabei geschärft: Chat-Snapshot-Filter für Nicht-Empfänger, Pfadprüfung des
 Client-Verzeichnisses (`..` kodiert, sonst normalisiert die URL), Code-erneuern-Broadcast, labels-Hindernis, rb-Schlüssel.
 
-**Zahlen (31.10.2026):** 483 Tests / 45 Dateien / 4639 Zeilen → **191 Tests / 45 Dateien / 3382 Zeilen**.
+**Zahlen (31.10.2026):** 483 Tests / 45 Dateien / 4639 Zeilen → **191 Tests / 45 Dateien / 3382 Zeilen**; nach der Taufe-Überarbeitung (31.10.) **194 Tests / 45 Dateien / 3415 Zeilen** (+3: Naht geteilter Kacheln, mehrteilige Gebäude, Selbstüberschneidung).
 
 ## Was wo getestet wird und warum
 
@@ -27,7 +27,7 @@ Client-Verzeichnisses (`..` kodiert, sonst normalisiert die URL), Code-erneuern-
 | Server Vertrag/Daten | zeichnen, taufe, raster | 11 | Eigene Refinements des Vertrags (Punktzahl je Art, radiusM, Taufring ≥ 4, stoss < 360, Rasterausdehnung, 100 je Nachricht), Vorgabelisten ohne NATO-Wörter, Grössenbudgets je Lage, Snapshot/Export der Einträge. |
 | Client lib | coords, coords.parse, webUpdate, sonne, labels, appVersion, umgebung, speicher | 30 | Koordinaten-Parsing aller sechs Formate gegen Referenzpunkte und Roundtrip; LV95/MGRS-Referenz, Promille, Sendelogik, Frische; Live-Update-Siegel (Signatur, Downgrade, SHA-256, fremder Schlüssel, nur https, nie ohne Antippen aktivieren); fester Server der App; Aufräumen nur fremder Lage-Schlüssel. |
 | Client raster/offline | druck, beschriftung, kacheln, laden | 21 | PDF-Raster (runder Massstab, Blattgeometrie umkehrbar, Felder ohne Überlappung, Kachelplan trifft Rahmenecke, gültige xref), Raster-Köpfe auf der Karte; Offline-Gebiete (Zoomgrenzen, Kachelzahl, URL↔Kachel, Referenzzählung beim Löschen, 60-Tage-Ablauf), Lader (einmal je Kachel, Wiederaufnahme, Netz weg, 404/503, Drossel). |
-| Client features | zeichnen (4), taufe (3), bloodhound, chat, sichtung, leitung, spuren, marker, wiedergabe (3), rangebearing, status, alarm, uiSkala | 67 | Taktische Zeichen (Pfeilkopf-Regression 30.10., Sperre, Räume), Geometrie-Randfälle, Undo/Redo inkl. Ersteller und Stückelung unter MAX_NACHRICHT, Vektorkachel-Geometrie über Kachelgrenzen, Fassadenfarben, Tempo-Glättung, Chat-Kanäle/Ungelesen, SALUTE-Chips→Vertrag, Dateiname ohne Pfad, Spuren, Ereignisliste nur LV mit Bloodhound-Sichtbarkeit und CSV-Formel-Schutz, Wiedergabe-Zeitachse, PDF-Gerüst, R&B-Persistenz, Kontrastfarbe, UI-Skalierung. |
+| Client features | zeichnen (4), taufe (3), bloodhound, chat, sichtung, leitung, spuren, marker, wiedergabe (3), rangebearing, status, alarm, uiSkala | 70 | Taktische Zeichen (Pfeilkopf-Regression 30.10., Sperre, Räume), Geometrie-Randfälle, Undo/Redo inkl. Ersteller und Stückelung unter MAX_NACHRICHT, Vektorkachel-Geometrie über Kachelgrenzen (auch die von MapLibre geteilten z15/z16-Kacheln, Regression «schräge Fassade»), Gebäudeteile vereinen, Selbstüberschneidung gezeichneter Flächen, Fassadenfarben, Tempo-Glättung, Chat-Kanäle/Ungelesen, SALUTE-Chips→Vertrag, Dateiname ohne Pfad, Spuren, Ereignisliste nur LV mit Bloodhound-Sichtbarkeit und CSV-Formel-Schutz, Wiedergabe-Zeitachse, PDF-Gerüst, R&B-Persistenz, Kontrastfarbe, UI-Skalierung. |
 
 ## Gestrichen
 
