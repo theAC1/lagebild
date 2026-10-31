@@ -164,6 +164,23 @@ test('Bediengrösse in den Einstellungen wählen: wirkt sofort und gilt nach Neu
   await p.context().close();
 });
 
+test('Touch quer: Sehr klein (31.10.) – Knöpfe auf 70 %, alle fünf Stufen wählbar, Leisten im Bild', async ({ browser }) => {
+  const p = await handy(browser, QUER, 'normal', 'Klein');
+  const folgen = knopf(p, 'Eigener Position folgen');
+  const vorher = (await folgen.boundingBox())!.height;
+  await knopf(p, 'Mehr').click();
+  await p.getByRole('menuitem', { name: 'Einstellungen' }).click();
+  const gruppe = p.getByRole('group', { name: 'Bediengrösse' });
+  await expect(gruppe.getByRole('button')).toHaveText(['Sehr klein', 'Klein', 'Normal', 'Gross', 'Sehr gross']);
+  for (const el of await gruppe.getByRole('button').all()) await expect(el).toBeInViewport({ ratio: 1 });
+  await gruppe.getByRole('button', { name: 'Sehr klein' }).click();
+  expect(await ui(p)).toBe(0.7);
+  await p.keyboard.press('Escape');
+  expect((await folgen.boundingBox())!.height).toBeCloseTo(vorher * 0.7, 0);
+  for (const el of await p.locator('aside.rand').getByRole('button').all()) await expect(el).toBeInViewport({ ratio: 1 });
+  await p.context().close();
+});
+
 test('Desktop (Maus): Normal bleibt beim heutigen Stand, Gross skaliert', async ({ browser }) => {
   const ctx = await browser.newContext({ ...DESKTOP, viewport: { width: 1280, height: 800 }, geolocation: ADLER });
   const r = await ctx.request.post('/api/beitreten', { data: { code, rufname: 'Desk', einheit: 'Zug 1', funktion: '', sidc: SIDC } });

@@ -3,16 +3,19 @@
 import { MediaQuery } from 'svelte/reactivity';
 import { store } from './store.svelte.ts';
 
-export type Bediengroesse = 'normal' | 'gross' | 'sehrgross';
+export type Bediengroesse = 'sehrklein' | 'klein' | 'normal' | 'gross' | 'sehrgross';
+// Kleiner als Normal (Juan, 31.10.: «zwei Stufen kleiner als normal»), Sehr gross bleibt für Tablets
 export const BEDIENGROESSEN: { id: Bediengroesse; label: string }[] = [
+  { id: 'sehrklein', label: 'Sehr klein' },
+  { id: 'klein', label: 'Klein' },
   { id: 'normal', label: 'Normal' },
   { id: 'gross', label: 'Gross' },
   { id: 'sehrgross', label: 'Sehr gross' },
 ];
 
-const STUFE: Record<Bediengroesse, number> = { normal: 1, gross: 1.2, sehrgross: 1.4 };
+const STUFE: Record<Bediengroesse, number> = { sehrklein: 0.7, klein: 0.85, normal: 1, gross: 1.2, sehrgross: 1.4 };
 // Symbole und Beschriftungen auf der Karte wachsen gedämpfter, sonst verdecken sie die Lage
-const KARTE: Record<Bediengroesse, number> = { normal: 1, gross: 1.15, sehrgross: 1.3 };
+const KARTE: Record<Bediengroesse, number> = { sehrklein: 0.8, klein: 0.9, normal: 1, gross: 1.15, sehrgross: 1.3 };
 
 export type Faktoren = { ui: number; schrift: number; karte: number };
 
