@@ -17,13 +17,19 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${port}`,
     browserName: 'chromium',
-    viewport: { width: 390, height: 844 },
-    deviceScaleFactor: 2,
     permissions: ['geolocation'],
     locale: 'de-CH',
     timezoneId: 'Europe/Zurich',
     trace: 'retain-on-failure',
   },
+  // Vorgabe (31.10., Juan: «die Hauptnutzung (98 %) wird in landscape genutzt»): Android-Handy quer, FHD+ 2340×1080
+  // physisch bei DPR 2.75 = 851×393 CSS-px, mit Touch. Desktop-Tests setzen ihren Kontext selbst (DESKTOP in e2e/hilfen.ts).
+  projects: [
+    { name: 'quer', use: { viewport: { width: 851, height: 393 }, deviceScaleFactor: 2.75, hasTouch: true, isMobile: true } },
+    // Android «Anzeigegrösse gross»: weniger CSS-px auf demselben Bildschirm; nur Layout-Prüfungen
+    { name: 'quer-gross', grep: /@layout/, use: { viewport: { width: 780, height: 360 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true } },
+    { name: 'hoch', grep: /@hoch/, use: { viewport: { width: 393, height: 851 }, deviceScaleFactor: 2.75, hasTouch: true, isMobile: true } },
+  ],
   webServer: {
     command: 'npm run build && npm start',
     url: `http://127.0.0.1:${port}/`,

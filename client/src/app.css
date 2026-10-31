@@ -171,7 +171,7 @@ label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
 .segmente { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: var(--bg); border-radius: var(--radius); }
 .segmente button { flex: 1 0 auto; border: 0; background: transparent; padding: 0 6px; }
 /* Reiter brechen bei grosser Bediengrösse in mehrere Zeilen um: flacher halten, sonst füllen sie das Sheet */
-.segmente button { min-height: min(var(--touch), 64px); }
+.segmente button { min-height: min(var(--touch), 64px); min-width: 44px; } /* Tempo «1×» war quer nur 42 px breit */
 .segmente button[aria-pressed='true'] { background: var(--surface-2); color: var(--accent); font-weight: 600; }
 
 /* Chips: ein Tipp wählt (Meldungen ohne Tastatur). aria-pressed = gewählt. */

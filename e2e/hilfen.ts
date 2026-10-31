@@ -1,12 +1,22 @@
 // Gemeinsame Hilfen der E2E-Tests (keine Testdatei: testMatch ist *.e2e.ts).
-import type { Page } from '@playwright/test';
+import { test, type Page } from '@playwright/test';
+
+/** Vorgabe der Tests (Projekt «quer» in playwright.config.ts): Android-Handy FHD+ 2340×1080 bei DPR 2.75, quer. */
+export const QUER = { width: 851, height: 393 };
+/** Dasselbe Handy hochkant, für Tests, die bewusst das Hochformat prüfen. */
+export const HOCH = { width: 393, height: 851 };
+/** Android «Anzeigegrösse gross» (DPR 3), quer: Projekt «quer-gross». */
+export const QUER_GROSS = { width: 780, height: 360 };
+/** Desktop mit Maus: hebt die Handy-Vorgabe (Touch, isMobile) der Projekte auf. */
+export const DESKTOP = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, hasTouch: false, isMobile: false };
 
 /**
- * Bildschirmfoto nach docs/screens/<name>.png, nur mit E2E_BILDER=1 (Doku-Bilder erneuern). Sonst nichts: spart je
- * Bild bis 7 MB PNG und Zeit, und ein normaler Lauf ändert keine Dateien im Repo.
+ * Bildschirmfoto nach docs/screens/<name>.png, nur mit E2E_BILDER=1 (Doku-Bilder erneuern) und nur im Projekt «quer»
+ * (die Zusatzprojekte würden dieselben Namen mit anderem Format überschreiben). Sonst nichts: spart je Bild bis 7 MB
+ * PNG und Zeit, und ein normaler Lauf ändert keine Dateien im Repo.
  */
 export async function dokuBild(p: Page, name: string): Promise<void> {
-  if (process.env.E2E_BILDER) await p.screenshot({ path: `docs/screens/${name}.png`, animations: 'disabled' });
+  if (process.env.E2E_BILDER && test.info().project.name === 'quer') await p.screenshot({ path: `docs/screens/${name}.png`, animations: 'disabled' });
 }
 
 /**
@@ -24,6 +34,18 @@ export async function langdruck(p: Page, x: number, y: number, ms = 800): Promis
   const cdp = await p.context().newCDPSession(p);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
   await p.waitForTimeout(ms);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+}
+
+/** Echtes Wischen mit einem Finger von `von` nach `nach` über CDP (Touch-Ereignisse bleiben beim Startelement wie am Handy). */
+export async function wische(p: Page, von: { x: number; y: number }, nach: { x: number; y: number }, schritte = 8): Promise<void> {
+  const cdp = await p.context().newCDPSession(p);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [von] });
+  for (let i = 1; i <= schritte; i++) {
+    const punkt = { x: von.x + ((nach.x - von.x) * i) / schritte, y: von.y + ((nach.y - von.y) * i) / schritte };
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [punkt] });
+  }
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await cdp.detach();
 }

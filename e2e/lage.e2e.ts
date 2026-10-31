@@ -1,4 +1,5 @@
 // Ende-zu-Ende: Leitung (Adler, Bundeshaus) und Teilnehmer (Bravo, 1.1 km südlich) in einer Lage, gegen den echten Server.
+// Bildschirm aus dem Projekt: läuft quer (Vorgabe) und hoch (@hoch).
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { bedienung, dokuBild } from './hilfen.ts';
@@ -36,10 +37,11 @@ const werkzeug = (page: Page, label: string) => page.locator('nav.werkzeuge butt
 const sheet = (page: Page) => page.locator('section.sheet');
 const schliesseSheet = (page: Page) => sheet(page).getByRole('button', { name: 'Schliessen', exact: true }).click();
 
-/** Leitung: Phasenschild antippen, Ziel wählen, bestätigen. */
-async function phaseWechseln(schild: string, knopf: string) {
+/** Leitung: Phasenschild antippen, Ziel wählen, bestätigen (`foto`: Doku-Bild der Rückfrage). */
+async function phaseWechseln(schild: string, knopf: string, foto?: string) {
   await leitung.getByRole('button', { name: new RegExp(`^${schild}`) }).click();
   await sheet(leitung).getByRole('button', { name: knopf, exact: true }).click();
+  if (foto) await bild(leitung, foto);
   await sheet(leitung).getByRole('button', { name: 'Ja, wechseln', exact: true }).click();
 }
 
@@ -58,8 +60,10 @@ test.afterAll(async () => {
   await teilnehmer?.context().close();
 });
 
-test('Lage erstellen, beitreten, gegenseitig sehen', async () => {
+test('Lage erstellen, beitreten, gegenseitig sehen @hoch', async () => {
   await leitung.goto('/');
+  await expect(leitung.getByRole('button', { name: 'Neue Lage erstellen', exact: true })).toBeVisible();
+  await bild(leitung, 'quer-login');
   await leitung.getByRole('button', { name: 'Neue Lage erstellen', exact: true }).click();
   await leitung.getByLabel('Name der Lage').fill('Übung Aare');
   await leitung.getByLabel('Erstell-Passwort').fill('e2e');
@@ -74,7 +78,8 @@ test('Lage erstellen, beitreten, gegenseitig sehen', async () => {
   await expect(leitung.locator('.phase-rahmen.ap')).toBeAttached();
   await expect(leitung.getByRole('button', { name: /^Eigener Status/ })).toHaveCount(0);
   await bild(leitung, 'e2e-phase-ap');
-  await phaseWechseln('Phase: Aktionsplanung', 'Lageverfolgung starten (LV)');
+  await bild(leitung, 'quer-ap-phasenschild');
+  await phaseWechseln('Phase: Aktionsplanung', 'Lageverfolgung starten (LV)', 'quer-phasenwechsel');
   await expect(leitung.locator('.phase-rahmen.lv')).toBeAttached();
   await expect(leitung.getByRole('button', { name: /^Eigener Status/ })).toBeVisible();
   await schliesseSheet(leitung);
@@ -102,20 +107,38 @@ test('Lage erstellen, beitreten, gegenseitig sehen', async () => {
   await expect(sheet(leitung).locator('.code', { hasText: teilnehmerCode })).toBeVisible();
   await expect(sheet(leitung).getByAltText(/QR-Code zum Beitreten/)).toBeVisible();
   await bild(leitung, 'e2e-leitung-zugang');
+  await bild(leitung, 'quer-leitung-panel');
   await schliesseSheet(leitung);
   await bild(leitung, 'e2e-karte-leitung');
+  await bild(leitung, 'quer-karte-leitung-klassisch');
 
-  // Werkzeugleiste bei 390 px: lange Beschriftungen («Führungsraster», «Geländetaufe») überlappen nicht, die Leiste scrollt
+  // Werkzeugleiste (hoch unten, quer rechts): lange Beschriftungen («Führungsraster», «Geländetaufe») bleiben im eigenen
+  // Knopf und überlappen nicht; passt nicht alles, scrollt die Leiste
   const leiste = leitung.locator('nav.werkzeuge');
-  expect(await leiste.evaluate((n) => n.scrollWidth > n.clientWidth && getComputedStyle(n).overflowX === 'auto')).toBe(true);
+  const quer = (await leiste.evaluate((n) => getComputedStyle(n).flexDirection)) === 'column';
+  if (!quer) expect(await leiste.evaluate((n) => n.scrollWidth > n.clientWidth && getComputedStyle(n).overflowX === 'auto')).toBe(true);
   const boxen = await leiste.locator('button.werkzeug:visible > span:not(.badge)').evaluateAll((els) =>
-    els.map((e) => ({ text: e.textContent, ...e.getBoundingClientRect().toJSON() })),
+    els.map((e) => ({ text: e.textContent, k: e.parentElement!.getBoundingClientRect().toJSON(), ...e.getBoundingClientRect().toJSON() })),
   );
   expect(boxen.length).toBeGreaterThan(8);
-  for (let i = 1; i < boxen.length; i++) expect(boxen[i].left, `${boxen[i - 1].text} / ${boxen[i].text}`).toBeGreaterThanOrEqual(boxen[i - 1].right);
+  for (const b of boxen) {
+    expect(b.left, `${b.text} links im Knopf`).toBeGreaterThanOrEqual(b.k.left - 0.5);
+    expect(b.right, `${b.text} rechts im Knopf`).toBeLessThanOrEqual(b.k.right + 0.5);
+  }
+  for (let i = 1; i < boxen.length; i++) {
+    const [a, b] = [boxen[i - 1], boxen[i]];
+    if (quer) expect(b.top, `${a.text} / ${b.text}`).toBeGreaterThanOrEqual(a.bottom);
+    else expect(b.left, `${a.text} / ${b.text}`).toBeGreaterThanOrEqual(a.right);
+  }
+
+  // Einstellungen aus der Kopfzeile
+  await leitung.getByRole('button', { name: 'Einstellungen', exact: true }).click();
+  await expect(sheet(leitung).getByRole('group', { name: 'Bedienung' })).toBeVisible();
+  await bild(leitung, 'quer-einstellungen');
+  await schliesseSheet(leitung);
 });
 
-test('Status wechseln und Status-Set der Leitung', async () => {
+test('Status wechseln und Status-Set der Leitung @hoch', async () => {
   await teilnehmer.getByRole('button', { name: /^Eigener Status/ }).click();
   await sheet(teilnehmer).getByText('+ Text').click(); // Freitext liegt eingeklappt
   await sheet(teilnehmer).getByLabel('Meldung an alle').fill('Brücke gesperrt');
@@ -138,7 +161,7 @@ test('Status wechseln und Status-Set der Leitung', async () => {
   await schliesseSheet(teilnehmer);
 });
 
-test('Marker setzen; Teilnehmer darf Leitungs-Marker nicht löschen', async () => {
+test('Marker setzen; Teilnehmer darf Leitungs-Marker nicht löschen @hoch', async () => {
   await werkzeug(leitung, 'Marker').click();
   await sheet(leitung).getByRole('button', { name: '+ Marker setzen', exact: true }).click();
   await leitung.getByRole('button', { name: 'Übernehmen', exact: true }).click();
@@ -177,7 +200,7 @@ test('Marker setzen; Teilnehmer darf Leitungs-Marker nicht löschen', async () =
   await expect(leitung.locator('[aria-label="Marker Sperre Nord"]')).toBeVisible();
 });
 
-test('Chat an alle und direkt, Ungelesen-Zähler', async () => {
+test('Chat an alle und direkt, Ungelesen-Zähler @hoch', async () => {
   await werkzeug(teilnehmer, 'Chat').click();
   const kanal = (name: string) => sheet(teilnehmer).locator('button.zeile').filter({ has: teilnehmer.locator('strong', { hasText: new RegExp(`^${name}$`) }) });
   await kanal('Alle').click();
@@ -197,11 +220,12 @@ test('Chat an alle und direkt, Ungelesen-Zähler', async () => {
   await sheet(leitung).locator('button.zeile').filter({ has: leitung.locator('strong', { hasText: /^Bravo$/ }) }).click();
   await expect(sheet(leitung).getByText('Nur für Adler')).toBeVisible();
   await bild(leitung, 'e2e-chat-direkt');
+  await bild(leitung, 'quer-chat');
   await schliesseSheet(leitung);
   await expect(werkzeug(leitung, 'Chat').locator('.badge')).toHaveText('1');
 });
 
-test('Sichtung mit Foto', async () => {
+test('Sichtung mit Foto @hoch', async () => {
   const jpeg = await teilnehmer.evaluate(async () => {
     const c = document.createElement('canvas');
     c.width = 2000;
@@ -241,7 +265,7 @@ test('Sichtung mit Foto', async () => {
   await schliesseSheet(leitung);
 });
 
-test('Alarm auslösen, quittieren, aufheben', async () => {
+test('Alarm auslösen, quittieren, aufheben @hoch', async () => {
   await teilnehmer.getByRole('button', { name: 'Alarm auslösen', exact: true }).click();
   await sheet(teilnehmer).locator('button.art', { hasText: 'Notfall' }).click();
   const knopf = sheet(teilnehmer).locator('button.halten');
@@ -266,7 +290,7 @@ test('Alarm auslösen, quittieren, aufheben', async () => {
   if (await sheet(teilnehmer).isVisible()) await schliesseSheet(teilnehmer);
 });
 
-test('Range & Bearing zum Teilnehmer', async () => {
+test('Range & Bearing zum Teilnehmer @hoch', async () => {
   await leitung.getByRole('button', { name: 'Teilnehmende', exact: true }).click();
   await sheet(leitung).locator('.zeile', { hasText: 'Bravo' }).click();
   await sheet(leitung).getByRole('button', { name: 'Range & Bearing', exact: true }).click();
@@ -277,7 +301,7 @@ test('Range & Bearing zum Teilnehmer', async () => {
   await schliesseSheet(leitung);
 });
 
-test('Export GPX, Nachbearbeitung statt Beenden, zurück und löschen', async () => {
+test('Export GPX, Nachbearbeitung statt Beenden, zurück und löschen @hoch', async () => {
   await leitungTab('Export');
   const [download] = await Promise.all([leitung.waitForEvent('download'), sheet(leitung).getByRole('button', { name: /GPX herunterladen/ }).click()]);
   expect(download.suggestedFilename()).toMatch(/\.gpx$/);
@@ -311,7 +335,11 @@ test('Export GPX, Nachbearbeitung statt Beenden, zurück und löschen', async ()
   await wiedergabe.getByRole('button', { name: 'Voriges Ereignis' }).click();
   await wiedergabe.getByRole('button', { name: 'Abspielen' }).click();
   await expect(wiedergabe.getByRole('button', { name: 'Pause' })).toBeVisible();
+  // die mitlaufende Ereignisliste schiebt die Knöpfe nicht aus dem Panel (quer nur gut 300 px hoch)
+  await teilnehmer.waitForTimeout(1500);
+  await expect(wiedergabe.getByRole('button', { name: /^(Pause|Abspielen)$/ })).toBeInViewport({ ratio: 1 });
   await bild(teilnehmer, 'e2e-phase-an');
+  await bild(teilnehmer, 'quer-an-wiedergabe');
 
   // Ereignisliste: Zeile antippen springt hin; Export CSV und PDF für alle Mitglieder
   const liste = wiedergabe.getByRole('region', { name: 'Ereignisliste' });

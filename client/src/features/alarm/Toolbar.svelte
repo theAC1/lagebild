@@ -8,8 +8,9 @@
   /* in der Kopfleiste: liegt nie unter Sheets, Ebenen-Menü oder der Werkzeugleiste */
   .alarm-knopf {
     flex: none;
-    min-height: 40px;
-    height: 40px;
+    /* 44 px Trefffläche: passt quer genau in die Kopfleiste (vorher 40 px) */
+    min-height: 44px;
+    height: 44px;
     padding: 0 14px;
     border-radius: 999px;
     border: 2px solid #ff8a78;

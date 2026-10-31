@@ -80,10 +80,19 @@
   const notizMarken = $derived(store.notizen.map((n) => ({ id: n.id, x: (versatzAus(f, n.t) / (gesamt || 1)) * 100 })));
 
   let liste = $state<HTMLElement>();
-  // aktuelle Zeile beim Abspielen im Blick halten
+  let steuerung = $state<HTMLElement>();
+  // aktuelle Zeile beim Abspielen im Blick halten, aber nie die Knöpfe (Pause!) oben aus dem Panel schieben: quer ist
+  // das Panel nur gut 300 px hoch, scrollIntoView rollte beim Abspielen die ganze Zeitleiste weg. Den Stand zeigt dann
+  // die Zeile «Zuletzt» unter den Knöpfen.
   $effect(() => {
     void aktuell;
-    liste?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' });
+    const zeile = liste?.querySelector<HTMLElement>('[aria-current="true"]');
+    const panel = zeile?.closest<HTMLElement>('.inhalt');
+    if (!zeile || !panel || !steuerung) return;
+    const p = panel.getBoundingClientRect();
+    const z = zeile.getBoundingClientRect();
+    const d = z.bottom > p.bottom ? Math.min(z.bottom - p.bottom, Math.max(0, steuerung.getBoundingClientRect().top - p.top)) : Math.min(0, z.top - p.top);
+    panel.scrollTop += d;
   });
 
   function naechstes(richtung: 1 | -1) {
@@ -133,7 +142,7 @@
       {#each naehte as n, i (i)}<span class="naht" style:left="{n.x}%" title="{n.phase} übersprungen">{n.phase}</span>{/each}
       {#each notizMarken as n (n.id)}<span class="notiz-marke" style:left="{n.x}%" aria-hidden="true"></span>{/each}
     </div>
-    <div class="knoepfe">
+    <div class="knoepfe" bind:this={steuerung}>
       <button class="icon" aria-label="Voriges Ereignis" title="Voriges Ereignis (Alt+←)" onclick={() => naechstes(-1)}>⏮</button>
       {#if wg.spielt}
         <button class="primaer spiel" aria-label="Pause" onclick={pause}>⏸</button>

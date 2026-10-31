@@ -1,12 +1,10 @@
 // Einstellung «Bediengrösse» auf dem Handy (Touch): Trefferflächen, keine Überlappung, Karte bleibt gross, gemerkt.
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { dokuBild, langdruck, leereStelle } from './hilfen.ts';
+import { DESKTOP, dokuBild, HOCH, langdruck, leereStelle, QUER, QUER_GROSS } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const SIDC = '10031000001211000000';
-const HOCH = { width: 390, height: 844 };
-const QUER = { width: 844, height: 390 };
-const NIEDRIG = { width: 740, height: 360 };
+const NIEDRIG = QUER_GROSS;
 const KARTEN = ['Karte und Ebenen wählen', 'Eigener Position folgen', 'Karte nach Norden ausrichten'];
 type Box = { x: number; y: number; width: number; height: number };
 
@@ -167,7 +165,7 @@ test('Bediengrösse in den Einstellungen wählen: wirkt sofort und gilt nach Neu
 });
 
 test('Desktop (Maus): Normal bleibt beim heutigen Stand, Gross skaliert', async ({ browser }) => {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, geolocation: ADLER });
+  const ctx = await browser.newContext({ ...DESKTOP, viewport: { width: 1280, height: 800 }, geolocation: ADLER });
   const r = await ctx.request.post('/api/beitreten', { data: { code, rufname: 'Desk', einheit: 'Zug 1', funktion: '', sidc: SIDC } });
   const { token } = await r.json();
   await ctx.addInitScript((t) => localStorage.setItem('lagebild.token', t), token);

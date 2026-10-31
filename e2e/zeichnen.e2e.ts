@@ -1,11 +1,10 @@
 // Spec v2 Punkt 4: Zeichnen am Desktop (voller Umfang) und mobil (reduziert), gegen den echten Server.
-import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
-import { bedienung, dokuBild } from './hilfen.ts';
+import { expect, test, type APIRequestContext, type Browser, type BrowserContextOptions, type Page } from '@playwright/test';
+import { bedienung, DESKTOP, dokuBild } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const BRAVO = { latitude: 46.9476, longitude: 7.4462 };
 const SIDC = '10031000001211000000';
-const DESKTOP = { width: 1440, height: 900 };
 
 test.describe.configure({ mode: 'serial' });
 
@@ -14,8 +13,8 @@ let leitung: Sitzung;
 let bravo: Sitzung;
 let codes: { teilnehmerCode: string; leitungCode: string };
 
-async function sitzung(browser: Browser, code: string, rufname: string, geolocation: typeof ADLER, viewport: { width: number; height: number }): Promise<Sitzung> {
-  const ctx = await browser.newContext({ geolocation, viewport });
+async function sitzung(browser: Browser, code: string, rufname: string, geolocation: typeof ADLER, kontext: BrowserContextOptions = {}): Promise<Sitzung> {
+  const ctx = await browser.newContext({ geolocation, ...kontext });
   const r = await ctx.request.post('/api/beitreten', { data: { code, rufname, einheit: 'Zug 1', funktion: '', sidc: SIDC } });
   expect(r.status()).toBe(201);
   const { token, teilnehmerId } = await r.json();
@@ -274,10 +273,17 @@ test('Desktop: Rechtsklick auf Zeichnung öffnet Radial-Menü mit Zeichnen-Aktio
   await expect(ring).toHaveCount(0);
 });
 
-test('Mobil 390×844: Linie mit Fertig-Knopf, Tippen zeigt Details', async ({ browser }) => {
-  const charlie = await sitzung(browser, codes.teilnehmerCode, 'Charlie', ADLER, { width: 390, height: 844 });
+test('Handy quer: Linie mit Fertig-Knopf, Tippen zeigt Details', async ({ browser }) => {
+  const charlie = await sitzung(browser, codes.teilnehmerCode, 'Charlie', ADLER);
   const p = charlie.page;
-  const m = await mitte(p);
+  await mitte(p);
+  /** Bildschirmpunkt, Versatz ab der Kartenmitte. Quer rückt die Karte neben offene Panels; MapLibre behält dabei die
+   *  Mitte, also liegt derselbe Versatz immer auf demselben Ort. */
+  const km = async (dx: number, dy: number): Promise<[number, number]> => {
+    await p.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+    const b = (await p.locator('.maplibregl-canvas').boundingBox())!;
+    return [b.x + b.width / 2 + dx, b.y + b.height / 2 + dy];
+  };
   await expect(p.getByRole('toolbar', { name: 'Zeichenwerkzeuge' })).toHaveCount(0); // keine Desktop-Palette
   await p.locator('nav.werkzeuge button.werkzeug', { hasText: 'Zeichnen' }).click();
   const panel = p.getByRole('region', { name: 'Zeichnen' });
@@ -287,11 +293,12 @@ test('Mobil 390×844: Linie mit Fertig-Knopf, Tippen zeigt Details', async ({ br
   const leiste = p.getByRole('toolbar', { name: 'Linie zeichnen' });
   await expect(leiste).toBeVisible();
   await expect(leiste.getByRole('button', { name: 'Fertig' })).toBeDisabled();
-  await p.mouse.click(m.x - 150, m.y - 120);
-  await p.mouse.click(m.x - 60, m.y - 60);
+  await p.mouse.click(...(await km(-150, -90)));
+  await p.mouse.click(...(await km(-60, -40)));
   await p.waitForTimeout(400); // kein Doppelklick
-  await p.mouse.click(m.x + 60, m.y - 100);
+  await p.mouse.click(...(await km(60, -80)));
   await bild(p, 'mobil');
+  await dokuBild(p, 'quer-zeichnen');
   await leiste.getByRole('button', { name: 'Fertig' }).click();
   await expect(leiste).toHaveCount(0);
   await expect.poll(async () => (await nachForm('linie')).filter((z) => z.properties.von === charlie.id).map((z) => punkteVon(z).length)).toEqual([3]);
@@ -299,30 +306,34 @@ test('Mobil 390×844: Linie mit Fertig-Knopf, Tippen zeigt Details', async ({ br
   const detail = p.getByRole('region', { name: 'Zeichnen' });
   // auf die Linie tippen (erneut, falls das Echo des Servers noch unterwegs war)
   await expect(async () => {
-    await p.mouse.click(m.x - 105, m.y - 90);
+    await p.mouse.click(...(await km(-105, -65)));
     await expect(detail).toContainText('Linie', { timeout: 1000 });
   }).toPass();
   await expect(detail).toContainText('Charlie');
   await expect(detail.getByRole('button', { name: 'Bearbeiten' })).toBeVisible();
   await bild(p, 'mobil-detail');
 
-  // Pfeil auf freier Karte (nach Süden verschoben, die Desktop-Formen liegen südlicher), dann Stil per Chips ändern
+  // Pfeil auf freier Karte (Karte zweimal nach unten gezogen, die Desktop-Formen liegen südlicher), dann Stil per Chips
   await p.keyboard.press('Escape');
-  await p.mouse.move(m.x, m.y - 150);
-  await p.mouse.down();
-  await p.mouse.move(m.x, m.y + 200, { steps: 10 });
-  await p.mouse.up();
-  await p.waitForTimeout(800); // Auslaufen der Karte abwarten
+  for (let i = 0; i < 2; i++) {
+    await p.mouse.move(...(await km(0, -100)));
+    await p.mouse.down();
+    const [x, y] = await km(0, 100);
+    await p.mouse.move(x, y, { steps: 10 });
+    await p.mouse.up();
+    await p.waitForTimeout(800); // Auslaufen der Karte abwarten
+  }
   await p.locator('nav.werkzeuge button.werkzeug', { hasText: 'Zeichnen' }).click();
   await panel.getByRole('button', { name: 'Pfeil' }).click();
-  await p.mouse.click(m.x - 140, m.y - 200);
+  await expect(p.getByRole('toolbar', { name: 'Pfeil zeichnen' })).toBeVisible();
+  await p.mouse.click(...(await km(-140, -60)));
   await p.waitForTimeout(400);
-  await p.mouse.click(m.x + 90, m.y - 260);
+  await p.mouse.click(...(await km(90, -110)));
   await p.getByRole('toolbar', { name: 'Pfeil zeichnen' }).getByRole('button', { name: 'Fertig' }).click();
   const pfeil = async () => (await nachForm('pfeil')).find((z) => z.properties.von === charlie.id) as (ExportZeichnung & { properties: { stil: Record<string, unknown> } }) | undefined;
   await expect.poll(async () => !!(await pfeil())).toBe(true);
   await expect(async () => {
-    await p.mouse.click(m.x - 25, m.y - 230);
+    await p.mouse.click(...(await km(-25, -85)));
     await expect(detail).toContainText('Pfeil', { timeout: 1000 });
   }).toPass();
   for (const [gruppe, wahl] of [['Farbe', 'Blau'], ['Dicke', 'Dick'], ['Darstellung', 'Gestrichelt']]) {
