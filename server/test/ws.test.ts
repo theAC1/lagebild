@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { WebSocket } from 'ws';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
-import { STALE_MAX_MS, type Position } from '../../shared/protocol.ts';
+import { STALE_MAX_MS, STANDARD_STIL, type Position } from '../../shared/protocol.ts';
 import { MAX_PROTOKOLL_ZEICHEN_JE_LAGE } from '../src/ws.ts';
 import { pause, SIDC, testServer, verbinde } from './helfer.ts';
 
@@ -186,10 +186,42 @@ describe('WebSocket', () => {
     const p = await (await s.api('/api/protokoll', { token: bB.token })).json();
     expect(p.ereignisse.map((e: { d: { typ: string } }) => e.d.typ)).toEqual(['marker', 'marker.geloescht']);
     expect(p.ereignisse[1]).toMatchObject({ von: aB.teilnehmerId, t: expect.any(Number) });
-    expect(Object.keys(p.spuren)).toEqual([aB.teilnehmerId]);
+    expect(p.spuren).toBeUndefined(); // Spuren über /api/spuren
+    expect(p.weiter).toBeNull();
     expect(p.teilnehmer).toHaveLength(3);
     const fuerLtg = await (await s.api('/api/protokoll', { token: ltgB.token })).json();
     expect(fuerLtg.ereignisse.map((e: { d: { typ: string } }) => e.d.typ)).toEqual(['marker', 'marker.geloescht', 'chat']);
+  });
+
+  it('Protokoll seitenweise: max je Seite, weiter-Marke, keine Seite endet mitten in einer Millisekunde', async () => {
+    const { ltg, a, b, bB } = await szenario();
+    for (const bezeichnung of ['M1', 'M2', 'M3']) {
+      a.senden({ typ: 'marker.setzen', marker: { sidc: SIDC, lat: 47, lon: 8, bezeichnung, notiz: '' } });
+      await b.warte('marker', (m) => m.marker.bezeichnung === bezeichnung);
+      await pause(2);
+    }
+    // zeichnung.neu: Delta und Meldung mit derselben Zeit
+    ltg.senden({ typ: 'zeichnung.neu', zeichnungen: [{ ebeneId: b.snapshot.ebenen[0].id, art: 'linie', punkte: [{ lat: 47, lon: 8 }, { lat: 47.1, lon: 8 }], text: '', bezeichnung: '', stil: STANDARD_STIL }] });
+    await b.warte('zeichnungen');
+    const alle = (await (await s.api('/api/protokoll', { token: bB.token })).json()).ereignisse;
+    expect(alle.map((e: { d: { typ: string } }) => e.d.typ)).toEqual(['marker', 'marker', 'marker', 'zeichnungen', 'meldung']);
+    const seiten: { typ: string }[][] = [];
+    let seit: number | null = -1;
+    while (seit !== null) {
+      const p = await (await s.api(`/api/protokoll?seit=${seit}&max=4`, { token: bB.token })).json();
+      seiten.push(p.ereignisse.map((e: { d: { typ: string } }) => e.d.typ));
+      seit = p.weiter;
+    }
+    expect(seiten).toEqual([['marker', 'marker', 'marker'], ['zeichnungen', 'meldung']]);
+    expect((await s.api('/api/protokoll?max=0', { token: bB.token })).status).toBe(400);
+    expect((await s.api('/api/protokoll?seit=x', { token: bB.token })).status).toBe(400);
+  });
+
+  it('Protokoll: Rate-Limit je Teilnehmer beim Öffnen', async () => {
+    const { aB } = await szenario();
+    const status: number[] = [];
+    for (let i = 0; i < 7; i++) status.push((await s.api('/api/protokoll', { token: aB.token })).status);
+    expect(status).toEqual([200, 200, 200, 200, 200, 200, 429]);
   });
 
   it('Protokoll einer Bestandslage: Einträge von vor dem Protokoll bleiben, wenn neue Deltas dazukommen', async () => {

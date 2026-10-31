@@ -632,7 +632,8 @@ Gebaut in der heutigen Server-Lage. Die Regeln liegen als Reducer in `shared/reg
 ### Ereignisprotokoll (Server)
 - Löschungen und Zwischenstände gehen in den Einträgen verloren. Darum schreibt der Server jedes verteilte Delta der Regeln mit Zeit und Autor in die Tabelle `protokoll` (ausser Positionen, Teilnehmer-Updates und Lage-Deltas; Positionen liegen in `spur`, Phasen in `Lage.phasen`). Das passt zum späteren Ereignislog der Missionen.
 - Grenze je Lage: 50 MB (Zeichen der Deltas, `MAX_PROTOKOLL_ZEICHEN_JE_LAGE` in `server/src/ws.ts`, laufend mitgezählt). Darüber zeichnet der Server nichts mehr auf, warnt einmal (Log und Meldung nur an die Leitung: «Protokoll voll …»), der Live-Betrieb läuft weiter.
-- `GET /api/protokoll` (Bearer, alle Mitglieder): `{ teilnehmer (auch entfernte), ereignisse: {t, von, d}[], spuren }`; Chat und Meldungslog gefiltert wie live (`sichtbar.ts`).
+- `GET /api/protokoll?seit=<t>&max=<n>` (Bearer, alle Mitglieder), seitenweise: `{ teilnehmer (auch entfernte), ereignisse: {t, von, d}[], weiter }`, höchstens 5000 Ereignisse je Seite (`MAX_PROTOKOLL_SEITE`), eine Seite endet nie mitten in einer Millisekunde; `weiter` ist das `seit` der nächsten Seite, `null` am Ende. Chat und Meldungslog gefiltert wie live (`sichtbar.ts`). Rate-Limit je Teilnehmer: 6 Wiedergaben (erste Seite) und 60 Seiten je Minute.
+- Der Client lädt die Seiten nacheinander und die Spuren über `GET /api/spuren?seit=<Beginn der ersten LV>`.
 - Der Client faltet die Deltas bis zum Zeitpunkt (`features/wiedergabe/logik.ts`), Positionen per Binärsuche in den Spuren.
 
 ### Ereignisliste und Export
@@ -647,7 +648,7 @@ Gebaut in der heutigen Server-Lage. Die Regeln liegen als Reducer in `shared/reg
 - `Phase` = `ap | lv | an`; `Lage.phasen: {phase, t}[]` (≤ 200, letzte = aktuelle, `phaseVon`) ersetzt `Lage.beendetAm`.
 - `ClientMsg`: `lage.phase {phase}` ersetzt `lage.beenden`; neu `notiz.neu {t, text}`, `notiz.loeschen {id}`.
 - `ServerMsg`: `snapshot.notizen`, `notiz`, `notiz.geloescht`; `beendet` nur noch für entfernt/gelöscht (ohne `lage`).
-- REST: `LageErstellen.phase` (optional, `ap` oder `lv`; Vorgabe `lv`, weil ältere Web-Stände keine Phase senden und AP nicht verlassen könnten; der Client sendet `ap`); `GET /api/protokoll` (`Protokoll`).
+- REST: `GET /api/protokoll` (`ProtokollSeite`); `LageErstellen.phase` (optional, `ap` oder `lv`; Vorgabe `lv`, weil ältere Web-Stände keine Phase senden und AP nicht verlassen könnten; der Client sendet `ap`).
 - `PROTOKOLL_VERSION` bleibt 1: ältere Stände laufen weiter (sie kennen keine Phase; ihre Positionen in AP/AN verwirft der Server still).
 
 ### Annahmen (kleinste vernünftige, von Juan zu bestätigen)

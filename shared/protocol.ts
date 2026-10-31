@@ -496,7 +496,13 @@ export type Spuren = Record<string, Position[]>;
 
 /** Ereignisprotokoll (Spec v6): Deltas der Regeln mit Zeit und Autor, ohne Positionen, Teilnehmer und Lage. */
 export type ProtokollEintrag = { t: number; von: string; d: ServerMsg };
-/** GET /api/protokoll (Bearer): Grundlage von Wiedergabe und Ereignisliste in AN. Chat/Meldungen gefiltert wie live. */
+/**
+ * GET /api/protokoll?seit=<t>&max=<n> (Bearer): eine Seite, Ereignisse mit t > seit (ohne seit: von Anfang), höchstens
+ * max (Vorgabe und Höchstwert MAX_PROTOKOLL_SEITE). `weiter`: seit für die nächste Seite, null am Ende. Chat/Meldungen gefiltert wie live.
+ */
+export type ProtokollSeite = { teilnehmer: Teilnehmer[]; ereignisse: ProtokollEintrag[]; weiter: number | null };
+export const MAX_PROTOKOLL_SEITE = 5000;
+/** Grundlage von Wiedergabe und Ereignisliste in AN: alle Seiten, dazu die Spuren aus GET /api/spuren. */
 export type Protokoll = { teilnehmer: Teilnehmer[]; ereignisse: ProtokollEintrag[]; spuren: Spuren };
 const OHNE_PROTOKOLL = new Set<ServerMsg['typ']>(['snapshot', 'teilnehmer', 'pos', 'lage', 'beendet', 'code', 'ping', 'fehler', 'notiz', 'notiz.geloescht']);
 export const imProtokoll = (d: ServerMsg): boolean => !OHNE_PROTOKOLL.has(d.typ);

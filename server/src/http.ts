@@ -5,7 +5,7 @@ import { readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import type { z } from 'zod';
-import { Beitreten, LageErstellen, phaseVon, STANDARD_STATUS, type Beigetreten, type Lage, type LageErstellt, type Protokoll, type ProtokollEintrag, type Teilnehmer } from '../../shared/protocol.ts';
+import { Beitreten, LageErstellen, MAX_PROTOKOLL_SEITE, phaseVon, STANDARD_STATUS, type Beigetreten, type Lage, type LageErstellt, type ProtokollEintrag, type ProtokollSeite, type Teilnehmer } from '../../shared/protocol.ts';
 import { meldungSichtbar, sichtbar, type Art, type Eintraege } from '../../shared/regeln/index.ts';
 import { oeffneDb, type Db } from './db.ts';
 import { geojson, gpx, type ExportDaten } from '../../shared/export.ts';
@@ -128,6 +128,9 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
   // zählt nur falsche Codes: 30 Geräte hinter einem NAT sollen gleichzeitig beitreten können
   const limitBeitreten = rateLimiter(10, 10 * 60_000);
   const limitFoto = rateLimiter(10, 60_000);
+  // Protokoll: je Teilnehmer 6 Wiedergaben (erste Seite) und 60 Seiten je Minute; eine volle Lage (50 MB) hat rund 35 Seiten
+  const limitProtokoll = rateLimiter(6, 60_000);
+  const limitSeiten = rateLimiter(60, 60_000);
   let uploads = 0;
 
   function auth(req: IncomingMessage, nurLeitung = false): { lage: Lage; teilnehmer: Teilnehmer } {
@@ -173,6 +176,18 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
       ]),
     ];
     return liste.sort((a, b) => a.t - b.t);
+  }
+
+  /**
+   * Höchstens max Ereignisse; eine Seite endet nie mitten in einer Millisekunde, sonst ginge beim nächsten `seit`
+   * (exklusiv) etwas verloren. ponytail: mehr als max Ereignisse in derselben ms → deren Rest fehlt (bei den Rate-Limits ausgeschlossen).
+   */
+  function seite(liste: ProtokollEintrag[], max: number): { ereignisse: ProtokollEintrag[]; weiter: number | null } {
+    if (liste.length <= max) return { ereignisse: liste, weiter: null };
+    let n = max;
+    while (n > 0 && liste[n - 1].t === liste[max].t) n--;
+    if (n === 0) n = max;
+    return { ereignisse: liste.slice(0, n), weiter: liste[n - 1].t };
   }
 
   async function api(req: IncomingMessage, res: ServerResponse, pfad: string, url: URL): Promise<void> {
@@ -262,14 +277,20 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
     }
     if (route === 'GET /api/protokoll') {
       const { lage, teilnehmer: ich } = auth(req);
-      const roh = db.protokoll(lage.id);
+      const seitRoh = url.searchParams.get('seit');
+      const seit = seitRoh === null ? -1 : Number(seitRoh);
+      const max = Number(url.searchParams.get('max') ?? MAX_PROTOKOLL_SEITE);
+      if (!Number.isFinite(seit)) throw new HttpFehler(400, 'seit ungültig');
+      if (!Number.isInteger(max) || max < 1) throw new HttpFehler(400, 'max ungültig');
+      if ((seitRoh === null && !limitProtokoll(ich.id)) || !limitSeiten(ich.id)) throw new HttpFehler(429, 'Zu viele Anfragen – bitte kurz warten');
+      const n = Math.min(max, MAX_PROTOKOLL_SEITE);
+      // Bestandslagen: was vor dem ersten Protokolleintrag entstand, kommt aus den Einträgen (nur solange die Seiten davor liegen)
+      const erst = db.protokollErst(lage.id) ?? Infinity;
+      const alt = seit < erst ? ausBestand(lage).filter((e) => e.t > seit && e.t < erst).slice(0, n + 1) : [];
+      const { ereignisse, weiter } = seite([...alt, ...db.protokoll(lage.id, seit, n + 1 - alt.length)], n);
       const sieht = (e: ProtokollEintrag): boolean =>
         e.d.typ === 'chat' ? sichtbar(e.d.chat, ich) : e.d.typ === 'meldung' ? meldungSichtbar(e.d.meldung, ich) : true;
-      // ponytail: ganzes Protokoll in einer Antwort; bei sehr langen Lagen seitenweise laden
-      // Bestandslagen: was vor dem ersten Protokolleintrag entstand, kommt aus den Einträgen
-      const erst = roh[0]?.t ?? Infinity;
-      const ereignisse = [...ausBestand(lage).filter((e) => e.t < erst), ...roh];
-      const p: Protokoll = { teilnehmer: db.teilnehmerListe(lage.id, true), ereignisse: ereignisse.filter(sieht), spuren: db.spuren(lage.id) };
+      const p: ProtokollSeite = { teilnehmer: db.teilnehmerListe(lage.id, true), ereignisse: ereignisse.filter(sieht), weiter };
       return antwort(res, 200, p);
     }
     if (route === 'GET /api/export.gpx' || route === 'GET /api/export.geojson') {

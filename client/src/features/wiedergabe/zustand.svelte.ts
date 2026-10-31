@@ -1,7 +1,7 @@
 // Wiedergabe (AN): lädt das Protokoll, setzt den Lagezustand im Store auf den Stand zum Zeitpunkt und stellt beim
 // Beenden den Live-Stand wieder her. So zeichnen die normalen Kartenlayer die Wiedergabe, ohne eigene Darstellung.
 import { SvelteMap } from 'svelte/reactivity';
-import { OFFLINE_MS, standardEbeneId, type Meldung, type Protokoll, type Teilnehmer } from '../../../../shared/protocol.ts';
+import { OFFLINE_MS, standardEbeneId, type Meldung, type Protokoll, type ProtokollEintrag, type ProtokollSeite, type Spuren, type Teilnehmer } from '../../../../shared/protocol.ts';
 import { api, beiNachricht, merkeEmpfang, store } from '../../lib/store.svelte.ts';
 import { Falter, lvFenster, posBei, versatzAus, zeitAus, type Fenster } from './logik.ts';
 
@@ -75,13 +75,26 @@ function zeige(t: number): void {
   }
 }
 
+/** Protokoll Seite um Seite (der Server liefert höchstens MAX_PROTOKOLL_SEITE je Antwort), dann die Spuren ab der ersten LV. */
+async function ladeProtokoll(nr: number): Promise<Protokoll | undefined> {
+  const ereignisse: ProtokollEintrag[] = [];
+  let seite: ProtokollSeite | undefined;
+  do {
+    seite = (await (await api(`/api/protokoll${seite ? `?seit=${seite.weiter}` : ''}`)).json()) as ProtokollSeite;
+    if (nr !== lauf) return undefined;
+    for (const e of seite.ereignisse) ereignisse.push(e);
+  } while (seite.weiter !== null);
+  const spuren: Spuren = await (await api(`/api/spuren?seit=${fenster()[0]?.von ?? 0}`)).json();
+  return { teilnehmer: seite.teilnehmer, ereignisse, spuren };
+}
+
 /** Zeitleiste öffnen: Protokoll laden, am Anfang der ersten LV stehen (pausiert). */
 export async function starte(): Promise<void> {
   wg.fehler = null;
   const nr = ++lauf;
   try {
-    const p: Protokoll = await (await api('/api/protokoll')).json();
-    if (nr !== lauf || !store.lage) return;
+    const p = await ladeProtokoll(nr);
+    if (!p || nr !== lauf || !store.lage) return;
     sicherung = sichere();
     wg.protokoll = p;
     const basis = [...sicherung.ebenen.values()].filter((e) => e.id === standardEbeneId(store.lage!.id));

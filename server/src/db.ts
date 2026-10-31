@@ -70,7 +70,8 @@ export function oeffneDb(pfad: string) {
     eGroesse: db.prepare('SELECT COALESCE(SUM(LENGTH(daten)), 0) AS n FROM eintrag WHERE lage_id = ? AND art = ?'),
     protNeu: db.prepare('INSERT INTO protokoll (lage_id, t, von, daten) VALUES (?, ?, ?, ?)'),
     protGroesse: db.prepare('SELECT COALESCE(SUM(LENGTH(daten)), 0) AS n FROM protokoll WHERE lage_id = ?'),
-    prot: db.prepare('SELECT t, von, daten FROM protokoll WHERE lage_id = ? ORDER BY t, rowid'),
+    prot: db.prepare('SELECT t, von, daten FROM protokoll WHERE lage_id = ? AND t > ? ORDER BY t, rowid LIMIT ?'),
+    protErst: db.prepare('SELECT MIN(t) AS t FROM protokoll WHERE lage_id = ?'),
     fotoNeu: db.prepare('INSERT INTO foto (id, lage_id, ext, von, t) VALUES (?, ?, ?, ?, ?)'),
     foto: db.prepare('SELECT lage_id, ext FROM foto WHERE id = ?'),
     fotoAnzahl: db.prepare('SELECT COUNT(*) AS n FROM foto WHERE lage_id = ?'),
@@ -153,9 +154,15 @@ export function oeffneDb(pfad: string) {
     protokollieren(lageId: string, t: number, von: string, daten: string): void {
       q.protNeu.run(lageId, t, von, daten);
     },
+    /** Zeit des ältesten Protokolleintrags, undefined ohne Protokoll. */
+    protokollErst(lageId: string): number | undefined {
+      const t = q.protErst.get(lageId)!.t;
+      return t === null ? undefined : Number(t);
+    },
     protokollGroesse: (lageId: string): number => Number(q.protGroesse.get(lageId)!.n),
-    protokoll: (lageId: string): ProtokollEintrag[] =>
-      q.prot.all(lageId).map((z) => ({ t: Number(z.t), von: z.von as string, d: JSON.parse(z.daten as string) as ServerMsg })),
+    /** Höchstens `max` Einträge nach `seit` (exklusiv), aufsteigend. */
+    protokoll: (lageId: string, seit: number, max: number): ProtokollEintrag[] =>
+      q.prot.all(lageId, seit, max).map((z) => ({ t: Number(z.t), von: z.von as string, d: JSON.parse(z.daten as string) as ServerMsg })),
 
     fotoSpeichern(id: string, lageId: string, ext: string, von: string): void {
       q.fotoNeu.run(id, lageId, ext, von, Date.now());
