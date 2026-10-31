@@ -6,9 +6,10 @@ import type { RasterArt } from '../../../../shared/protocol.ts';
 import { RASTER_NAME, spaltenName, vonLv95, rasterMitteLv95, zeilenName, type Lv95, type RasterGeo } from '../../../../shared/raster.ts';
 import type { Xy } from './beschriftung.ts';
 
-export type Format = { name: string; w: number; h: number };
-export const A4_QUER: Format = { name: 'A4', w: 842, h: 595 };
-// ponytail: nur A4 in der Bedienung; A3 quer wäre { name: 'A3', w: 1191, h: 842 }, alles Weitere rechnet sich gleich.
+/** Blatt in Punkt; `k` = Vergrösserung gegenüber A4. Geometrie und Schriften rechnen in A4-Punkten (Blatt ÷ k), das Canvas skaliert um k. */
+export type Format = { name: string; w: number; h: number; k: number };
+export const A4_QUER: Format = { name: 'A4', w: 842, h: 595, k: 1 };
+export const A3_QUER: Format = { name: 'A3', w: 1191, h: 842, k: 1191 / 842 };
 
 export type Rechteck = { x: number; y: number; w: number; h: number };
 /** Punkt auf Papier in Metern */
@@ -31,7 +32,7 @@ export type Blatt = {
   tabelle: Rechteck;
   /** Massstabszahl N (1:N) */
   massstab: number;
-  /** Blattpunkte je Meter im Gelände */
+  /** Layoutpunkte (A4-Punkte) je Meter im Gelände */
   ptJeM: number;
   zu: (p: Lv95) => Xy;
   von: (p: Xy) => Lv95;
@@ -48,15 +49,17 @@ export function runderMassstab(n: number): number {
  * Karte, Spaltenköpfe, Lagezeile; waagrecht: Zeilenköpfe, Karte, Zeilenköpfe.
  */
 export function blatt(r: RasterGeo, format: Format = A4_QUER): Blatt {
-  const platzW = format.w - 2 * RAND - 2 * ZEILE_W;
-  const platzH = format.h - 2 * RAND - 4 * BAND;
+  const lw = format.w / format.k;
+  const lh = format.h / format.k;
+  const platzW = lw - 2 * RAND - 2 * ZEILE_W;
+  const platzH = lh - 2 * RAND - 4 * BAND;
   const breiteM = r.spalten * r.zellM;
   const hoeheM = r.zeilen * r.zellM;
-  const massstab = runderMassstab(Math.max(breiteM / platzW, hoeheM / platzH) / M_JE_PT);
-  const ptJeM = 1 / (massstab * M_JE_PT);
+  const massstab = runderMassstab(Math.max(breiteM / platzW, hoeheM / platzH) / (M_JE_PT * format.k));
+  const ptJeM = 1 / (massstab * M_JE_PT * format.k);
   const mitte = rasterMitteLv95(r);
-  const cx = format.w / 2;
-  const cy = format.h / 2;
+  const cx = lw / 2;
+  const cy = lh / 2;
   const zu = (p: Lv95): Xy => ({ x: cx + (p.e - mitte.e) * ptJeM, y: cy - (p.n - mitte.n) * ptJeM });
   const von = (p: Xy): Lv95 => ({ e: mitte.e + (p.x - cx) / ptJeM, n: mitte.n - (p.y - cy) / ptJeM });
   const ol = zu({ e: r.e, n: r.n });

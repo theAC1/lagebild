@@ -57,11 +57,12 @@
   const passt = (r: Raster, zeilen: number, spalten: number, zellM = r.zellM) => Math.max(zeilen, spalten) * zellM <= RASTER_MAX_AUSDEHNUNG_M;
   /** Art, deren PDF gerade entsteht */
   let pdfLaeuft = $state<RasterArt | null>(null);
-  async function alsPdf(r: Raster) {
+  async function alsPdf(r: Raster, a3 = false) {
     pdfLaeuft = r.art;
     try {
       const { rasterPdf, speichere } = await import('./ausdruck.ts'); // PDF-Druck erst bei Bedarf laden
-      const { blob, name: datei, fehlen } = await rasterPdf(r, store.lage?.name ?? 'Lage', [...store.taufen.values()]);
+      const { A3_QUER, A4_QUER } = await import('./druck.ts');
+      const { blob, name: datei, fehlen } = await rasterPdf(r, store.lage?.name ?? 'Lage', [...store.taufen.values()], new Date(), a3 ? A3_QUER : A4_QUER);
       if (!(await speichere(blob, datei))) toast('PDF braucht eine neuere App-Version – im Browser öffnen.', 5000);
       else if (fehlen) toast(`PDF erstellt, ${fehlen} Kartenkacheln fehlen (offline?).`, 5000);
     } catch (e) {
@@ -127,6 +128,7 @@
           <div class="aktionen">
             <button onclick={() => zeigeRaster(r)}>Zeigen</button>
             <button disabled={pdfLaeuft !== null} onclick={() => alsPdf(r)}>{pdfLaeuft === art ? 'PDF entsteht …' : 'Als PDF'}</button>
+            <button disabled={pdfLaeuft !== null} title="PDF auf A3 quer" onclick={() => alsPdf(r, true)}>A3</button>
             <button onclick={() => offlineVorschlagen(r)}>Offline-Gebiet …</button>
             {#if r.fixiert && darfFixieren(r)}<button onclick={() => ok({ typ: 'raster.fixieren', art, fixiert: false })}>Lösen</button>{/if}
             {#if darfFixieren(r)}<button class="gefahr" onclick={() => (loeschenFragen = art)}>Löschen</button>{/if}
