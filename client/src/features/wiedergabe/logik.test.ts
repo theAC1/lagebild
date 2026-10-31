@@ -11,13 +11,11 @@ describe('LV-Fenster und Zeitleiste', () => {
   const phasen = [{ phase: 'ap' as const, t: 0 }, { phase: 'lv' as const, t: 100 }, { phase: 'ap' as const, t: 200 }, { phase: 'lv' as const, t: 500 }, { phase: 'an' as const, t: 600 }];
   const f = lvFenster(phasen, 1000);
 
-  it('nur LV-Zeiträume; offenes LV endet jetzt', () => {
+  it('nur LV-Zeiträume, offenes LV endet jetzt; Versatz ↔ Zeit überspringt AP-Abschnitte', () => {
     expect(f).toEqual([{ von: 100, bis: 200 }, { von: 500, bis: 600 }]);
     expect(lvFenster([{ phase: 'lv', t: 10 }], 50)).toEqual([{ von: 10, bis: 50 }]);
     expect(dauer(f)).toBe(200);
-  });
-
-  it('Versatz ↔ Zeit überspringt AP-Abschnitte', () => {
+    // Versatz ↔ Zeit überspringt AP-Abschnitte
     expect(zeitAus(f, 0)).toBe(100);
     expect(zeitAus(f, 100)).toBe(200);
     expect(zeitAus(f, 101)).toBe(501);
@@ -37,7 +35,7 @@ describe('Falter', () => {
     e(40, { typ: 'chat', chat: { id: 'c1', von: 'a', an: { art: 'alle' }, text: 'x', t: 40 } }),
   ];
 
-  it('Stand zum Zeitpunkt, vor und zurück', () => {
+  it('Stand zum Zeitpunkt, vor und zurück; Version ändert sich nur mit neuen Ereignissen', () => {
     const fa = new Falter(ereignisse, []);
     expect(fa.stand(5).marker.size).toBe(0);
     expect(fa.stand(25).marker.get('m1')?.bezeichnung).toBe('Brücke Nord');
@@ -45,10 +43,6 @@ describe('Falter', () => {
     expect(fa.stand(45).chat).toHaveLength(1);
     expect(fa.stand(15).marker.get('m1')?.bezeichnung).toBe('Brücke'); // zurückspulen
     expect(fa.stand(15).chat).toHaveLength(0);
-  });
-
-  it('Version ändert sich nur mit neuen Ereignissen', () => {
-    const fa = new Falter(ereignisse, []);
     const v = fa.stand(11).version;
     expect(fa.stand(12).version).toBe(v);
     expect(fa.stand(21).version).not.toBe(v);
