@@ -638,3 +638,64 @@ JPEG hätte die Bilder verkleinert, aber jede Erneuerung ändert dann trotzdem a
 - SQLite: alle häufigen Abfragen laufen über Indizes (EXPLAIN geprüft), nur `foto` nach Lage scannt (selten, klein).
 - Nach dem Deploy prüfen: handelt der Cloudflare-Tunnel permessage-deflate aus? (DevTools › Netzwerk › `/ws` ›
   Antwort-Header `Sec-WebSocket-Extensions`). Sonst bleibt alles wie vorher, nur ohne die Ersparnis.
+
+## Spec v6: Phasen AP/LV/AN (31.10.2026, Frage-Runde mit Juan, README «Phasen AP/LV/AN (31.10.)»)
+
+Juan: «wir müssen zwischen AP (Aktionsplanung, vor der Mission), LV (Lageverfolgung, während der Mission) und AN (Aktionsnachbearbeitung, debriefing der aktion mit der möglichkeit alle aktionen und bewegungen wie ein video anzuschauen, vor und zurück spulen und eine liste der erreignise mit timestamp zu exportieren (csv, und pdf)) …»
+
+Gebaut in der heutigen Server-Lage. Die Regeln liegen als Reducer in `shared/regeln/phase.ts` und gehen so in die dezentralen Missionen (Spec v5) über.
+
+### Phasen und Wechsel
+- **AP – Aktionsplanung** (vor der Mission), **LV – Lageverfolgung** (während), **AN – Aktionsnachbearbeitung** (Debriefing).
+- Eine neue Lage beginnt in **AP**. Wechsel: AP → LV, LV → AP, LV → AN, AN → LV. AP → AN direkt gibt es nicht.
+- Nur die **Leitung** wechselt, mit einer Bestätigung: Phasenschild im Kopf antippen (oder Leitung › Lage) → Ziel wählen → «Ja, wechseln». Alle Geräte sehen den Wechsel sofort (Delta `lage`), dazu ein Toast und ein Eintrag im Meldungslog.
+- Verlässt die Lage die LV, hebt der Server offene Alarme auf und beendet offene Bloodhound-Aufträge («Phase gewechselt»), damit Wiedergabe und Liste sauber enden.
+- **AN ersetzt «Lage beenden»:** niemand wird mehr abgemeldet. Alle Mitglieder bleiben verbunden und sehen Wiedergabe und Ereignisliste. Neue Beitritte und Foto-Uploads sind in AN gesperrt (wie früher bei beendeter Lage). Export GPX/GeoJSON und «Endgültig löschen» bleiben bei der Leitung (Leitung › Export, › Lage).
+
+### Was je Phase geht (Reducer, `phasenSperre`)
+- **AP:** Zeichnen, Ebenen, Raster, Taufe (inkl. Namenslisten), Marker, Chat, Status-Set, Teilnehmende entfernen, Offline-Gebiete (nur Gerät), Beitreten. Positionen werden still verworfen (nicht verteilt, nicht aufgezeichnet); Status, Sichtung, Alarm, Bloodhound werden abgelehnt.
+- **LV:** alles wie bisher.
+- **AN:** nur lesen. Erlaubt sind nur der Phasenwechsel und die Debriefing-Notizen der Leitung; Positionen werden still verworfen, alles andere abgelehnt («Nachbearbeitung: nur lesen»).
+- Der Client blendet, was die Phase nicht erlaubt, aus (`Feature.phasen`, `RadialAktion.phasen`) und sendet ausserhalb von LV keine Position. GPS läuft weiter für die eigene Anzeige.
+
+### Optik
+- Rahmen um die Karte: **AP dunkelgrau**, **LV schwarz** (wie bisher), **AN grün**. Der gelbe Rahmen des Taufmodus liegt darüber.
+- Phasenschild «AP» / «LV» / «AN» im Kopf (beide Bedienungen); für die Leitung ein Knopf zum Wechseln.
+
+### Wiedergabe (AN, Panel «Wiedergabe», öffnet beim Wechsel nach AN von selbst)
+- Zeigt alles mit Zeitstempel auf der Karte wie zum Zeitpunkt: Positionen (aus den Spuren), Status, Marker, Sichtungen, Zeichnungen, Taufen, Alarme, Bloodhound-Linien, Chat und Meldungslog bis dahin. Die Anzeige nutzt die normalen Kartenlayer: das Panel ersetzt den Lagezustand im Client durch den Stand zum Zeitpunkt und stellt beim Schliessen den Live-Stand wieder her.
+- Zeitleiste mit Schieber, Play/Pause, Tempo 1× / 10× / 60×, Sprung zum vorigen und nächsten Ereignis; vor- und zurückspulen über den Schieber.
+- Nur LV-Zeiträume: AP-Abschnitte dazwischen überspringt die Wiedergabe; die Zeitleiste markiert die Naht mit «AP».
+- Darunter die Ereignisliste; Tippen auf eine Zeile springt zum Zeitpunkt, die aktuelle Zeile ist hervorgehoben.
+
+### Ereignisprotokoll (Server)
+- Löschungen und Zwischenstände gehen in den Einträgen verloren. Darum schreibt der Server jedes verteilte Delta der Regeln mit Zeit und Autor in die Tabelle `protokoll` (ausser Positionen, Teilnehmer-Updates und Lage-Deltas; Positionen liegen in `spur`, Phasen in `Lage.phasen`). Das passt zum späteren Ereignislog der Missionen.
+- `GET /api/protokoll` (Bearer, alle Mitglieder): `{ teilnehmer (auch entfernte), ereignisse: {t, von, d}[], spuren }`; Chat und Meldungslog gefiltert wie live (`sichtbar.ts`).
+- Der Client faltet die Deltas bis zum Zeitpunkt (`features/wiedergabe/logik.ts`), Positionen per Binärsuche in den Spuren.
+
+### Ereignisliste und Export
+- Zeilen: Phasenwechsel, Status, Marker (gesetzt/geändert/gelöscht), Sichtung, Zeichnung, Taufe, Raster, Chat, Alarm (ausgelöst/quittiert/aufgehoben), Bloodhound (nur für Leitung und Empfänger, wie die Meldungen), Teilnehmer entfernt, Notizen. Positionen nicht als Zeilen.
+- Spalten: Zeit, Rufname, Einheit, Ereignis, Details, Koordinate (im eingestellten Koordinatenformat), Rasterzelle («Piccolo H 09 C», sonst Grande; leer ohne Raster). Ohne eigene Koordinate gilt die Position des Autors zum Zeitpunkt.
+- **CSV** (Semikolon, UTF-8 mit BOM, für Excel) und **PDF** (A4 quer, Text in Courier, ohne neue Abhängigkeit, `features/wiedergabe/pdf.ts`), je ein Tipp, für alle Mitglieder.
+
+### Debriefing-Notizen
+- Nur in AN, nur die Leitung: «Notiz hier» hängt einen Text an den aktuellen Zeitpunkt der Wiedergabe; löschen per ×. Notizen erscheinen in der Ereignisliste, in der Wiedergabe («Zuletzt: …») und im Export.
+
+### Vertrag (`shared/protocol.ts`)
+- `Phase` = `ap | lv | an`; `Lage.phasen: {phase, t}[]` (≤ 200, letzte = aktuelle, `phaseVon`) ersetzt `Lage.beendetAm`.
+- `ClientMsg`: `lage.phase {phase}` ersetzt `lage.beenden`; neu `notiz.neu {t, text}`, `notiz.loeschen {id}`.
+- `ServerMsg`: `snapshot.notizen`, `notiz`, `notiz.geloescht`; `beendet` nur noch für entfernt/gelöscht (ohne `lage`).
+- REST: `LageErstellen.phase` (optional, `ap` oder `lv`, Vorgabe `ap`); `GET /api/protokoll` (`Protokoll`).
+- `PROTOKOLL_VERSION` bleibt 1: ältere Stände laufen weiter (sie kennen keine Phase; ihre Positionen in AP/AN verwirft der Server still).
+
+### Annahmen (kleinste vernünftige, von Juan zu bestätigen)
+- Bestandslagen: offene starten in LV (seit Erstellung), beendete in AN (LV bis zum Beenden). Migration beim Lesen in `server/src/db.ts`, ohne Schema-Umbau.
+- Bestandslagen ohne Protokoll: die Wiedergabe baut die Ereignisse aus den gespeicherten Einträgen (Erstell- und Endzeiten); Änderungen und Löschungen von früher fehlen.
+- Neue Lagen beginnen in AP; per API (`phase: 'lv'`) auch direkt in LV (Tests, Last-Skript).
+- In AP keine Sichtungen (sie sind Beobachtungen der Mission), Chat ja.
+- In AN keine neuen Beitritte und keine Fotos; der Chat ist lesbar (in der Wiedergabe bis zum Zeitpunkt), Senden wird abgelehnt.
+- Das Führungsraster zeigt die Wiedergabe im heutigen Stand (die Liste nennt die Änderungen mit Zeit); entfernte Teilnehmende fehlen auf der Karte, stehen aber in der Liste.
+- Notizen: nur neu und löschen, kein Bearbeiten; höchstens 500 je Lage, Text ≤ 500 Zeichen.
+
+### Später (nur vorgemerkt)
+- Live-Updates in LV nur für Sicherheitsupdates (README «Updates überspringen»): gehört zu den dezentralen Missionen (Spec v5, O10), hier nicht gebaut.
