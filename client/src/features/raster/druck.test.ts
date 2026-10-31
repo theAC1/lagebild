@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { vonLv95 } from '../../../../shared/raster.ts';
-import { A4_QUER, affin, BAND, blatt, blattFelder, dateiName, kachelPlan, massstabText, mercator, RAND, runderMassstab, TILE, ZEILE_W, type Rechteck } from './druck.ts';
+import { A3_QUER, A4_QUER, affin, BAND, blatt, blattFelder, dateiName, kachelPlan, massstabText, mercator, RAND, runderMassstab, TILE, ZEILE_W, type Rechteck } from './druck.ts';
 import { pdfAusJpegs } from './pdf.ts';
 
 const GRANDE = { art: 'grande' as const, e: 2_600_000, n: 1_200_600, zeilen: 15, spalten: 21, zellM: 80 };
@@ -39,6 +39,24 @@ describe('Blatt A4 quer', () => {
     expect(blatt(PICCOLO).massstab).toBe(900);
     // 1 m im Gelände bei 1:900 = 1000/900 mm
     expect(blatt(PICCOLO).ptJeM).toBeCloseTo(72 / 0.0254 / 900, 6);
+  });
+});
+
+describe('Blatt A3 quer', () => {
+  it('kleinerer runder Massstab, gleiche Schriften/Köpfe (Layout in A4-Punkten), Tabelle mittig im Blatt', () => {
+    expect(blatt(GRANDE, A3_QUER).massstab).toBe(5000);
+    expect(blatt(PICCOLO, A3_QUER).massstab).toBe(650);
+    const b = blatt(GRANDE, A3_QUER);
+    const lw = A3_QUER.w / A3_QUER.k;
+    expect(lw).toBeCloseTo(A4_QUER.w, 6);
+    expect(b.tabelle.x + b.tabelle.w / 2).toBeCloseTo(lw / 2, 6);
+    expect(b.tabelle.h).toBe(b.rahmen.h + 4 * BAND);
+    // 1 m im Gelände = 1000/5000 mm auf dem A3-Blatt = ptJeM · k Blattpunkte
+    expect(b.ptJeM * A3_QUER.k).toBeCloseTo(72 / 0.0254 / 5000, 6);
+  });
+  it('Kachelplan: A3 nutzt 200 dpi auf dem Papier, Stufe mindestens wie A4', () => {
+    const px = 200 / 72;
+    expect(kachelPlan(blatt(GRANDE, A3_QUER), px * A3_QUER.k).z).toBeGreaterThanOrEqual(kachelPlan(blatt(GRANDE), px).z);
   });
 });
 

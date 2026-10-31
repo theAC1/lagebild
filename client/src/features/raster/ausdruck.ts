@@ -10,10 +10,10 @@ import { drossel, PARALLEL } from '../offline/laden.ts';
 import { FASSADE_FARBE } from '../taufe/fassaden.ts';
 import { FAMILIE_FARBE, LABEL_RANG, labelAnker, platziere, polygoneVon, taufFeatures, ZIEL_FARBE, type LabelWunsch } from '../taufe/darstellung.ts';
 import type { Xy } from './beschriftung.ts';
-import { blatt, blattFelder, dateiName, TILE, kachelPlan, type Blatt, type Feld, type KachelPlan, type SeitenArt } from './druck.ts';
+import { A4_QUER, blatt, blattFelder, dateiName, TILE, kachelPlan, type Blatt, type Feld, type KachelPlan, type Format, type SeitenArt } from './druck.ts';
 import { pdfAusJpegs } from './pdf.ts';
 
-/** 200 dpi: A4 quer = 2339 × 1654 px je Seite */
+/** 200 dpi: A4 quer = 2339 × 1654 px je Seite, A3 quer 3308 × 2339 */
 const PX_JE_PT = 200 / 72;
 const DUNKEL = '#161b1f';
 /** Grau der Kopffelder (Vorlage) */
@@ -174,6 +174,8 @@ function zeichneFelder(ctx: CanvasRenderingContext2D, r: Raster, b: Blatt, felde
 
 const ALPHA_FLAECHE: Partial<Record<string, number>> = { wald: 0.38, gebaeude: 0.14, gewaesser: 0.28 };
 
+const teile = (g: GeoJSON.Geometry): Pos[][] => (g.type === 'LineString' ? [g.coordinates as Pos[]] : (g as GeoJSON.MultiLineString).coordinates as Pos[][]);
+
 function zeichneTaufen(ctx: CanvasRenderingContext2D, taufen: Taufe[], b: Blatt) {
   const p = ([lon, lat]: Pos): Xy => b.zu(zuLv95({ lat, lon }));
   const pfad = (ringe: Pos[][]) => {
@@ -199,9 +201,12 @@ function zeichneTaufen(ctx: CanvasRenderingContext2D, taufen: Taufe[], b: Blatt)
         }
       }
     } else if (rolle === 'linie') {
-      if (familie === 'strasse') continue; // Vorlage: Strassen nur als rote Schrift entlang der Achse
-      const teile = g.type === 'LineString' ? [g.coordinates as Pos[]] : (g as GeoJSON.MultiLineString).coordinates as Pos[][];
-      for (const t of teile) {
+      if (familie === 'strasse') {
+        // dünne Linie unter der roten Schrift: zeigt die Ausdehnung langer Abschnitte
+        for (const t of teile(g)) (linie(ctx, t.map(p), '#fff', 2.2, 0.45), linie(ctx, t.map(p), farbe, 0.9, 0.8));
+        continue;
+      }
+      for (const t of teile(g)) {
         linie(ctx, t.map(p), DUNKEL, 3.2, 0.35);
         linie(ctx, t.map(p), farbe, 1.6, 0.75);
       }
@@ -308,10 +313,11 @@ async function seite(r: Raster, b: Blatt, karte: Karte, art: SeitenArt, lage: st
   canvas.width = Math.round(b.format.w * PX_JE_PT);
   canvas.height = Math.round(b.format.h * PX_JE_PT);
   const ctx = canvas.getContext('2d')!;
-  const basis = () => ctx.setTransform(PX_JE_PT, 0, 0, PX_JE_PT, 0, 0);
+  const px = PX_JE_PT * b.format.k; // Pixel je Layoutpunkt
+  const basis = () => ctx.setTransform(px, 0, 0, px, 0, 0);
   basis();
   ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, b.format.w, b.format.h);
+  ctx.fillRect(0, 0, b.format.w / b.format.k, b.format.h / b.format.k);
   const { x, y, w, h } = b.rahmen;
   ctx.save();
   ctx.beginPath();
@@ -337,9 +343,9 @@ const SEITEN: [Basiskarte, SeitenArt[]][] = [
 ];
 
 /** PDF mit drei Seiten (Luftbild, SpotMap, Landeskarte). `fehlen`: Kacheln, die weder offline noch im Netz da waren. */
-export async function rasterPdf(r: Raster, lage: string, taufen: Taufe[], datum = new Date()): Promise<{ blob: Blob; name: string; fehlen: number }> {
-  const b = blatt(r);
-  const plan = kachelPlan(b, PX_JE_PT);
+export async function rasterPdf(r: Raster, lage: string, taufen: Taufe[], datum = new Date(), format: Format = A4_QUER): Promise<{ blob: Blob; name: string; fehlen: number }> {
+  const b = blatt(r, format);
+  const plan = kachelPlan(b, PX_JE_PT * format.k);
   const px = { pxW: Math.round(b.format.w * PX_JE_PT), pxH: Math.round(b.format.h * PX_JE_PT) };
   const seiten = [];
   let fehlen = 0;

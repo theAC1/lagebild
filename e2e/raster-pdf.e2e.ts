@@ -96,6 +96,16 @@ test('Piccolo «Als PDF»: Datei mit Luftbild, SpotMap und Landeskarte', async (
   for (const s of seiten) expect([...s.subarray(0, 2)]).toEqual([0xff, 0xd8]);
   await expect(piccolo.getByRole('button', { name: 'Als PDF' })).toBeEnabled();
 
+  // A3: gültiges PDF mit drei Seiten im A3-Format
+  const a3 = p.waitForEvent('download', { timeout: 120_000 });
+  await piccolo.getByRole('button', { name: 'A3' }).click();
+  const pdf3 = readFileSync((await (await a3).path())!);
+  expect(pdf3.subarray(0, 5).toString()).toBe('%PDF-');
+  expect(pdf3.toString('latin1')).toContain('/Count 3');
+  expect(pdf3.toString('latin1')).toContain('/MediaBox [0 0 1191 842]');
+  expect(seitenbilder(pdf3)).toHaveLength(3);
+  await expect(piccolo.getByRole('button', { name: 'A3' })).toBeEnabled();
+
   await bild(p, seiten[0], 'luftbild');
   await bild(p, seiten[1], 'spotmap');
   await bild(p, seiten[2], 'landeskarte');
