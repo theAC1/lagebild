@@ -348,8 +348,10 @@
   }
   .werkzeug {
     position: relative;
-    flex: 1 1 0;
-    min-width: 60px;
+    /* mindestens 60 px und nie schmaler als das längste Wort (sonst ragt «Führungsraster» in den Nachbarn); mehrere
+       Wörter brechen um. Passt nicht alles, scrollt die Leiste. */
+    flex: 1 0 60px;
+    min-width: min-content;
     display: grid;
     justify-items: center;
     align-content: center;

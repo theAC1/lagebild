@@ -104,6 +104,15 @@ test('Lage erstellen, beitreten, gegenseitig sehen', async () => {
   await bild(leitung, 'e2e-leitung-zugang');
   await schliesseSheet(leitung);
   await bild(leitung, 'e2e-karte-leitung');
+
+  // Werkzeugleiste bei 390 px: lange Beschriftungen («Führungsraster», «Geländetaufe») überlappen nicht, die Leiste scrollt
+  const leiste = leitung.locator('nav.werkzeuge');
+  expect(await leiste.evaluate((n) => n.scrollWidth > n.clientWidth && getComputedStyle(n).overflowX === 'auto')).toBe(true);
+  const boxen = await leiste.locator('button.werkzeug:visible > span:not(.badge)').evaluateAll((els) =>
+    els.map((e) => ({ text: e.textContent, ...e.getBoundingClientRect().toJSON() })),
+  );
+  expect(boxen.length).toBeGreaterThan(8);
+  for (let i = 1; i < boxen.length; i++) expect(boxen[i].left, `${boxen[i - 1].text} / ${boxen[i].text}`).toBeGreaterThanOrEqual(boxen[i - 1].right);
 });
 
 test('Status wechseln und Status-Set der Leitung', async () => {
