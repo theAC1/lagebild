@@ -14,6 +14,18 @@ describe('REST', () => {
     expect(r.leitungCode).toMatch(/^[A-HJKMNP-Z2-9]{10}$/);
   });
 
+  it('Startphase: ohne Angabe LV (ältere Web-Stände kennen keine Phasen), neuer Client wählt AP', async () => {
+    const phase = async (extra: object) => {
+      const r = await s.api('/api/lage', { method: 'POST', body: JSON.stringify({ name: 'P', erstellPasswort: PASSWORT, ...extra }) });
+      const { leitungCode } = await r.json();
+      const ltg = await verbinde(s.url, (await s.beitreten(leitungCode, 'Ltg')).token);
+      ltg.zu();
+      return ltg.snapshot.lage.phasen.map((p) => p.phase);
+    };
+    expect(await phase({})).toEqual(['lv']);
+    expect(await phase({ phase: 'ap' })).toEqual(['ap']);
+  });
+
   it('verweigert falsches Erstell-Passwort und ungültige Eingaben', async () => {
     const falsch = await s.api('/api/lage', { method: 'POST', body: JSON.stringify({ name: 'X', erstellPasswort: 'nein' }) });
     expect(falsch.status).toBe(403);

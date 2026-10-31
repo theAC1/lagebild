@@ -182,7 +182,7 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
       const e = await jsonBody(req, LageErstellen);
       if (!gleich(e.erstellPasswort, o.erstellPasswort)) throw new HttpFehler(403, 'Erstell-Passwort falsch');
       const jetzt = Date.now();
-      const lage: Lage = { id: randomUUID(), name: e.name, statusSet: STANDARD_STATUS, erstelltAm: jetzt, phasen: [{ phase: e.phase ?? 'ap', t: jetzt }] };
+      const lage: Lage = { id: randomUUID(), name: e.name, statusSet: STANDARD_STATUS, erstelltAm: jetzt, phasen: [{ phase: e.phase ?? 'lv', t: jetzt }] };
       const r: LageErstellt = { lageId: lage.id, teilnehmerCode: neuerCode(8), leitungCode: neuerCode(10) };
       db.lageErstellen(lage, sha256(r.teilnehmerCode), sha256(r.leitungCode));
       db.ebenenSicherstellen(lage.id);

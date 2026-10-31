@@ -478,7 +478,7 @@ export type ServerMsg =
 
 // --- REST -------------------------------------------------------------------
 
-/** `phase`: Startphase, Vorgabe AP (Tests und Last-Skript starten direkt in LV). */
+/** `phase`: Startphase. Vorgabe LV: ältere Web-Stände senden keine Phase und könnten AP nicht verlassen; der Client sendet 'ap'. */
 export const LageErstellen = z.object({ name: Text(80).min(1), erstellPasswort: z.string().min(1).max(200), phase: Phase.exclude(['an']).optional() });
 export type LageErstellt = { lageId: string; teilnehmerCode: string; leitungCode: string };
 

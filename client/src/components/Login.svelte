@@ -68,7 +68,7 @@
     laeuft = true;
     fehler = null;
     try {
-      erstellt = await postJson<LageErstellt>('/api/lage', { name: lageName.trim(), erstellPasswort: passwort });
+      erstellt = await postJson<LageErstellt>('/api/lage', { name: lageName.trim(), erstellPasswort: passwort, phase: 'ap' });
       passwort = '';
       // Für Leitung › Zugang (QR, Link). Der Leitungs-Code gibt nicht mehr Rechte als das Leitungs-Token, das ohnehin hier liegt.
       schreibe(`lagebild.codes.${erstellt.lageId}`, JSON.stringify({ teilnehmerCode: erstellt.teilnehmerCode, leitungCode: erstellt.leitungCode }));

@@ -646,13 +646,13 @@ Gebaut in der heutigen Server-Lage. Die Regeln liegen als Reducer in `shared/reg
 - `Phase` = `ap | lv | an`; `Lage.phasen: {phase, t}[]` (≤ 200, letzte = aktuelle, `phaseVon`) ersetzt `Lage.beendetAm`.
 - `ClientMsg`: `lage.phase {phase}` ersetzt `lage.beenden`; neu `notiz.neu {t, text}`, `notiz.loeschen {id}`.
 - `ServerMsg`: `snapshot.notizen`, `notiz`, `notiz.geloescht`; `beendet` nur noch für entfernt/gelöscht (ohne `lage`).
-- REST: `LageErstellen.phase` (optional, `ap` oder `lv`, Vorgabe `ap`); `GET /api/protokoll` (`Protokoll`).
+- REST: `LageErstellen.phase` (optional, `ap` oder `lv`; Vorgabe `lv`, weil ältere Web-Stände keine Phase senden und AP nicht verlassen könnten; der Client sendet `ap`); `GET /api/protokoll` (`Protokoll`).
 - `PROTOKOLL_VERSION` bleibt 1: ältere Stände laufen weiter (sie kennen keine Phase; ihre Positionen in AP/AN verwirft der Server still).
 
 ### Annahmen (kleinste vernünftige, von Juan zu bestätigen)
 - Bestandslagen: offene starten in LV (seit Erstellung), beendete in AN (LV bis zum Beenden). Migration beim Lesen in `server/src/db.ts`, ohne Schema-Umbau.
 - Bestandslagen ohne Protokoll: die Wiedergabe baut die Ereignisse aus den gespeicherten Einträgen (Erstell- und Endzeiten); Änderungen und Löschungen von früher fehlen.
-- Neue Lagen beginnen in AP; per API (`phase: 'lv'`) auch direkt in LV (Tests, Last-Skript).
+- Neue Lagen aus dem Client beginnen in AP (`phase: 'ap'`); ohne Angabe (ältere Web-Stände, API) in LV.
 - In AP keine Sichtungen (sie sind Beobachtungen der Mission), Chat ja.
 - In AN keine neuen Beitritte und keine Fotos; der Chat ist lesbar (in der Wiedergabe bis zum Zeitpunkt), Senden wird abgelehnt.
 - Das Führungsraster zeigt die Wiedergabe im heutigen Stand (die Liste nennt die Änderungen mit Zeit); entfernte Teilnehmende fehlen auf der Karte, stehen aber in der Liste.
