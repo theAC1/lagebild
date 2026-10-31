@@ -14,6 +14,7 @@ const feature: Feature = {
   Detail: MarkerDetail,
   detailArt: 'marker',
   haupt: { aktion: markerSchnell },
+  phasen: ['ap', 'lv'],
 };
 
 export default feature;

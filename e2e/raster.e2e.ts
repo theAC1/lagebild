@@ -82,7 +82,7 @@ async function ziehe(p: Page, von: { x: number; y: number }, dx: number, dy: num
 
 test.beforeAll(async ({ browser }) => {
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name: 'Raster', erstellPasswort: 'e2e' } });
+  const r = await ctx.request.post('/api/lage', { data: { name: 'Raster', erstellPasswort: 'e2e', phase: 'lv' } });
   codes = await r.json();
   await ctx.close();
   leitung = await sitzung(browser, codes.leitungCode, 'Adler', ADLER, QUER);

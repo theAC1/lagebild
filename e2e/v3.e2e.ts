@@ -55,7 +55,7 @@ function zaehler(p: Page) {
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(120_000); // zwei Browser-Kontexte starten, Bravos erste Position muss die Leitung über den Server erreichen
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name: 'Übung Aare', erstellPasswort: 'e2e' } });
+  const r = await ctx.request.post('/api/lage', { data: { name: 'Übung Aare', erstellPasswort: 'e2e', phase: 'lv' } });
   codes = await r.json();
   await ctx.close();
   leitung = await seite(browser, codes.leitungCode, 'Adler', ADLER, QUER);

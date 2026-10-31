@@ -1,6 +1,16 @@
 // Leitung: Status-Set-Entwurf, Slug, Zugangslink, gemerkte Codes, Download-Dateiname (rein, testbar).
 import { z } from 'zod';
-import { StatusDef } from '../../../../shared/protocol.ts';
+import { StatusDef, type Phase } from '../../../../shared/protocol.ts';
+
+/** Knopf und Rückfrage je Zielphase (Spec v6); der Knopf nennt, ob es vor- oder zurückgeht. */
+export const PHASE_TEXT: Record<Phase, { knopf: (von: Phase) => string; frage: string }> = {
+  ap: { knopf: () => 'Zurück in die Aktionsplanung (AP)', frage: 'Zurück in die Aktionsplanung? Positionen, Status, Alarme und Bloodhound ruhen, offene Alarme und Aufträge werden aufgehoben.' },
+  lv: {
+    knopf: (von) => (von === 'an' ? 'Zurück in die Lageverfolgung (LV)' : 'Lageverfolgung starten (LV)'),
+    frage: 'In die Lageverfolgung wechseln? Alle Geräte senden ab jetzt ihre Position.',
+  },
+  an: { knopf: () => 'Nachbearbeitung starten (AN)', frage: 'Mission beenden und in die Nachbearbeitung wechseln? Danach ist alles schreibgeschützt; Wiedergabe und Ereignisliste stehen allen offen.' },
+};
 
 /** Eintrag im Status-Set-Editor; key null = neu, wird beim Speichern aus dem Label abgeleitet. */
 export type StatusEntwurf = { key: string | null; label: string; farbe: string };

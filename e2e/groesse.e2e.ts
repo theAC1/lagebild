@@ -16,7 +16,7 @@ let code: string;
 
 test.beforeAll(async ({ browser }) => {
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name: 'Übung Grösse', erstellPasswort: 'e2e' } });
+  const r = await ctx.request.post('/api/lage', { data: { name: 'Übung Grösse', erstellPasswort: 'e2e', phase: 'lv' } });
   code = (await r.json()).teilnehmerCode;
   await ctx.close();
 });

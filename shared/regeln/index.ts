@@ -2,6 +2,7 @@
 // Heute ruft sie der Server je WebSocket-Nachricht auf; später falten die Geräte damit ihr Ereignislog.
 import { BLOODHOUND_TYPEN, wendeBloodhound } from './bloodhound.ts';
 import { LAGE_TYPEN, wendeLage } from './lage.ts';
+import { PHASE_TYPEN, phasenSperre, wendePhase } from './phase.ts';
 import { RASTER_TYPEN, wendeRaster } from './raster.ts';
 import { TAUFE_TYPEN, wendeTaufe } from './taufe.ts';
 import type { Befehl, Ereignis, Ergebnis, Zustand } from './typen.ts';
@@ -12,6 +13,7 @@ export { MAX_AUFTRAEGE_JE_LAGE, offen } from './bloodhound.ts';
 export { MAX_MARKER_JE_LAGE, MAX_SICHTUNGEN_JE_LAGE, POS_MIN_ABSTAND_MS } from './lage.ts';
 export { doppelterListenName, MAX_TAUFEN_JE_LAGE, MAX_TAUFEN_ZEICHEN_JE_LAGE, nameFrei } from './taufe.ts';
 export { MAX_EBENEN_JE_LAGE, MAX_ZEICHNUNGEN_JE_LAGE, MAX_ZEICHNUNGEN_ZEICHEN_JE_LAGE } from './zeichnen.ts';
+export { PHASE_NAME, WECHSEL } from './phase.ts';
 export { empfaengt, meldungSichtbar, sichtbar } from './sichtbar.ts';
 export { anwenden, speicher, type Daten } from './speicher.ts';
 
@@ -25,6 +27,7 @@ const WENDER = {
   ...je(BLOODHOUND_TYPEN, wendeBloodhound),
   ...je(RASTER_TYPEN, wendeRaster),
   ...je(TAUFE_TYPEN, wendeTaufe),
+  ...je(PHASE_TYPEN, wendePhase),
 } satisfies Record<Befehl['typ'], Wender>;
 
-export const wende = (z: Zustand, e: Ereignis): Ergebnis => WENDER[e.msg.typ](z, e);
+export const wende = (z: Zustand, e: Ereignis): Ergebnis => phasenSperre(z.lage, e.msg.typ) ?? WENDER[e.msg.typ](z, e);

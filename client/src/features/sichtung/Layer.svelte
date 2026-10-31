@@ -49,6 +49,7 @@
         starteEntwurf(z.punkt!);
         oeffne('sichtung');
       },
+      phasen: ['lv'],
     }),
     beiNachricht((msg) => {
       if (msg.typ !== 'sichtung' || msg.sichtung.von === store.ich) return;

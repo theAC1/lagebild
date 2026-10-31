@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, Server } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { ClientMsg, MAX_NACHRICHT, PING_MS, type Lage, type ServerMsg, type Teilnehmer } from '../../shared/protocol.ts';
+import { ClientMsg, imProtokoll, MAX_NACHRICHT, PING_MS, type Lage, type ServerMsg, type Teilnehmer } from '../../shared/protocol.ts';
 import { empfaengt, istAbgelehnt, meldungSichtbar, offen, sichtbar, wende } from '../../shared/regeln/index.ts';
 import type { Db } from './db.ts';
 import { sichtAusDb, speichere } from './regeln.ts';
@@ -49,16 +49,11 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
   const mitOnline = (lageId: string, t: Teilnehmer): Teilnehmer => ({ ...t, online: istOnline(lageId, t.id) });
   const fehler = (v: Verbindung, meldung: string): void => senden(v.ws, { typ: 'fehler', meldung });
 
-  /** 'beendet'; bei beendeter Lage bekommt die Leitung die Lage mit (sie darf noch exportieren und löschen). */
-  const beendet = (rolle: Teilnehmer['rolle'], lage: Lage | undefined): ServerMsg =>
-    rolle === 'leitung' && lage && lage.beendetAm !== null ? { typ: 'beendet', lage } : { typ: 'beendet' };
-
   /** Schliesst alle Verbindungen einer Lage (oder nur die eines Teilnehmers) mit 'beendet'. */
   function rauswerfen(lageId: string, nurId?: string): void {
-    const lage = db.lage(lageId);
     for (const v of verbindungen(lageId)) {
       if (nurId && v.id !== nurId) continue;
-      senden(v.ws, beendet(v.rolle, lage));
+      senden(v.ws, { typ: 'beendet' });
       verbindungen(lageId).delete(v);
       v.ws.close(4000, 'beendet');
     }
@@ -83,6 +78,7 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
       raster: db.eintraege(lage.id, 'raster'),
       alarme: db.eintraege(lage.id, 'alarm').filter((a) => a.aufgehobenAm === null),
       meldungen: db.eintraege(lage.id, 'meldung', 200).filter((m) => meldungSichtbar(m, v)),
+      notizen: db.eintraege(lage.id, 'notiz'),
       serverZeit: Date.now(),
     };
   }
@@ -91,8 +87,8 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
     const tokenHash = sha256(token);
     const gefunden = db.teilnehmerNachToken(tokenHash);
     const lage = gefunden && db.lage(gefunden.lageId);
-    if (!gefunden || !lage || lage.beendetAm !== null) {
-      senden(ws, beendet(gefunden?.teilnehmer.rolle ?? 'teilnehmer', lage));
+    if (!gefunden || !lage) {
+      senden(ws, { typ: 'beendet' });
       ws.close(4001, 'unbekannt oder beendet');
       return undefined;
     }
@@ -134,10 +130,6 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
       return;
     }
     anAlle(lageId, d);
-    if (d.typ === 'lage' && d.lage.beendetAm !== null) {
-      log('info', 'lage beendet', { lageId });
-      rauswerfen(lageId);
-    }
   }
 
   function verarbeite(ich: Ich, m: ClientMsg): void {
@@ -155,7 +147,10 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
     const r = wende(sichtAusDb(db, lage, letztePos), { autor: t, msg: m, jetzt, neueId: randomUUID });
     if (istAbgelehnt(r)) return fehler(v, r.abgelehnt);
     speichere(db, lage.id, r.aenderungen, letztePos);
-    for (const d of r.deltas) verteile(lage.id, d);
+    for (const d of r.deltas) {
+      if (imProtokoll(d)) db.protokollieren(lage.id, jetzt, t.id, d);
+      verteile(lage.id, d);
+    }
   }
 
   wss.on('connection', (ws, req) => {
@@ -211,8 +206,8 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
       // Frisch laden: erfasst Entfernen, Beenden und Änderungen anderer Verbindungen.
       const gefunden = db.teilnehmerNachToken(v.tokenHash);
       const lage = gefunden && db.lage(gefunden.lageId);
-      if (!gefunden || !lage || lage.beendetAm !== null) {
-        senden(ws, beendet(v.rolle, gefunden ? lage : undefined));
+      if (!gefunden || !lage) {
+        senden(ws, { typ: 'beendet' });
         return ws.close(4000, 'beendet');
       }
       try {
@@ -238,7 +233,7 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
   }, PING_MS);
 
   return {
-    /** Lage gelöscht oder beendet: alle Verbindungen erhalten 'beendet'. */
+    /** Lage gelöscht: alle Verbindungen erhalten 'beendet'. */
     rauswerfen: (lageId: string): void => rauswerfen(lageId),
     schliessen(): void {
       clearInterval(ping);

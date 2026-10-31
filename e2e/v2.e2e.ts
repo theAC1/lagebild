@@ -62,7 +62,7 @@ async function pruefeQuerLayout(p: Page, breite: number) {
 
 test.beforeAll(async ({ browser }) => {
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name: 'Querformat', erstellPasswort: 'e2e' } });
+  const r = await ctx.request.post('/api/lage', { data: { name: 'Querformat', erstellPasswort: 'e2e', phase: 'lv' } });
   const lage = (await r.json()) as { teilnehmerCode: string; leitungCode: string };
   await ctx.close();
   leitung = await seite(browser, lage.leitungCode, 'Adler', ADLER, { width: 844, height: 390 });

@@ -23,7 +23,7 @@ const r = () => (saat = (saat * 16807) % 2147483647) / 2147483647;
 const pt = () => ({ lat: Z.lat + (r() - 0.5) * 0.03, lon: Z.lon + (r() - 0.5) * 0.045 });
 
 // --- Lage und Daten -----------------------------------------------------------------------
-const l = await post<LageErstellt>('/api/lage', { name: 'Last', erstellPasswort: process.env.LAGE_ERSTELL_PASSWORT ?? 'last' });
+const l = await post<LageErstellt>('/api/lage', { name: 'Last', erstellPasswort: process.env.LAGE_ERSTELL_PASSWORT ?? 'last', phase: 'lv' });
 const neu = (code: string, rufname: string, einheit: string) => post<Beigetreten>('/api/beitreten', { code, rufname, einheit, funktion: 'Sdt', sidc: SIDC });
 const ltg = await neu(l.leitungCode, 'Leitung', 'Stab');
 const tn: Beigetreten[] = [];

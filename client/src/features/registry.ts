@@ -1,5 +1,6 @@
 // Alle Features der App. Jedes Feature lebt in features/<id>/ und exportiert default ein `Feature`.
 import type { Component } from 'svelte';
+import type { Phase } from '../../../shared/protocol.ts';
 import marker from './marker/index.ts';
 import status from './status/index.ts';
 import chat from './chat/index.ts';
@@ -43,8 +44,12 @@ export interface Feature {
    * `aktion` ersetzt «Panel auf» (ist das Panel offen, schliesst der Knopf es), `Knopf` ersetzt den ganzen Standardknopf.
    */
   haupt?: { aktion?: () => void; Knopf?: Component };
+  /** Knöpfe und Panel nur in diesen Phasen (Spec v6); ohne Angabe immer. Der Kartenlayer bleibt in jeder Phase. */
+  phasen?: Phase[];
   /** Schalter in der Ebenen-Auswahl unter der Überschrift `label` (pro Gerät gemerkt); wird reaktiv gelesen. */
   ebenen?: () => { label: string; an: boolean; schalten: () => void }[];
 }
+
+export const inPhase = (f: Pick<Feature, 'phasen'>, phase: Phase): boolean => !f.phasen || f.phasen.includes(phase);
 
 export const features: Feature[] = [marker, status, chat, sichtung, alarm, rangebearing, spuren, zeichnen, raster, taufe, leitung, meldungen, offline, bloodhound];

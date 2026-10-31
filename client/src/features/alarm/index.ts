@@ -17,6 +17,7 @@ const feature: Feature = {
   haupt: { Knopf: Halten },
   Detail,
   detailArt: 'alarm',
+  phasen: ['lv'],
   // kein badge: der Knopf steht nicht in der Werkzeugleiste, offene Alarme zeigt das Banner
 };
 

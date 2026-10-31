@@ -15,6 +15,7 @@
     label: 'Marker hier',
     icon: ikon('<path d="M12 21s-6-6.2-6-11a6 6 0 0 1 12 0c0 4.8-6 11-6 11z"/><path d="M12 7v6M9 10h6"/>'),
     aktion: (z) => oeffne('marker', { neu: z.punkt }),
+    phasen: ['ap', 'lv'],
   });
 
   $effect(() => {

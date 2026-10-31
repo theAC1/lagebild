@@ -261,7 +261,7 @@
     return !!x && darf(x);
   };
   const abRadial = [
-    registriereRadialAktion({ fuer: 'zeichnung', label: 'Bearbeiten', icon: ikon('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'), aktion: (z) => bearbeite(z.id), sichtbar: darfZiel }),
+    registriereRadialAktion({ fuer: 'zeichnung', label: 'Bearbeiten', icon: ikon('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'), aktion: (z) => bearbeite(z.id), sichtbar: darfZiel, phasen: ['ap', 'lv'] }),
     registriereRadialAktion({
       fuer: 'zeichnung',
       label: 'Stil',
@@ -271,6 +271,7 @@
         oeffne('zeichnen', { tab: 'eigenschaften' });
       },
       sichtbar: (z) => istDesktop() && darfZiel(z),
+      phasen: ['ap', 'lv'],
     }),
     registriereRadialAktion({
       fuer: 'zeichnung',
@@ -281,8 +282,9 @@
         oeffne('zeichnen', { tab: 'eigenschaften', fokus: 'ebene' });
       },
       sichtbar: (z) => istDesktop() && darfZiel(z),
+      phasen: ['ap', 'lv'],
     }),
-    registriereRadialAktion({ fuer: 'zeichnung', label: 'Kopieren', icon: ikon('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>'), aktion: (z) => kopiere([z.id]), sichtbar: () => istDesktop() }),
+    registriereRadialAktion({ fuer: 'zeichnung', label: 'Kopieren', icon: ikon('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>'), aktion: (z) => kopiere([z.id]), sichtbar: () => istDesktop(), phasen: ['ap', 'lv'] }),
     registriereRadialAktion({
       fuer: 'zeichnung',
       label: 'Löschen',
@@ -295,6 +297,7 @@
         toast(istDesktop() ? 'Zeichnung gelöscht – Ctrl+Z macht rückgängig' : 'Zeichnung gelöscht');
       },
       sichtbar: darfZiel,
+      phasen: ['ap', 'lv'],
     }),
   ];
 

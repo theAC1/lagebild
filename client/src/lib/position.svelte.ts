@@ -75,7 +75,7 @@ export function stoppeGps(): void {
 
 /** Schalter «Position im Hintergrund» geändert: GPS mit der passenden Quelle neu starten. */
 export function aktualisiereHintergrund(): void {
-  if (!store.token || store.beendet) return;
+  if (!store.token) return;
   stoppeGps();
   starteGps();
 }
@@ -108,5 +108,5 @@ export function aktualisiereWachhalten(): void {
 document.addEventListener('visibilitychange', () => {
   void holeSperre();
   // zurück aus den Einstellungen: Standort evtl. inzwischen erlaubt
-  if (document.visibilityState === 'visible' && store.token && !store.beendet && watchId === null) starteGps();
+  if (document.visibilityState === 'visible' && store.token && watchId === null) starteGps();
 });

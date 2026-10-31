@@ -36,6 +36,13 @@ const werkzeug = (page: Page, label: string) => page.locator('nav.werkzeuge butt
 const sheet = (page: Page) => page.locator('section.sheet');
 const schliesseSheet = (page: Page) => sheet(page).getByRole('button', { name: 'Schliessen', exact: true }).click();
 
+/** Leitung: Phasenschild antippen, Ziel wählen, bestätigen. */
+async function phaseWechseln(schild: string, knopf: string) {
+  await leitung.getByRole('button', { name: new RegExp(`^${schild}`) }).click();
+  await sheet(leitung).getByRole('button', { name: knopf, exact: true }).click();
+  await sheet(leitung).getByRole('button', { name: 'Ja, wechseln', exact: true }).click();
+}
+
 async function leitungTab(tab: string) {
   if (!(await sheet(leitung).getByRole('tablist').isVisible().catch(() => false))) await werkzeug(leitung, 'Leitung').click();
   await sheet(leitung).getByRole('tab', { name: tab }).click();
@@ -62,6 +69,15 @@ test('Lage erstellen, beitreten, gegenseitig sehen', async () => {
   await bild(leitung, 'e2e-codes');
   await leitung.getByRole('button', { name: 'Weiter: als Leitung beitreten', exact: true }).click();
   await beitreten(leitung, 'Adler', 'KP');
+
+  // Neue Lage beginnt in der Aktionsplanung: grauer Rahmen, Schild «AP», kein Status; die Leitung startet die Lageverfolgung
+  await expect(leitung.locator('.phase-rahmen.ap')).toBeAttached();
+  await expect(leitung.getByRole('button', { name: /^Eigener Status/ })).toHaveCount(0);
+  await bild(leitung, 'e2e-phase-ap');
+  await phaseWechseln('Phase: Aktionsplanung', 'Lageverfolgung starten (LV)');
+  await expect(leitung.locator('.phase-rahmen.lv')).toBeAttached();
+  await expect(leitung.getByRole('button', { name: /^Eigener Status/ })).toBeVisible();
+  await schliesseSheet(leitung);
 
   await teilnehmer.goto(`/?code=${teilnehmerCode}`);
   await expect(teilnehmer.getByLabel('Code')).toHaveValue(teilnehmerCode);
@@ -252,7 +268,7 @@ test('Range & Bearing zum Teilnehmer', async () => {
   await schliesseSheet(leitung);
 });
 
-test('Export GPX und Lage beenden', async () => {
+test('Export GPX, Nachbearbeitung statt Beenden, zurück und löschen', async () => {
   await leitungTab('Export');
   const [download] = await Promise.all([leitung.waitForEvent('download'), sheet(leitung).getByRole('button', { name: /GPX herunterladen/ }).click()]);
   expect(download.suggestedFilename()).toMatch(/\.gpx$/);
@@ -260,28 +276,32 @@ test('Export GPX und Lage beenden', async () => {
   expect(gpx).toContain('<trk>');
   expect(gpx).toContain('<name>Bravo</name>');
   expect(gpx).toContain('Sperre Nord');
+  await schliesseSheet(leitung);
 
+  // LV → AN: niemand wird abgemeldet, alles schreibgeschützt, grüner Rahmen bei allen
+  await phaseWechseln('Phase: Lageverfolgung', 'Nachbearbeitung starten (AN)');
+  await expect(teilnehmer.locator('.phase-rahmen.an')).toBeAttached();
+  await expect(teilnehmer.getByRole('status', { name: 'Phase: Aktionsnachbearbeitung' })).toBeVisible();
+  await expect(teilnehmer.getByRole('button', { name: /^Eigener Status/ })).toHaveCount(0);
+  await expect(teilnehmer.locator('.verbindung.verbunden')).toBeVisible();
+  await teilnehmer.reload();
+  await expect(teilnehmer.locator('.phase-rahmen.an')).toBeAttached();
+  await bild(teilnehmer, 'e2e-phase-an');
+
+  // AN → LV und wieder zurück, jeweils mit Bestätigung
+  await phaseWechseln('Phase: Aktionsnachbearbeitung', 'Zurück in die Lageverfolgung (LV)');
+  await expect(teilnehmer.locator('.phase-rahmen.lv')).toBeAttached();
+  await expect(teilnehmer.getByRole('button', { name: /^Eigener Status/ })).toBeVisible();
+  await phaseWechseln('Phase: Lageverfolgung', 'Nachbearbeitung starten (AN)');
+  await expect(teilnehmer.locator('.phase-rahmen.an')).toBeAttached();
+
+  // Löschen bleibt bei der Leitung: beide landen im Login
   await leitungTab('Lage');
-  await sheet(leitung).getByRole('button', { name: 'Lage beenden …', exact: true }).click();
-  await sheet(leitung).getByRole('button', { name: 'Ja, weiter', exact: true }).click();
-  await sheet(leitung).getByRole('button', { name: 'Jetzt beenden', exact: true }).click();
-
-  await expect(teilnehmer.getByRole('button', { name: 'Lage beitreten', exact: true })).toBeVisible();
-  await expect(teilnehmer.locator('.toast', { hasText: 'beendet' })).toBeVisible();
-  await bild(teilnehmer, 'e2e-beendet');
-
-  // Leitung bleibt angemeldet: Export und Löschen gehen auch nach dem Beenden – auch nach Neuladen
-  const nach = leitung.getByRole('region', { name: 'Lage beendet' });
-  await expect(nach).toContainText('Übung Aare');
-  await leitung.reload();
-  await expect(nach).toBeVisible();
-  const [nochmal] = await Promise.all([leitung.waitForEvent('download'), nach.getByRole('button', { name: /GPX herunterladen/ }).click()]);
-  expect(nochmal.suggestedFilename()).toMatch(/\.gpx$/);
-  await bild(leitung, 'e2e-nachbereitung');
-  await nach.getByPlaceholder('Name der Lage').fill('Übung Aare');
-  await nach.getByRole('button', { name: 'Endgültig löschen', exact: true }).click();
+  await sheet(leitung).getByPlaceholder('Name der Lage').fill('Übung Aare');
+  await sheet(leitung).getByRole('button', { name: 'Endgültig löschen', exact: true }).click();
   await expect(leitung.getByRole('button', { name: 'Lage beitreten', exact: true })).toBeVisible();
-  await expect(leitung.locator('.toast', { hasText: 'gelöscht' })).toBeVisible();
+  await expect(teilnehmer.getByRole('button', { name: 'Lage beitreten', exact: true })).toBeVisible();
+  await expect(teilnehmer.locator('.toast', { hasText: 'gelöscht' })).toBeVisible();
 
   // Code ist danach ungültig (Lage gelöscht)
   await teilnehmer.getByLabel('Code').fill(teilnehmerCode);

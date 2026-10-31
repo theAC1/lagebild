@@ -2,7 +2,7 @@
 import { STANDARD_EBENE_NAME, STANDARD_STATUS, standardEbeneId, type Lage, type Teilnehmer } from '../protocol.ts';
 import { anwenden, istAbgelehnt, speicher, wende, type Befehl, type Daten, type Ergebnis } from './index.ts';
 
-export const LAGE: Lage = { id: 'L', name: 'Übung', statusSet: STANDARD_STATUS, erstelltAm: 0, beendetAm: null };
+export const LAGE: Lage = { id: 'L', name: 'Übung', statusSet: STANDARD_STATUS, erstelltAm: 0, phasen: [{ phase: 'lv', t: 0 }] };
 
 export const tn = (id: string, rolle: Teilnehmer['rolle'] = 'teilnehmer', extra: Partial<Teilnehmer> = {}): Teilnehmer => ({
   id, rufname: id.toUpperCase(), einheit: 'Zug 1', funktion: '', sidc: '10031000001211000000', rolle, status: 'bereit', statusText: '',

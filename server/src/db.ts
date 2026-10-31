@@ -1,7 +1,7 @@
 // SQLite-Zugriff (node:sqlite). Entitäten werden als JSON gespeichert; der Vertrag ist die Struktur.
 import { DatabaseSync } from 'node:sqlite';
 import { STANDARD_EBENE_NAME, standardEbeneId } from '../../shared/protocol.ts';
-import type { Ebene, Lage, Position, Rolle, Spuren, Teilnehmer } from '../../shared/protocol.ts';
+import type { Ebene, Lage, Position, ProtokollEintrag, Rolle, ServerMsg, Spuren, Teilnehmer } from '../../shared/protocol.ts';
 import type { Art, Eintraege } from '../../shared/regeln/typen.ts';
 
 const SCHEMA = `
@@ -21,11 +21,22 @@ CREATE TABLE IF NOT EXISTS eintrag (
   PRIMARY KEY (art, id)
 );
 CREATE INDEX IF NOT EXISTS eintrag_lage ON eintrag(lage_id, art, t);
+CREATE TABLE IF NOT EXISTS protokoll (lage_id TEXT NOT NULL, t INTEGER NOT NULL, von TEXT NOT NULL, daten TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS protokoll_lage ON protokoll(lage_id, t);
 CREATE TABLE IF NOT EXISTS foto (id TEXT PRIMARY KEY, lage_id TEXT NOT NULL, ext TEXT NOT NULL, von TEXT NOT NULL, t INTEGER NOT NULL);
 `;
 
 type Zeile = Record<string, unknown>;
 const json = <T>(z: Zeile | undefined): T | undefined => (z ? (JSON.parse(z.daten as string) as T) : undefined);
+
+/** Lagen vor den Phasen (31.10.): offen → LV seit Erstellung, beendet → LV bis zum Beenden, danach AN. */
+export function mitPhasen(l: Lage & { beendetAm?: number | null }): Lage {
+  if (l.phasen) return l;
+  const { beendetAm, ...rest } = l;
+  const lv = { phase: 'lv' as const, t: l.erstelltAm };
+  return { ...rest, phasen: beendetAm == null ? [lv] : [lv, { phase: 'an', t: beendetAm }] };
+}
+const lageAus = (z: Zeile | undefined): Lage | undefined => (z ? mitPhasen(json<Lage>(z)!) : undefined);
 
 export function oeffneDb(pfad: string) {
   const db = new DatabaseSync(pfad);
@@ -57,6 +68,8 @@ export function oeffneDb(pfad: string) {
     eWeg: db.prepare('DELETE FROM eintrag WHERE lage_id = ? AND art = ? AND id = ?'),
     eAnzahl: db.prepare('SELECT COUNT(*) AS n FROM eintrag WHERE lage_id = ? AND art = ?'),
     eGroesse: db.prepare('SELECT COALESCE(SUM(LENGTH(daten)), 0) AS n FROM eintrag WHERE lage_id = ? AND art = ?'),
+    protNeu: db.prepare('INSERT INTO protokoll (lage_id, t, von, daten) VALUES (?, ?, ?, ?)'),
+    prot: db.prepare('SELECT t, von, daten FROM protokoll WHERE lage_id = ? ORDER BY t, rowid'),
     fotoNeu: db.prepare('INSERT INTO foto (id, lage_id, ext, von, t) VALUES (?, ?, ?, ?, ?)'),
     foto: db.prepare('SELECT lage_id, ext FROM foto WHERE id = ?'),
     fotoAnzahl: db.prepare('SELECT COUNT(*) AS n FROM foto WHERE lage_id = ?'),
@@ -66,10 +79,10 @@ export function oeffneDb(pfad: string) {
     lageErstellen(lage: Lage, tnCodeHash: string, ltgCodeHash: string): void {
       q.lageNeu.run(lage.id, JSON.stringify(lage), tnCodeHash, ltgCodeHash);
     },
-    lage: (id: string): Lage | undefined => json<Lage>(q.lage.get(id)),
+    lage: (id: string): Lage | undefined => lageAus(q.lage.get(id)),
     lageNachCodeHash(hash: string): { lage: Lage; rolle: Rolle } | undefined {
       const z = q.lageCode.get(hash, hash, hash);
-      return z && { lage: json<Lage>(z)!, rolle: z.tn ? 'teilnehmer' : 'leitung' };
+      return z && { lage: lageAus(z)!, rolle: z.tn ? 'teilnehmer' : 'leitung' };
     },
     lageSpeichern(lage: Lage): void {
       q.lageUpd.run(JSON.stringify(lage), lage.id);
@@ -81,7 +94,7 @@ export function oeffneDb(pfad: string) {
     lageLoeschen(id: string): void {
       db.exec('BEGIN');
       try {
-        for (const t of ['lage WHERE id', 'teilnehmer WHERE lage_id', 'spur WHERE lage_id', 'eintrag WHERE lage_id', 'foto WHERE lage_id'])
+        for (const t of ['lage WHERE id', 'teilnehmer WHERE lage_id', 'spur WHERE lage_id', 'eintrag WHERE lage_id', 'foto WHERE lage_id', 'protokoll WHERE lage_id'])
           db.prepare(`DELETE FROM ${t} = ?`).run(id);
         db.exec('COMMIT');
       } catch (e) {
@@ -134,6 +147,13 @@ export function oeffneDb(pfad: string) {
     anzahl: (lageId: string, art: Art): number => Number(q.eAnzahl.get(lageId, art)!.n),
     /** Summe der gespeicherten JSON-Längen (Zeichen) einer Art, z.B. als Grössenbudget des Snapshots. */
     groesse: (lageId: string, art: Art): number => Number(q.eGroesse.get(lageId, art)!.n),
+
+    /** Ereignisprotokoll (Spec v6): ein verteiltes Delta der Regeln mit Zeit und Autor. */
+    protokollieren(lageId: string, t: number, von: string, d: ServerMsg): void {
+      q.protNeu.run(lageId, t, von, JSON.stringify(d));
+    },
+    protokoll: (lageId: string): ProtokollEintrag[] =>
+      q.prot.all(lageId).map((z) => ({ t: Number(z.t), von: z.von as string, d: JSON.parse(z.daten as string) as ServerMsg })),
 
     fotoSpeichern(id: string, lageId: string, ext: string, von: string): void {
       q.fotoNeu.run(id, lageId, ext, von, Date.now());

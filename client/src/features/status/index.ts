@@ -12,6 +12,7 @@ const feature: Feature = {
   Panel,
   Toolbar,
   haupt: { Knopf: Rand },
+  phasen: ['lv'],
 };
 
 export default feature;

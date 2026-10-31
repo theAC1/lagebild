@@ -13,6 +13,7 @@ const feature: Feature = {
   MapLayer: TaufeLayer,
   Detail,
   detailArt: 'taufe',
+  phasen: ['ap', 'lv'],
 };
 
 export default feature;

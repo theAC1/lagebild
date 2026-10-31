@@ -10,7 +10,7 @@ export const POS_MIN_ABSTAND_MS = 1000;
 
 export const LAGE_TYPEN = [
   'pos', 'sendetPos', 'status', 'marker.setzen', 'marker.loeschen', 'chat', 'sichtung',
-  'alarm.ausloesen', 'alarm.quittieren', 'alarm.aufheben', 'lage.statusSet', 'lage.beenden', 'teilnehmer.entfernen',
+  'alarm.ausloesen', 'alarm.quittieren', 'alarm.aufheben', 'lage.statusSet', 'teilnehmer.entfernen',
 ] as const;
 type LageBefehl = Extract<Befehl, { typ: (typeof LAGE_TYPEN)[number] }>;
 
@@ -122,13 +122,6 @@ export function wendeLage(z: Zustand, e: Ereignis & { msg: LageBefehl }): Ergebn
       if (!leitung) return nein('Nur für die Leitung');
       if (new Set(m.statusSet.map((s) => s.key)).size !== m.statusSet.length) return nein('Status-Schlüssel doppelt');
       const neu = { ...lage, statusSet: m.statusSet };
-      l.tu({ was: 'lage', lage: neu }, { typ: 'lage', lage: neu });
-      return l.fertig();
-    }
-    case 'lage.beenden': {
-      // Der Verteiler schliesst nach dem Delta mit beendeter Lage alle Verbindungen.
-      if (!leitung) return nein('Nur für die Leitung');
-      const neu = { ...lage, beendetAm: jetzt };
       l.tu({ was: 'lage', lage: neu }, { typ: 'lage', lage: neu });
       return l.fertig();
     }

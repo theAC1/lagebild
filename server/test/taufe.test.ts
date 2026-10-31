@@ -114,7 +114,7 @@ describe('Server: Taufen', () => {
 
   it('Grössenbudget je Lage', () => {
     const db = oeffneDb(':memory:');
-    const lage = { id: 'L', name: 'L', statusSet: [], erstelltAm: 0, beendetAm: null };
+    const lage = { id: 'L', name: 'L', statusSet: [], erstelltAm: 0, phasen: [{ phase: 'lv' as const, t: 0 }] };
     db.lageErstellen(lage, 'tn', 'ltg');
     const fehler: string[] = [];
     const t = { id: 'T', rolle: 'teilnehmer' } as Teilnehmer;

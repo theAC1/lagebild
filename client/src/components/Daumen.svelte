@@ -5,12 +5,13 @@
   // rechts. «Melden» öffnet daneben die Wahl Sichtung/Marker (Rückmeldung 30.10.: der Unterschied war nicht klar).
   // Was ein Hauptknopf tut, bestimmt das Feature (Feature.haupt); wo er sitzt, steht hier.
   import { MediaQuery } from 'svelte/reactivity';
-  import { features, type Feature } from '../features/registry.ts';
+  import { features, inPhase, type Feature } from '../features/registry.ts';
   import { folgeMir, getMap, onMapReady } from '../lib/map.ts';
   import { store } from '../lib/store.svelte.ts';
   import { ikon, istOffen, oeffne, schliesse, ui } from '../lib/ui.svelte.ts';
   import EbenenListe from './EbenenListe.svelte';
   import KoordLeiste from './KoordLeiste.svelte';
+  import PhaseSchild from './PhaseSchild.svelte';
 
   const MELDEN = ['sichtung', 'marker'];
   const VERBINDUNG = { verbunden: 'verbunden', verbinde: 'verbinde …', getrennt: 'getrennt' } as const;
@@ -18,7 +19,7 @@
   const IKON_EINST = ikon('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9L7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>');
 
   const quer = new MediaQuery('(orientation: landscape)', false);
-  const sichtbar = $derived(features.filter((f) => !f.nurLeitung || store.istLeitung));
+  const sichtbar = $derived(features.filter((f) => (!f.nurLeitung || store.istLeitung) && inPhase(f, store.phase)));
   const haupt = $derived(new Map(sichtbar.filter((f) => f.haupt).map((f) => [f.id, f])));
   const mehr = $derived([
     ...sichtbar.filter((f) => f.Panel && !f.haupt).map((f) => ({ id: f.id, label: f.label, icon: f.icon })),
@@ -165,6 +166,7 @@
 
 <div class="daumen">
   <header class="kopf">
+    <PhaseSchild />
     <strong class="lage">{store.lage?.name ?? 'Lagebild'}</strong>
     <span class="verbindung {store.verbindung}" role="status"><span class="lampe"></span><span class="vtext">{VERBINDUNG[store.verbindung]}</span></span>
     {#each sichtbar.filter((f) => f.Kopf && !f.haupt) as f (f.id)}<f.Kopf />{/each}
@@ -176,7 +178,7 @@
   {#if quer.current}
     <aside class="rand links" aria-label="Melden">
       {@render knopf('status')}
-      {@render meldenKnopfS()}
+      {#if melden.length}{@render meldenKnopfS()}{/if}
       <span class="luecke"></span>
       {@render knopf('alarm')}
     </aside>
@@ -192,7 +194,7 @@
       {#if koordLeiste}<KoordLeiste />{/if}
       <nav class="dock" aria-label="Hauptaktionen">
         {@render knopf('status')}
-        {@render meldenKnopfS()}
+        {#if melden.length}{@render meldenKnopfS()}{/if}
         {@render knopf('chat')}
         {@render mehrKnopf()}
       </nav>
