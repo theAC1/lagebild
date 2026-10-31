@@ -8,7 +8,10 @@
 </script>
 
 {#if store.istLeitung}
-  <button class="schild {store.phase}" aria-label="{titel} – wechseln" title={titel} onclick={() => oeffne('leitung', { tab: 'lage' })}>{store.phase.toUpperCase()}</button>
+  <!-- Trefffläche 44 px um das kleine Schild (quer war es nur 34×30) -->
+  <button class="knopf" aria-label="{titel} – wechseln" title={titel} onclick={() => oeffne('leitung', { tab: 'lage' })}>
+    <span class="schild {store.phase}">{store.phase.toUpperCase()}</span>
+  </button>
 {:else}
   <span class="schild {store.phase}" role="status" aria-label={titel} title={titel}>{store.phase.toUpperCase()}</span>
 {/if}
@@ -29,7 +32,19 @@
     letter-spacing: 0.04em;
     vertical-align: middle;
   }
-  button.schild {
+  .knopf {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    min-width: 44px;
+    min-height: 44px;
+    margin: -7px -5px; /* das Schild bleibt in der Zeile so gross wie bisher, nur die Trefffläche wächst */
+    padding: 0;
+    border: 0;
+    background: transparent;
+    vertical-align: middle;
+  }
+  .knopf .schild {
     min-height: 30px;
   }
   .ap {
