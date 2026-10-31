@@ -69,6 +69,7 @@ export function oeffneDb(pfad: string) {
     eAnzahl: db.prepare('SELECT COUNT(*) AS n FROM eintrag WHERE lage_id = ? AND art = ?'),
     eGroesse: db.prepare('SELECT COALESCE(SUM(LENGTH(daten)), 0) AS n FROM eintrag WHERE lage_id = ? AND art = ?'),
     protNeu: db.prepare('INSERT INTO protokoll (lage_id, t, von, daten) VALUES (?, ?, ?, ?)'),
+    protGroesse: db.prepare('SELECT COALESCE(SUM(LENGTH(daten)), 0) AS n FROM protokoll WHERE lage_id = ?'),
     prot: db.prepare('SELECT t, von, daten FROM protokoll WHERE lage_id = ? ORDER BY t, rowid'),
     fotoNeu: db.prepare('INSERT INTO foto (id, lage_id, ext, von, t) VALUES (?, ?, ?, ?, ?)'),
     foto: db.prepare('SELECT lage_id, ext FROM foto WHERE id = ?'),
@@ -148,10 +149,11 @@ export function oeffneDb(pfad: string) {
     /** Summe der gespeicherten JSON-Längen (Zeichen) einer Art, z.B. als Grössenbudget des Snapshots. */
     groesse: (lageId: string, art: Art): number => Number(q.eGroesse.get(lageId, art)!.n),
 
-    /** Ereignisprotokoll (Spec v6): ein verteiltes Delta der Regeln mit Zeit und Autor. */
-    protokollieren(lageId: string, t: number, von: string, d: ServerMsg): void {
-      q.protNeu.run(lageId, t, von, JSON.stringify(d));
+    /** Ereignisprotokoll (Spec v6): ein verteiltes Delta der Regeln (als JSON) mit Zeit und Autor. */
+    protokollieren(lageId: string, t: number, von: string, daten: string): void {
+      q.protNeu.run(lageId, t, von, daten);
     },
+    protokollGroesse: (lageId: string): number => Number(q.protGroesse.get(lageId)!.n),
     protokoll: (lageId: string): ProtokollEintrag[] =>
       q.prot.all(lageId).map((z) => ({ t: Number(z.t), von: z.von as string, d: JSON.parse(z.daten as string) as ServerMsg })),
 

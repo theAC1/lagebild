@@ -631,6 +631,7 @@ Gebaut in der heutigen Server-Lage. Die Regeln liegen als Reducer in `shared/reg
 
 ### Ereignisprotokoll (Server)
 - Löschungen und Zwischenstände gehen in den Einträgen verloren. Darum schreibt der Server jedes verteilte Delta der Regeln mit Zeit und Autor in die Tabelle `protokoll` (ausser Positionen, Teilnehmer-Updates und Lage-Deltas; Positionen liegen in `spur`, Phasen in `Lage.phasen`). Das passt zum späteren Ereignislog der Missionen.
+- Grenze je Lage: 50 MB (Zeichen der Deltas, `MAX_PROTOKOLL_ZEICHEN_JE_LAGE` in `server/src/ws.ts`, laufend mitgezählt). Darüber zeichnet der Server nichts mehr auf, warnt einmal (Log und Meldung nur an die Leitung: «Protokoll voll …»), der Live-Betrieb läuft weiter.
 - `GET /api/protokoll` (Bearer, alle Mitglieder): `{ teilnehmer (auch entfernte), ereignisse: {t, von, d}[], spuren }`; Chat und Meldungslog gefiltert wie live (`sichtbar.ts`).
 - Der Client faltet die Deltas bis zum Zeitpunkt (`features/wiedergabe/logik.ts`), Positionen per Binärsuche in den Spuren.
 

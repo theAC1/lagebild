@@ -15,6 +15,11 @@ const MAX_VERBINDUNGEN_JE_TEILNEHMER = 3;
 const MAX_OHNE_HALLO_JE_IP = 20;
 /** Snapshot: so viele Chats werden geladen, bevor nach Empfänger gefiltert wird (davon höchstens 500 gesendet). */
 const CHAT_SNAPSHOT_ROH = 2000;
+/**
+ * Ereignisprotokoll je Lage (Zeichen der gespeicherten Deltas). Die Budgets der Einträge begrenzen nur den aktuellen Stand;
+ * wiederholtes Ändern oder Setzen/Löschen würde das Protokoll sonst unbegrenzt füllen. Darüber: nicht mehr aufzeichnen.
+ */
+export const MAX_PROTOKOLL_ZEICHEN_JE_LAGE = 50 * 1024 * 1024;
 
 type Verbindung = { ws: WebSocket; lageId: string; id: string; rolle: Teilnehmer['rolle']; einheit: string; tokenHash: string; lebt: boolean };
 type Ich = { v: Verbindung; t: Teilnehmer; lage: Lage };
@@ -35,6 +40,8 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
   // Jeder Alarm bleibt gespeichert (aufgehoben) und alle werden je Alarm/Snapshot gelesen: eine Flut wächst unbegrenzt
   const limitAlarme = rateLimiter(10, 60_000);
   const letztePos = new Map<string, number>();
+  /** Laufende Protokollgrösse je Lage (beim ersten Delta aus der DB); Infinity = voll, schon gewarnt. */
+  const protokollZeichen = new Map<string, number>();
   const ohneHallo = new Map<string, number>();
 
   const verbindungen = (lageId: string): Set<Verbindung> => lagen.get(lageId) ?? new Set();
@@ -121,6 +128,22 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
     anAlle(v.lageId, { typ: 'teilnehmer', teilnehmer: mitOnline(v.lageId, t) });
   }
 
+  /** Delta ins Protokoll, solange das Budget reicht; beim ersten Überlauf Log und Meldung an die Leitung. */
+  function protokolliere(lageId: string, t: number, von: string, d: ServerMsg): void {
+    const daten = JSON.stringify(d);
+    const bisher = protokollZeichen.get(lageId) ?? db.protokollGroesse(lageId);
+    if (bisher + daten.length <= MAX_PROTOKOLL_ZEICHEN_JE_LAGE) {
+      db.protokollieren(lageId, t, von, daten);
+      return void protokollZeichen.set(lageId, bisher + daten.length);
+    }
+    if (bisher === Infinity) return;
+    protokollZeichen.set(lageId, Infinity);
+    log('warn', 'protokoll voll', { lageId, zeichen: bisher });
+    const meldung = { id: randomUUID(), von, status: null, text: 'Protokoll voll: weitere Änderungen fehlen in Wiedergabe und Ereignisliste.', t, nur: [] };
+    db.speichern(lageId, 'meldung', meldung, t);
+    verteile(lageId, { typ: 'meldung', meldung });
+  }
+
   /** Ein Delta der Regeln verteilen: gefiltert nach Empfänger, `online` aus den Verbindungen; Entfernen und Beenden werfen hinaus. */
   function verteile(lageId: string, d: ServerMsg): void {
     if (d.typ === 'teilnehmer') return anAlle(lageId, { typ: 'teilnehmer', teilnehmer: mitOnline(lageId, d.teilnehmer) });
@@ -148,7 +171,7 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
     if (istAbgelehnt(r)) return fehler(v, r.abgelehnt);
     speichere(db, lage.id, r.aenderungen, letztePos);
     for (const d of r.deltas) {
-      if (imProtokoll(d)) db.protokollieren(lage.id, jetzt, t.id, d);
+      if (imProtokoll(d)) protokolliere(lage.id, jetzt, t.id, d);
       verteile(lage.id, d);
     }
   }
@@ -234,7 +257,10 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
 
   return {
     /** Lage gelöscht: alle Verbindungen erhalten 'beendet'. */
-    rauswerfen: (lageId: string): void => rauswerfen(lageId),
+    rauswerfen(lageId: string): void {
+      protokollZeichen.delete(lageId);
+      rauswerfen(lageId);
+    },
     schliessen(): void {
       clearInterval(ping);
       lagen.clear(); // trennen() soll nach dem Schliessen nicht mehr in die DB schreiben

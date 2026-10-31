@@ -2,7 +2,9 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { WebSocket } from 'ws';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { DatabaseSync } from 'node:sqlite';
 import { STALE_MAX_MS, type Position } from '../../shared/protocol.ts';
+import { MAX_PROTOKOLL_ZEICHEN_JE_LAGE } from '../src/ws.ts';
 import { pause, SIDC, testServer, verbinde } from './helfer.ts';
 
 let s: Awaited<ReturnType<typeof testServer>>;
@@ -188,6 +190,26 @@ describe('WebSocket', () => {
     expect(p.teilnehmer).toHaveLength(3);
     const fuerLtg = await (await s.api('/api/protokoll', { token: ltgB.token })).json();
     expect(fuerLtg.ereignisse.map((e: { d: { typ: string } }) => e.d.typ)).toEqual(['marker', 'marker.geloescht', 'chat']);
+  });
+
+  it('Protokoll voll: nichts mehr aufzeichnen, Leitung einmal warnen, live läuft weiter', async () => {
+    const { l, ltg, a, b } = await szenario();
+    const roh = new DatabaseSync(join(s.dataDir, 'lagebild.sqlite'));
+    const zeilen = () => Number(roh.prepare('SELECT COUNT(*) AS n FROM protokoll WHERE lage_id = ?').get(l.lageId)!.n);
+    // Lage bis knapp unter die Grenze füllen (ein Eintrag, damit der Test schnell bleibt)
+    roh.prepare("INSERT INTO protokoll (lage_id, t, von, daten) VALUES (?, 0, 'x', printf('%.*c', ?, 'x'))").run(l.lageId, MAX_PROTOKOLL_ZEICHEN_JE_LAGE - 10);
+    const setze = (bezeichnung: string) => a.senden({ typ: 'marker.setzen', marker: { sidc: SIDC, lat: 47, lon: 8, bezeichnung, notiz: '' } });
+    setze('Eins');
+    await b.warte('marker', (m) => m.marker.bezeichnung === 'Eins');
+    const warnung = await ltg.warte('meldung', (m) => m.meldung.text.startsWith('Protokoll voll'));
+    expect(warnung.meldung.nur).toEqual([]);
+    setze('Zwei');
+    await b.warte('marker', (m) => m.marker.bezeichnung === 'Zwei');
+    expect(zeilen()).toBe(1);
+    await pause(50);
+    expect(ltg.empfangen.some((m) => m.typ === 'meldung' && m.meldung.text.startsWith('Protokoll voll'))).toBe(false);
+    expect(b.empfangen.some((m) => m.typ === 'meldung' && m.meldung.text.startsWith('Protokoll voll'))).toBe(false);
+    roh.close();
   });
 
   it('Disconnect broadcastet online:false', async () => {
