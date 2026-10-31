@@ -150,6 +150,7 @@ describe('WebSocket', () => {
     expect(neu.snapshot.lage.phasen.at(-1)?.phase).toBe('an');
     ltg.senden({ typ: 'notiz.neu', t: Date.now() - 1000, text: 'Funkdisziplin' });
     expect((await neu.warte('notiz')).notiz.text).toBe('Funkdisziplin');
+    expect((await verbinde(s.url, aB.token)).snapshot.notizen.map((n) => n.text)).toEqual(['Funkdisziplin']);
     ltg.senden({ typ: 'lage.phase', phase: 'lv' });
     await neu.warte('lage', (m) => m.lage.phasen.at(-1)?.phase === 'lv');
     neu.senden({ typ: 'chat', an: { art: 'alle' }, text: 'weiter' });

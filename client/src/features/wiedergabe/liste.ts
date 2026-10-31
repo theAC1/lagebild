@@ -3,8 +3,8 @@ import { phaseVon, type Lage, type Notiz, type Protokoll, type Punkt, type Rolle
 import { ansprache, RASTER_NAME, zelleVon } from '../../../../shared/raster.ts';
 import { leererStand, lvFenster, posBei, uebernimm, type Stand } from './logik.ts';
 
-export type Zeile = { t: number; von: string; rufname: string; einheit: string; ereignis: string; details: string; punkt: Punkt | null; zelle: string };
-type Roh = Pick<Zeile, 'ereignis' | 'details'> & { punkt?: Punkt | null };
+export type Zeile = { t: number; von: string; rufname: string; einheit: string; ereignis: string; details: string; punkt: Punkt | null; zelle: string; notizId?: string };
+type Roh = Pick<Zeile, 'ereignis' | 'details' | 'notizId'> & { punkt?: Punkt | null };
 
 const ALARM = { notfall: 'Notfall', kontakt: 'Feindkontakt' } as const;
 const ENDE = { aufgehoben: 'aufgehoben', beendet: 'beendet', erreicht: 'Ziel erreicht' } as const;
@@ -105,18 +105,18 @@ export function ereignisListe(a: { protokoll: Protokoll; lage: Lage; notizen: No
   const zeile = (t: number, von: string, r: Roh): void => {
     const punkt = r.punkt === undefined || r.punkt === null ? posBei(p.spuren[von], t) : r.punkt;
     const ort = punkt ? { lat: punkt.lat, lon: punkt.lon } : null;
-    zeilen.push({ t, von, rufname: name(von), einheit: tn.get(von)?.einheit ?? '', ereignis: r.ereignis, details: r.details, punkt: ort, zelle: zelle(s, ort) });
+    zeilen.push({ t, von, rufname: name(von), einheit: tn.get(von)?.einheit ?? '', ereignis: r.ereignis, details: r.details, punkt: ort, zelle: zelle(s, ort), ...(r.notizId && { notizId: r.notizId }) });
   };
   const notizen = [...a.notizen].filter((n) => inLv(n.t)).sort((x, y) => x.t - y.t);
   for (const e of p.ereignisse) {
     while (notizen.length && notizen[0].t < e.t) {
       const n = notizen.shift()!;
-      zeile(n.t, n.von, { ereignis: 'Notiz', details: n.text, punkt: null });
+      zeile(n.t, n.von, { ereignis: 'Notiz', details: n.text, punkt: null, notizId: n.id });
     }
     if (inLv(e.t)) for (const r of zeilenAus(e.d, s, { lage, name, ich: a.ich })) zeile(e.t, e.von, r);
     uebernimm(s, e.d);
   }
-  for (const n of notizen) zeile(n.t, n.von, { ereignis: 'Notiz', details: n.text, punkt: null });
+  for (const n of notizen) zeile(n.t, n.von, { ereignis: 'Notiz', details: n.text, punkt: null, notizId: n.id });
   return zeilen;
 }
 

@@ -36,7 +36,7 @@ describe('ereignisListe', () => {
     expect(z[0]).toMatchObject({ t: 110, rufname: 'Bravo', einheit: 'Zug 1', details: 'Brücke', punkt: { lat: 46.95, lon: 7.44 } });
     expect(z[1]).toMatchObject({ rufname: 'Charlie', details: 'Halt – Pause', punkt: { lat: 46.951, lon: 7.441 } }); // Ort aus der Spur
     expect(z[2].details).toBe('an alle: Sicht frei');
-    expect(z[3]).toMatchObject({ rufname: 'Adler', details: 'Hier zu spät' });
+    expect(z[3]).toMatchObject({ rufname: 'Adler', details: 'Hier zu spät', notizId: 'n1' });
     expect(z[4]).toMatchObject({ rufname: 'Adler', details: 'Brücke' });
     expect(z[7].rufname).toBe('Charlie');
   });

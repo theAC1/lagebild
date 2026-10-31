@@ -327,6 +327,18 @@ test('Export GPX, Nachbearbeitung statt Beenden, zurück und löschen', async ()
   await phaseWechseln('Phase: Lageverfolgung', 'Nachbearbeitung starten (AN)');
   await expect(teilnehmer.locator('.phase-rahmen.an')).toBeAttached();
 
+  // Debriefing-Notiz der Leitung am Zeitpunkt: alle sehen sie in der Liste; nur die Leitung löscht
+  const wgLeitung = leitung.getByRole('region', { name: 'Wiedergabe' });
+  await wgLeitung.getByRole('button', { name: /^\+ Notiz bei/ }).click();
+  await wgLeitung.getByLabel('Notiz').fill('Funkdisziplin besprechen');
+  await wgLeitung.getByRole('button', { name: 'Notiz speichern', exact: true }).click();
+  const notizZeile = teilnehmer.getByRole('region', { name: 'Ereignisliste' }).getByRole('button', { name: /Notiz · Adler – Funkdisziplin besprechen/ });
+  await expect(notizZeile).toBeVisible();
+  await expect(teilnehmer.getByRole('button', { name: 'Notiz löschen' })).toHaveCount(0);
+  leitung.once('dialog', (d) => d.accept());
+  await wgLeitung.getByRole('button', { name: 'Notiz löschen' }).click();
+  await expect(notizZeile).toHaveCount(0);
+
   // Löschen bleibt bei der Leitung (Phasenschild → Leitung › Lage, auch über der offenen Wiedergabe): beide landen im Login
   await leitung.getByRole('button', { name: /^Phase: Aktionsnachbearbeitung/ }).click();
   await sheet(leitung).getByPlaceholder('Name der Lage').fill('Übung Aare');

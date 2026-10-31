@@ -3,7 +3,7 @@
   // vorigen/nächsten Ereignis. Solange das Panel offen ist, zeigt die Karte den Stand zum Zeitpunkt.
   import { onDestroy, onMount } from 'svelte';
   import type { PanelProps } from '../registry.ts';
-  import { store } from '../../lib/store.svelte.ts';
+  import { send, store } from '../../lib/store.svelte.ts';
   import { schliesse } from '../../lib/ui.svelte.ts';
   import { formatKoord } from '../../lib/coords.ts';
   import { toast } from '../../lib/ui.svelte.ts';
@@ -66,6 +66,19 @@
     }
   }
 
+  // Debriefing-Notizen (nur Leitung): an den aktuellen Zeitpunkt hängen, löschen per ×
+  let notiz = $state<string | null>(null);
+  function notizSpeichern() {
+    const text = notiz?.trim();
+    if (!text) return;
+    if (!send({ typ: 'notiz.neu', t: Math.round(wg.t), text })) return toast('Keine Verbindung – Notiz nicht gespeichert.');
+    notiz = null;
+  }
+  function notizLoeschen(id: string) {
+    if (confirm('Notiz löschen?') && !send({ typ: 'notiz.loeschen', id })) toast('Keine Verbindung – Notiz nicht gelöscht.');
+  }
+  const notizMarken = $derived(store.notizen.map((n) => ({ id: n.id, x: (versatzAus(f, n.t) / (gesamt || 1)) * 100 })));
+
   let liste = $state<HTMLElement>();
   // aktuelle Zeile beim Abspielen im Blick halten
   $effect(() => {
@@ -118,6 +131,7 @@
         }}
       />
       {#each naehte as n, i (i)}<span class="naht" style:left="{n.x}%" title="{n.phase} übersprungen">{n.phase}</span>{/each}
+      {#each notizMarken as n (n.id)}<span class="notiz-marke" style:left="{n.x}%" aria-hidden="true"></span>{/each}
     </div>
     <div class="knoepfe">
       <button class="icon" aria-label="Voriges Ereignis" title="Voriges Ereignis (Alt+←)" onclick={() => naechstes(-1)}>⏮</button>
@@ -131,6 +145,19 @@
         {#each TEMPI as x (x)}<button aria-pressed={wg.tempo === x} onclick={() => (wg.tempo = x)}>{x}×</button>{/each}
       </div>
     </div>
+    {#if store.istLeitung}
+      {#if notiz === null}
+        <button class="breit" onclick={() => (pause(), (notiz = ''))}>+ Notiz bei {uhrzeit(wg.t)}</button>
+      {:else}
+        <form class="notiz" onsubmit={(e) => (e.preventDefault(), notizSpeichern())}>
+          <textarea aria-label="Notiz" maxlength="500" rows="2" placeholder="Beobachtung für das Debriefing" bind:value={notiz}></textarea>
+          <div class="knoepfe">
+            <button type="button" onclick={() => (notiz = null)}>Abbrechen</button>
+            <button class="primaer" type="submit" disabled={!notiz.trim()}>Notiz speichern</button>
+          </div>
+        </form>
+      {/if}
+    {/if}
     {#if aktuell >= 0}
       {@const z = zeilen[aktuell]}
       <p class="zuletzt" role="status">Zuletzt <span class="mono">{uhrzeit(z.t)}</span> · {z.rufname} · {z.ereignis}{z.details ? `: ${z.details}` : ''}</p>
@@ -150,6 +177,10 @@
             <span class="mono leise">{uhrzeit(z.t)}</span>
             <span><strong>{z.ereignis}</strong> · {z.rufname}{z.details ? ` – ${z.details}` : ''}{z.zelle ? ` · ${z.zelle}` : ''}</span>
           </button>
+          {#if z.notizId && store.istLeitung}
+            {@const id = z.notizId}
+            <button class="icon weg" aria-label="Notiz löschen" onclick={() => notizLoeschen(id)}>✕</button>
+          {/if}
         </li>
       {/each}
     </ol>
@@ -225,6 +256,33 @@
     flex: 1;
     margin: 0;
     font-size: 1rem;
+  }
+  .notiz-marke {
+    position: absolute;
+    bottom: 16px;
+    width: 8px;
+    height: 8px;
+    translate: -50% 0;
+    border-radius: 50%;
+    background: #2e9e44;
+    pointer-events: none;
+  }
+  .notiz {
+    display: grid;
+    gap: 6px;
+  }
+  .notiz textarea {
+    width: 100%;
+  }
+  .breit {
+    width: 100%;
+  }
+  .liste li {
+    display: flex;
+    align-items: center;
+  }
+  .weg {
+    flex: none;
   }
   .liste {
     list-style: none;
