@@ -286,7 +286,24 @@ test('Export GPX, Nachbearbeitung statt Beenden, zurück und löschen', async ()
   await expect(teilnehmer.locator('.verbindung.verbunden')).toBeVisible();
   await teilnehmer.reload();
   await expect(teilnehmer.locator('.phase-rahmen.an')).toBeAttached();
+
+  // Wiedergabe öffnet von selbst, beginnt am Anfang der LV (Marker noch nicht gesetzt); ans Ende spulen zeigt ihn
+  const wiedergabe = teilnehmer.getByRole('region', { name: 'Wiedergabe' });
+  const zeitpunkt = wiedergabe.getByRole('slider', { name: 'Zeitpunkt' });
+  await expect(zeitpunkt).toBeVisible();
+  const sperre = teilnehmer.getByRole('button', { name: 'Marker Sperre Nord' });
+  await expect(sperre).toHaveCount(0);
+  await zeitpunkt.fill(String(Math.floor(Number(await zeitpunkt.getAttribute('max')) / 1000) * 1000)); // Schritt 1 s
+  await expect(sperre).toHaveCount(1);
+  await wiedergabe.getByRole('button', { name: 'Voriges Ereignis' }).click();
+  await wiedergabe.getByRole('button', { name: 'Abspielen' }).click();
+  await expect(wiedergabe.getByRole('button', { name: 'Pause' })).toBeVisible();
   await bild(teilnehmer, 'e2e-phase-an');
+  // Schliessen: Live-Stand zurück
+  await zeitpunkt.fill('0');
+  await expect(sperre).toHaveCount(0);
+  await schliesseSheet(teilnehmer);
+  await expect(sperre).toHaveCount(1);
 
   // AN → LV und wieder zurück, jeweils mit Bestätigung
   await phaseWechseln('Phase: Aktionsnachbearbeitung', 'Zurück in die Lageverfolgung (LV)');
@@ -295,8 +312,8 @@ test('Export GPX, Nachbearbeitung statt Beenden, zurück und löschen', async ()
   await phaseWechseln('Phase: Lageverfolgung', 'Nachbearbeitung starten (AN)');
   await expect(teilnehmer.locator('.phase-rahmen.an')).toBeAttached();
 
-  // Löschen bleibt bei der Leitung: beide landen im Login
-  await leitungTab('Lage');
+  // Löschen bleibt bei der Leitung (Phasenschild → Leitung › Lage, auch über der offenen Wiedergabe): beide landen im Login
+  await leitung.getByRole('button', { name: /^Phase: Aktionsnachbearbeitung/ }).click();
   await sheet(leitung).getByPlaceholder('Name der Lage').fill('Übung Aare');
   await sheet(leitung).getByRole('button', { name: 'Endgültig löschen', exact: true }).click();
   await expect(leitung.getByRole('button', { name: 'Lage beitreten', exact: true })).toBeVisible();

@@ -65,6 +65,7 @@
 
   // Auftrag der Leitung an mich: automatisch übernehmen; verschwindet er (z.B. Aufhebung während ich offline war), lokal enden
   $effect(() => {
+    if (store.wiedergabeZeit !== null) return; // Wiedergabe (AN): frühere Aufträge nur als Linie
     const mein = [...store.bloodhound.values()].find((a) => a.an === store.ich && a.ende === null);
     const aktiv = untrack(() => bh.aktiv);
     untrack(() => {

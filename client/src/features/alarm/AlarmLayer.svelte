@@ -16,7 +16,8 @@
   const ringe = new Map<string, Marker>();
 
   const liste = $derived(aktive(store.alarme.values()));
-  const offen = $derived(new Set(offeneFuer(store.alarme.values(), store.ich).map((a) => a.id)));
+  // Wiedergabe (AN): kein Ton und kein Quittieren für frühere Alarme
+  const offen = $derived(new Set(store.wiedergabeZeit === null ? offeneFuer(store.alarme.values(), store.ich).map((a) => a.id) : []));
 
   // Ringe: folgen dem Auslöser
   $effect(() => {
