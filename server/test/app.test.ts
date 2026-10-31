@@ -1,4 +1,4 @@
-// Android-App: Auslieferung von version.json/APK und Origin-Zulassung (CORS) für den Capacitor-Ursprung.
+// Android-App: Origin-Zulassung (CORS) nur für den Capacitor-Ursprung, Auslieferung von version.json/APK/Web-Bundles aus dem Datenverzeichnis.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -9,44 +9,33 @@ let s: Awaited<ReturnType<typeof testServer>>;
 beforeAll(async () => (s = await testServer()));
 afterAll(() => s.ende());
 
-describe('corsKopf', () => {
-  it('lässt nur die App-Ursprünge zu, nie *', () => {
+describe('CORS', () => {
+  it('nur App-Ursprünge, nie *: Preflight 204 mit Authorization, echte Antworten (auch Fehler) tragen die Kopfzeile; fremde Ursprünge nichts', async () => {
     expect(corsKopf('https://localhost')).toEqual({ 'Access-Control-Allow-Origin': 'https://localhost', Vary: 'Origin' });
     expect(corsKopf('capacitor://localhost')['Access-Control-Allow-Origin']).toBe('capacitor://localhost');
     for (const o of [undefined, '', '*', 'null', 'https://evil.example', 'http://localhost', 'https://localhost.evil.example', 'https://lage.arvuna.ch'])
-      expect(corsKopf(o)).toEqual({});
-  });
-});
+      expect(corsKopf(o), String(o)).toEqual({});
 
-describe('CORS am Server', () => {
-  it('Preflight vom App-Ursprung: 204 mit Authorization erlaubt', async () => {
-    const r = await fetch(s.url + '/api/beitreten', { method: 'OPTIONS', headers: { origin: 'https://localhost', 'access-control-request-method': 'POST' } });
-    expect(r.status).toBe(204);
-    expect(r.headers.get('access-control-allow-origin')).toBe('https://localhost');
-    expect(r.headers.get('access-control-allow-headers')).toContain('Authorization');
-  });
-  it('Preflight von fremdem Ursprung: keine CORS-Kopfzeilen', async () => {
-    const r = await fetch(s.url + '/api/beitreten', { method: 'OPTIONS', headers: { origin: 'https://evil.example', 'access-control-request-method': 'POST' } });
-    expect(r.headers.get('access-control-allow-origin')).toBeNull();
-    expect(r.status).not.toBe(204);
-  });
-  it('echte Antworten tragen die Kopfzeile nur für den App-Ursprung (auch bei Fehlern)', async () => {
+    const pre = await fetch(s.url + '/api/beitreten', { method: 'OPTIONS', headers: { origin: 'https://localhost', 'access-control-request-method': 'POST' } });
+    expect(pre.status).toBe(204);
+    expect(pre.headers.get('access-control-allow-origin')).toBe('https://localhost');
+    expect(pre.headers.get('access-control-allow-headers')).toContain('Authorization');
+    const fremdPre = await fetch(s.url + '/api/beitreten', { method: 'OPTIONS', headers: { origin: 'https://evil.example', 'access-control-request-method': 'POST' } });
+    expect(fremdPre.headers.get('access-control-allow-origin')).toBeNull();
+    expect(fremdPre.status).not.toBe(204);
+
     const app = await s.api('/api/spuren', { headers: { origin: 'https://localhost' } });
     expect(app.status).toBe(401);
     expect(app.headers.get('access-control-allow-origin')).toBe('https://localhost');
-    const fremd = await s.api('/api/spuren', { headers: { origin: 'https://evil.example' } });
-    expect(fremd.headers.get('access-control-allow-origin')).toBeNull();
-    const ohne = await s.api('/api/spuren');
-    expect(ohne.headers.get('access-control-allow-origin')).toBeNull();
+    expect((await s.api('/api/spuren', { headers: { origin: 'https://evil.example' } })).headers.get('access-control-allow-origin')).toBeNull();
+    expect((await s.api('/api/spuren')).headers.get('access-control-allow-origin')).toBeNull();
   });
 });
 
 describe('/app/*', () => {
-  it('404, solange nichts bereitgestellt ist', async () => {
+  it('version.json und APK aus dem Datenverzeichnis; 404 solange nichts da ist; nichts anderes, kein Pfad hinaus, nur GET', async () => {
     expect((await fetch(s.url + '/app/version.json')).status).toBe(404);
     expect((await fetch(s.url + '/app/lagebild.apk')).status).toBe(404);
-  });
-  it('liefert version.json und APK aus dem Datenverzeichnis, sonst nichts', async () => {
     const dir = join(s.dataDir, 'app');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'version.json'), JSON.stringify({ versionCode: 7, versionName: '0.7' }));
@@ -69,7 +58,8 @@ describe('/app/*', () => {
     expect((await fetch(s.url + '/app/..%2Fgeheim.txt')).status).toBe(404);
     expect((await fetch(s.url + '/app/version.json', { method: 'POST' })).status).toBe(405);
   });
-  it('liefert web.json (no-cache) und Bundles (unveränderlich), nur mit Zahl im Namen', async () => {
+
+  it('web.json (no-cache) und Bundles web-<n>.zip (unveränderlich), nur mit Zahl im Namen', async () => {
     const dir = join(s.dataDir, 'app');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'web.json'), JSON.stringify({ webCode: 42 }));
