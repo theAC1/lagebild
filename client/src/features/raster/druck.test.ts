@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { vonLv95 } from '../../../../shared/raster.ts';
-import { A4_QUER, affin, blatt, blattKoepfe, dateiName, kachelPlan, KOPF, massstabText, mercator, runderMassstab, TILE } from './druck.ts';
+import { A4_QUER, affin, BAND, blatt, blattFelder, dateiName, kachelPlan, massstabText, mercator, RAND, runderMassstab, TILE, ZEILE_W, type Rechteck } from './druck.ts';
 import { pdfAusJpegs } from './pdf.ts';
 
 const GRANDE = { art: 'grande' as const, e: 2_600_000, n: 1_200_600, zeilen: 15, spalten: 21, zellM: 80 };
@@ -19,12 +19,13 @@ describe('Massstab', () => {
 });
 
 describe('Blatt A4 quer', () => {
-  it.each([GRANDE, PICCOLO])('Raster $art passt samt Köpfen ins Kartenfeld, mittig, LV95 achsparallel', (r) => {
+  it.each([GRANDE, PICCOLO])('Raster $art samt Tabelle mittig innerhalb der Ränder, LV95 achsparallel', (r) => {
     const b = blatt(r);
     expect(b.format).toBe(A4_QUER);
-    const mitKoepfen = { x: b.rahmen.x - KOPF.wZeile, y: b.rahmen.y - KOPF.h, w: b.rahmen.w + 2 * KOPF.wZeile, h: b.rahmen.h + 2 * KOPF.h };
-    expect(innen(mitKoepfen, b.karte)).toBe(true);
-    expect(b.rahmen.x + b.rahmen.w / 2).toBeCloseTo(b.karte.x + b.karte.w / 2, 6);
+    expect(innen(b.tabelle, { x: RAND, y: RAND, w: A4_QUER.w - 2 * RAND, h: A4_QUER.h - 2 * RAND })).toBe(true);
+    expect(b.tabelle).toEqual({ x: b.rahmen.x - ZEILE_W, y: b.rahmen.y - 2 * BAND, w: b.rahmen.w + 2 * ZEILE_W, h: b.rahmen.h + 4 * BAND });
+    expect(b.tabelle.x + b.tabelle.w / 2).toBeCloseTo(A4_QUER.w / 2, 6);
+    expect(b.tabelle.y + b.tabelle.h / 2).toBeCloseTo(A4_QUER.h / 2, 6);
     expect(b.rahmen.w / b.rahmen.h).toBeCloseTo(21 / 15, 9);
     // Ecke unten rechts des Rasters landet genau auf der Rahmenecke; von() kehrt zu() um
     const ur = b.zu({ e: r.e + 21 * r.zellM, n: r.n - 15 * r.zellM });
@@ -39,32 +40,68 @@ describe('Blatt A4 quer', () => {
     // 1 m im Gelände bei 1:900 = 1000/900 mm
     expect(blatt(PICCOLO).ptJeM).toBeCloseTo(72 / 0.0254 / 900, 6);
   });
+});
 
-  it('Köpfe rundum: 01… oben und unten von links, A… links und rechts von oben, ohne Namensschild', () => {
-    const b = blatt(GRANDE);
-    const k = blattKoepfe(GRANDE, b);
-    const seite = (s: string) => k.filter((x) => x.seite === s);
-    expect(seite('oben').map((x) => x.text)).toEqual(Array.from({ length: 21 }, (_, i) => String(i + 1).padStart(2, '0')));
-    expect(seite('unten')).toHaveLength(21);
-    expect(seite('links').map((x) => x.text).join('')).toBe('ABCDEFGHIJKLMNO');
-    expect(seite('rechts')).toHaveLength(15);
-    expect(seite('name')).toHaveLength(0);
-    // oben über dem Rahmen, unten darunter, links/rechts daneben; Spalte 01 mittig über der ersten Zelle
-    const zelle = b.rahmen.w / 21;
-    expect(seite('oben')[0].y + KOPF.h).toBeCloseTo(b.rahmen.y, 6);
-    expect(seite('oben')[0].x + seite('oben')[0].w / 2).toBeCloseTo(b.rahmen.x + zelle / 2, 6);
-    expect(seite('unten')[0].y).toBeCloseTo(b.rahmen.y + b.rahmen.h, 6);
-    expect(seite('links')[0].x + KOPF.wZeile).toBeCloseTo(b.rahmen.x, 6);
-    expect(seite('rechts')[14].x).toBeCloseTo(b.rahmen.x + b.rahmen.w, 6);
-    expect(seite('links')[0].y + KOPF.h / 2).toBeCloseTo(b.rahmen.y + zelle / 2, 6);
+describe('Tabellenfelder (Vorlage)', () => {
+  const b = blatt(GRANDE);
+  const felder = blattFelder(GRANDE, b, 'spotmap');
+  const { x, y, w, h } = b.rahmen;
+  const zelle = w / 21;
+  const zeile = (yy: number) => felder.filter((f) => Math.abs(f.y - yy) < 1e-6 && f.x >= x - 1e-6 && f.x < x + w);
+
+  it('Spaltenköpfe oben hell, unten grau, je eine Zelle breit; Zeilenköpfe links und rechts grau', () => {
+    const oben = zeile(y - BAND);
+    expect(oben.map((f) => f.text)).toEqual(Array.from({ length: 21 }, (_, i) => String(i + 1).padStart(2, '0')));
+    expect(oben.every((f) => f.stil === 'hell' && Math.abs(f.w - zelle) < 1e-6)).toBe(true);
+    expect(oben[0].x).toBeCloseTo(x, 6);
+    const unten = zeile(y + h);
+    expect(unten.map((f) => f.text)).toEqual(oben.map((f) => f.text));
+    expect(unten.every((f) => f.stil === 'grau')).toBe(true);
+    const links = felder.filter((f) => f.x === x - ZEILE_W && f.y >= y && f.y < y + h);
+    const rechts = felder.filter((f) => f.x === x + w && f.y >= y && f.y < y + h);
+    expect(links.map((f) => f.text).join('')).toBe('ABCDEFGHIJKLMNO');
+    expect(rechts.map((f) => f.text).join('')).toBe('ABCDEFGHIJKLMNO');
+    expect([...links, ...rechts].every((f) => f.stil === 'grau' && Math.abs(f.h - zelle) < 1e-6)).toBe(true);
   });
 
-  it('viele schmale Spalten: nur jede k-te beschriftet', () => {
+  it('Titelzeile: Massstabsbalken über 5 von 7 Spalten, Seitenart, Rastername; ohne Einstufung', () => {
+    const titel = zeile(y - 2 * BAND);
+    expect(titel.map((f) => [f.art, f.text])).toEqual([
+      ['massstab', "1:7'000"],
+      ['text', 'SPOTMAP'],
+      ['text', 'GRANDE'],
+    ]);
+    expect(titel[0]).toMatchObject({ n: 5, meter: 400 });
+    expect(titel.map((f) => Math.round(f.w / zelle))).toEqual([7, 7, 7]);
+    expect(blattFelder(PICCOLO, blatt(PICCOLO), 'landeskarte').find((f) => f.art === 'massstab')).toMatchObject({ meter: 50 });
+    expect(blattFelder(PICCOLO, blatt(PICCOLO), 'landeskarte').map((f) => f.text)).toContain('LANDESKARTE');
+  });
+
+  it('Ecken: Quadranten-Legende A B / C D oben links, Nordpfeil oben rechts, Lagezeile unten', () => {
+    const q = felder.filter((f) => f.x < x && f.y < y);
+    expect(q.map((f) => f.text)).toEqual(['A', 'B', 'C', 'D']);
+    expect(q[1].x).toBeGreaterThan(q[0].x);
+    expect(q[2].y).toBeGreaterThan(q[0].y);
+    expect(felder.find((f) => f.art === 'nord')).toMatchObject({ x: x + w, y: y - 2 * BAND, w: ZEILE_W, h: 2 * BAND });
+    expect(felder.find((f) => f.art === 'lage')).toMatchObject({ x, y: y + h + BAND, w, h: BAND });
+  });
+
+  it('alle Felder innerhalb der Tabelle, ohne Überlappung', () => {
+    for (const f of felder) expect(innen(f, { x: b.tabelle.x - 1e-6, y: b.tabelle.y - 1e-6, w: b.tabelle.w + 2e-6, h: b.tabelle.h + 2e-6 })).toBe(true);
+    const ueber = (a: Rechteck, c: Rechteck) => a.x + a.w > c.x + 1e-6 && c.x + c.w > a.x + 1e-6 && a.y + a.h > c.y + 1e-6 && c.y + c.h > a.y + 1e-6;
+    felder.forEach((f, i) => felder.slice(i + 1).forEach((g) => expect(ueber(f, g)).toBe(false)));
+    // und keines im Kartenfeld
+    for (const f of felder) expect(ueber(f, b.rahmen)).toBe(false);
+  });
+
+  it('viele schmale Spalten: nur jede k-te beschriftet, das Feld deckt die k Zellen', () => {
     const r = { ...GRANDE, spalten: 99, zeilen: 26, zellM: 10 };
-    const oben = blattKoepfe(r, blatt(r)).filter((x) => x.seite === 'oben');
+    const bb = blatt(r);
+    const oben = blattFelder(r, bb, 'luftbild').filter((f) => Math.abs(f.y - (bb.rahmen.y - BAND)) < 1e-6 && f.x >= bb.rahmen.x - 1e-6 && f.x < bb.rahmen.x + bb.rahmen.w);
     expect(oben.length).toBeLessThan(99);
     expect(oben[0].text).toBe('01');
-    for (let i = 1; i < oben.length; i++) expect(oben[i].x).toBeGreaterThanOrEqual(oben[i - 1].x + oben[i - 1].w);
+    expect(oben.reduce((s, f) => s + f.w, 0)).toBeCloseTo(bb.rahmen.w, 6);
+    for (const f of oben) expect(f.w).toBeGreaterThanOrEqual(16 - 1e-6);
   });
 });
 
@@ -93,8 +130,8 @@ describe('Kacheln', () => {
     const ry = m.y - plan.y0 * TILE;
     expect(a * rx + c * ry + e).toBeCloseTo(b.rahmen.x, 1);
     expect(bb * rx + d * ry + f).toBeCloseTo(b.rahmen.y, 1);
-    // Kachelbereich überdeckt alle vier Ecken des Kartenfelds
-    for (const [x, y] of [[b.karte.x, b.karte.y], [b.karte.x + b.karte.w, b.karte.y + b.karte.h]]) {
+    // Kachelbereich überdeckt die Ecken des Kartenfelds (= Rahmen)
+    for (const [x, y] of [[b.rahmen.x, b.rahmen.y], [b.rahmen.x + b.rahmen.w, b.rahmen.y + b.rahmen.h]]) {
       const q = vonLv95(b.von({ x, y }));
       const mm = mercator(q.lon, q.lat, plan.z);
       expect(Math.floor(mm.x / TILE)).toBeGreaterThanOrEqual(plan.x0);

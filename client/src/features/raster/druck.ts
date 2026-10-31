@@ -1,9 +1,10 @@
-// PDF-Ausdruck eines Führungsrasters: Blattgeometrie, Massstab, Köpfe und Kachelplan. Rein rechnerisch (Tests: druck.test.ts).
-// Das Blatt ist nordausgerichtet in LV95 (Raster achsparallel wie auf der Landeskarte); das Luftbild (Web-Mercator-Kacheln)
-// wird per affiner Abbildung daraufgelegt. Einheit auf dem Blatt: Punkt (1/72 Zoll).
+// PDF-Ausdruck eines Führungsrasters: Blattgeometrie, Massstab, Tabellenfelder rundum und Kachelplan. Rein rechnerisch
+// (Tests: druck.test.ts). Aufbau wie Juans Vorlage: das Raster ist eine Tabelle, die Karte füllt genau den Rahmen, rundum
+// Kopf- und Fusszeilen als Felder. Das Blatt ist nordausgerichtet in LV95 (Raster achsparallel wie auf der Landeskarte);
+// Luftbild und Landeskarte (Web-Mercator-Kacheln) werden per affiner Abbildung daraufgelegt. Einheit: Punkt (1/72 Zoll).
 import type { RasterArt } from '../../../../shared/protocol.ts';
-import { vonLv95, rasterMitteLv95, type Lv95, type RasterGeo } from '../../../../shared/raster.ts';
-import { koepfe, type Kopf, type Masse, type Xy } from './beschriftung.ts';
+import { RASTER_NAME, spaltenName, vonLv95, rasterMitteLv95, zeilenName, type Lv95, type RasterGeo } from '../../../../shared/raster.ts';
+import type { Xy } from './beschriftung.ts';
 
 export type Format = { name: string; w: number; h: number };
 export const A4_QUER: Format = { name: 'A4', w: 842, h: 595 };
@@ -12,17 +13,22 @@ export const A4_QUER: Format = { name: 'A4', w: 842, h: 595 };
 export type Rechteck = { x: number; y: number; w: number; h: number };
 /** Punkt auf Papier in Metern */
 const M_JE_PT = 0.0254 / 72;
-export const RAND = 20;
-export const TITEL_H = 30;
-/** Köpfe: Höhe, Mindestbreite Spaltenkopf «21», Breite Zeilenkopf «H» */
-export const KOPF: Masse = { h: 13, wSpalte: 16, wZeile: 13 };
+/** Seitenrand (≈ 4 mm, Druckerrand) */
+export const RAND = 12;
+/** Höhe einer Kopf-/Fusszeile (Titel, Spaltenköpfe, Lage) */
+export const BAND = 20;
+/** Breite der Zeilenköpfe links und rechts */
+export const ZEILE_W = 32;
+/** Kleinste Breite bzw. Höhe eines beschrifteten Kopffelds; schmalere Zellen: nur jede k-te beschriften */
+const MIN_SPALTE = 16;
+const MIN_ZEILE = 12;
 
 export type Blatt = {
   format: Format;
-  /** Kartenfeld (Luftbild) unter der Titelzeile */
-  karte: Rechteck;
-  /** Rahmen des Rasters */
+  /** Rahmen des Rasters = Kartenfeld */
   rahmen: Rechteck;
+  /** Ganze Tabelle samt Köpfen */
+  tabelle: Rechteck;
   /** Massstabszahl N (1:N) */
   massstab: number;
   /** Blattpunkte je Meter im Gelände */
@@ -37,37 +43,97 @@ export function runderMassstab(n: number): number {
   return Math.ceil(n / stufe - 1e-9) * stufe;
 }
 
-/** Raster mittig ins Kartenfeld, mit Platz für die Köpfe rundum, im kleinsten runden Massstab, der passt. */
+/**
+ * Raster samt Tabelle mittig aufs Blatt, im kleinsten runden Massstab, der passt. Senkrecht: Titelzeile, Spaltenköpfe,
+ * Karte, Spaltenköpfe, Lagezeile; waagrecht: Zeilenköpfe, Karte, Zeilenköpfe.
+ */
 export function blatt(r: RasterGeo, format: Format = A4_QUER): Blatt {
-  const karte = { x: RAND, y: RAND + TITEL_H, w: format.w - 2 * RAND, h: format.h - 2 * RAND - TITEL_H };
-  const platzW = karte.w - 2 * (KOPF.wZeile + 2);
-  const platzH = karte.h - 2 * (KOPF.h + 2);
+  const platzW = format.w - 2 * RAND - 2 * ZEILE_W;
+  const platzH = format.h - 2 * RAND - 4 * BAND;
   const breiteM = r.spalten * r.zellM;
   const hoeheM = r.zeilen * r.zellM;
   const massstab = runderMassstab(Math.max(breiteM / platzW, hoeheM / platzH) / M_JE_PT);
   const ptJeM = 1 / (massstab * M_JE_PT);
   const mitte = rasterMitteLv95(r);
-  const cx = karte.x + karte.w / 2;
-  const cy = karte.y + karte.h / 2;
+  const cx = format.w / 2;
+  const cy = format.h / 2;
   const zu = (p: Lv95): Xy => ({ x: cx + (p.e - mitte.e) * ptJeM, y: cy - (p.n - mitte.n) * ptJeM });
   const von = (p: Xy): Lv95 => ({ e: mitte.e + (p.x - cx) / ptJeM, n: mitte.n - (p.y - cy) / ptJeM });
   const ol = zu({ e: r.e, n: r.n });
-  return { format, karte, rahmen: { x: ol.x, y: ol.y, w: breiteM * ptJeM, h: hoeheM * ptJeM }, massstab, ptJeM, zu, von };
+  const rahmen = { x: ol.x, y: ol.y, w: breiteM * ptJeM, h: hoeheM * ptJeM };
+  const tabelle = { x: rahmen.x - ZEILE_W, y: rahmen.y - 2 * BAND, w: rahmen.w + 2 * ZEILE_W, h: rahmen.h + 4 * BAND };
+  return { format, rahmen, tabelle, massstab, ptJeM, zu, von };
 }
 
-/** Zeilen- und Spaltenköpfe rundum (dieselbe Logik wie auf der Karte, ohne Namensschild). */
-export const blattKoepfe = (r: RasterGeo & { art: RasterArt }, b: Blatt): Kopf[] =>
-  koepfe(r, b.zu, { links: b.karte.x, oben: b.karte.y, rechts: b.karte.x + b.karte.w, unten: b.karte.y + b.karte.h }, KOPF).filter((k) => k.seite !== 'name');
+/**
+ * Ein Feld der Tabelle. `stil`: hell = weiss mit schwarzer Schrift, grau = grau mit weisser Schrift (wie die Vorlage).
+ * `art`: text (Schrift mittig, `mitte` = x der Schriftmitte, falls nicht die Feldmitte), nord (Nordpfeil),
+ * massstab (Balken über `n` Zellen = `meter`), lage (Lagename + Zeile).
+ */
+export type Feld = Rechteck & { text: string; stil: 'hell' | 'grau'; art: 'text' | 'nord' | 'massstab' | 'lage'; mitte?: number; n?: number; meter?: number };
 
+/** Seite des Ausdrucks */
+export type SeitenArt = 'luftbild' | 'spotmap' | 'landeskarte';
+export const SEITE_NAME: Record<SeitenArt, string> = { luftbild: 'Luftbild', spotmap: 'SpotMap', landeskarte: 'Landeskarte' };
+
+/**
+ * Alle Felder rund ums Kartenfeld (Juans Vorlage, ohne Einstufung und ohne Seitenfarben):
+ * Ecke oben links Quadranten-Legende A B / C D, darüber rechts davon Massstabsbalken | Seitenart | Rastername,
+ * Ecke oben rechts Nordpfeil; Spaltenköpfe oben (hell) und unten (grau), Zeilenköpfe links und rechts (grau),
+ * unten die Lagezeile.
+ */
+export function blattFelder(r: RasterGeo & { art: RasterArt }, b: Blatt, seite: SeitenArt): Feld[] {
+  const { x, y, w, h } = b.rahmen;
+  const zelle = w / r.spalten;
+  const L = x - ZEILE_W;
+  const R = x + w;
+  const aus: Feld[] = [];
+  const feld = (f: Rechteck, text: string, stil: Feld['stil'], extra: Partial<Feld> = {}) => aus.push({ ...f, text, stil, art: 'text', ...extra });
+
+  // Ecken
+  ['A', 'B', 'C', 'D'].forEach((q, i) => feld({ x: L + (i % 2) * (ZEILE_W / 2), y: y - 2 * BAND + Math.floor(i / 2) * BAND, w: ZEILE_W / 2, h: BAND }, q, 'hell'));
+  feld({ x: R, y: y - 2 * BAND, w: ZEILE_W, h: 2 * BAND }, 'N', 'hell', { art: 'nord' });
+  feld({ x: L, y: y + h, w: ZEILE_W, h: 2 * BAND }, '', 'grau');
+  feld({ x: R, y: y + h, w: ZEILE_W, h: 2 * BAND }, '', 'grau');
+
+  // Titelzeile in Dritteln über den Spalten
+  const a = Math.round(r.spalten / 3);
+  const c = Math.round((2 * r.spalten) / 3);
+  const n = Math.max(1, Math.round((a * 5) / 7)); // Vorlage: Balken über 5 von 7 Spalten
+  const oben = (von: number, bis: number) => ({ x: x + von * zelle, y: y - 2 * BAND, w: (bis - von) * zelle, h: BAND });
+  if (a > 0) feld(oben(0, a), `1:${massstabZahl(b.massstab)}`, 'grau', { art: 'massstab', n, meter: n * r.zellM });
+  if (c > a) feld(oben(a, c), SEITE_NAME[seite].toUpperCase(), 'hell');
+  if (r.spalten > c) feld(oben(c, r.spalten), RASTER_NAME[r.art].toUpperCase(), 'grau');
+
+  // Spaltenköpfe oben und unten, Zeilenköpfe links und rechts; bei schmalen Zellen jede k-te, Feld über k Zellen
+  const kS = Math.max(1, Math.ceil(MIN_SPALTE / zelle));
+  const kZ = Math.max(1, Math.ceil(MIN_ZEILE / zelle));
+  for (let i = 0; i < r.spalten; i += kS) {
+    const f = { x: x + i * zelle, w: Math.min(kS, r.spalten - i) * zelle, h: BAND };
+    const mitte = x + (i + 0.5) * zelle;
+    feld({ ...f, y: y - BAND }, spaltenName(i), 'hell', { mitte });
+    feld({ ...f, y: y + h }, spaltenName(i), 'grau', { mitte });
+  }
+  for (let j = 0; j < r.zeilen; j += kZ) {
+    const f = { y: y + j * zelle, w: ZEILE_W, h: Math.min(kZ, r.zeilen - j) * zelle };
+    feld({ ...f, x: L }, zeilenName(j), 'grau');
+    feld({ ...f, x: R }, zeilenName(j), 'grau');
+  }
+  feld({ x, y: y + h + BAND, w, h: BAND }, '', 'grau', { art: 'lage' });
+  return aus;
+}
+
+/** «6'500» */
+const massstabZahl = (n: number): string => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, "'");
 /** «1:6'500» */
-export const massstabText = (n: number): string => `1:${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, "'")}`;
+export const massstabText = (n: number): string => `1:${massstabZahl(n)}`;
 
 // --- Kacheln ---------------------------------------------------------------------------------------------
 
 /** Erdumfang am Äquator (Web-Mercator) */
 const UMFANG = 40_075_016.686;
 export const TILE = 256;
-/** Höchste Kachelstufe fürs Luftbild: so weit laden Offline-Gebiete ohne «Volles Detail» (LUFTBILD_STANDARD_Z). */
+/** Höchste Kachelstufe: so weit laden Offline-Gebiete das Luftbild ohne «Volles Detail» (LUFTBILD_STANDARD_Z); die Landeskarte endet bei z19. */
 export const MAX_Z = 19;
 
 /** Web-Mercator-Pixel auf Stufe z */
@@ -102,11 +168,11 @@ export type KachelPlan = {
 };
 
 /**
- * Welche Kacheln das Kartenfeld abdecken und wie sie aufs Blatt kommen. Stufe so, dass ein Kachelpixel etwa einem
+ * Welche Kacheln das Kartenfeld (= Rahmen) abdecken und wie sie aufs Blatt kommen. Stufe so, dass ein Kachelpixel etwa einem
  * Bildpixel bei `pxJePt` entspricht (höchstens MAX_Z).
  */
 export function kachelPlan(b: Blatt, pxJePt: number): KachelPlan {
-  const { x, y, w, h } = b.karte;
+  const { x, y, w, h } = b.rahmen;
   const ecken: Xy[] = [{ x, y }, { x: x + w, y }, { x, y: y + h }, { x: x + w, y: y + h }];
   const geo = ecken.map((p) => vonLv95(b.von(p)));
   const lat = (geo[0].lat + geo[3].lat) / 2;
