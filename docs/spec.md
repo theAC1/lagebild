@@ -666,3 +666,44 @@ Gebaut in der heutigen Server-Lage. Die Regeln liegen als Reducer in `shared/reg
 
 ### Später (nur vorgemerkt)
 - Live-Updates in LV nur für Sicherheitsupdates (README «Updates überspringen»): gehört zu den dezentralen Missionen (Spec v5, O10), hier nicht gebaut.
+
+## Spec v7: Menü, Gerätekennung, Rollen (31.10.2026, fünf Frage-Runden mit Juan, README «Menü und Gerätekennung (31.10.)», «Rollen in der Mission (31.10.)»)
+
+Juan: «so jetzt machen wir uns an ein Menu, damit die App auch wie eine wirkt. in jeder mission kann ins menu raus gegangen werden. jedes gerät bekommt eine signatur du absolut einzig artig ist. so können sich geräte unterscheiden und in missions nicht doppelt auftauchen. mir gefällt der look mit der karte im hintergrund der aktuellen version, das bei behalten. aber die einstellungen und benutzerdetails etc sollen dort ins menu raus.» Dazu: «es braucht innerhalb einermission noch die einstellung der rollen verwaltung».
+
+Gebaut im heutigen Server-Modus. Gerätekennung und Rollen sind die Bausteine aus Spec v5 (Geräteschlüssel R§1, Rollen M/O3) und gehen so in die dezentralen Missionen über.
+
+### Begriff
+- In der Oberfläche heisst eine Lage ab jetzt **Mission** (Meine Missionen, Neue Mission, Mission verlassen, Name der Mission). Die Phasen bleiben AP / LV (Lageverfolgung) / AN, der App-Name bleibt «Lagebild». Bezeichner im Code (`lage`, `Lage`, `/api/lage`) bleiben, nur die Texte wechseln.
+
+### Menü
+- **Startseite der App ist das Menü**, über der Karte wie heute der Login (die Karte bleibt im Hintergrund sichtbar). Einträge: **Meine Missionen**, **Beitreten**, **Neue Mission**, **Profil**, **Einstellungen**, **Über**. Layout im Querformat: nach Juans Wahl aus den Layout-Vorschlägen (offen).
+- **In der Mission** ersetzt der Knopf «Menü» das Zahnrad «Einstellungen» (Klassisch und Daumen-Ränder). Das Menü liegt über der laufenden Mission: **Verbindung und Position laufen weiter**; «Zurück zur Mission» schliesst es. Die Mission endet erst, wenn eine andere geöffnet oder sie verlassen wird.
+- **Meine Missionen:** alle Missionen, in denen dieses Gerät ist (Token je Mission auf dem Gerät), mit Name, Phase (AP/LV/AN) und Rolle. Offen ist höchstens eine; eine andere öffnen schliesst die offene (Verbindung zu, keine Position mehr). Missionen in AN bleiben für Wiedergabe und Export in der Liste, bis man sie verlässt. Kennt der Server eine Mission nicht mehr (gelöscht, entfernt), fällt sie mit Hinweis aus der Liste.
+- **Je Mission** (Unterseite in Meine Missionen): Öffnen bzw. Zurück, **Meine Angaben** (Rufname, Funktion; live änderbar, siehe unten), **Position senden** (Emission Control, gilt für diese Mission), **Mission verlassen** (mit Bestätigung, entfernt das Token vom Gerät).
+- **Beitreten:** Code (oder Link `?code=`), Rufname und Funktion, vorausgefüllt mit den zuletzt benutzten Werten. Einheit und Symbol kommen aus dem Profil; fehlt die Einheit im Profil, fragt das Formular sie mit ab.
+- **Neue Mission:** Name, Erstell-Passwort, Rufname, Funktion. **Das eröffnende Gerät ist sofort Leitung** (kein Umweg mehr über «Codes notieren → als Leitung beitreten»). Die Codes stehen danach unter Leitung › Zugang.
+- **Profil (gilt für alle Missionen):** Einheit, eigenes Symbol, Gerätekennung (nur Anzeige). Eine Änderung wirkt sofort auch in der offenen Mission. Ausnahme: Ein Gruppenführer ändert seine Einheit nicht selbst (sonst holte er sich Rechte über eine fremde Gruppe); das macht die Leitung.
+- **Einstellungen:** alle bisherigen Geräteeinstellungen (Bediengrösse, Bedienung, Sendeintervall, Dynamisch, Bildschirm anlassen, Hintergrund-GPS, Koordinatenformat, Koordinatenzeile, Ausrichtung). In der Mission gibt es keinen eigenen Einstellungs-Knopf mehr.
+- **Über:** Web-Stand, Protokoll, App-Update, Link zur Android-App.
+
+### Gerätekennung
+- Jedes Gerät erzeugt beim ersten Start ein **Ed25519-Schlüsselpaar** per WebCrypto (`extractable: false`, abgelegt in IndexedDB). **Geräte-ID** = base32(SHA-256(öffentlicher Schlüssel, raw))[0..16] wie in Spec v5. Anzeige gekürzt in zwei Vierergruppen (z.B. «K7MP-3XQ9»).
+- **Beitritt mit Signatur:** Das Gerät holt eine Challenge vom Server (`POST /api/challenge` → 32 Byte zufällig, 2 min gültig, einmal verwendbar, rate-limitiert) und signiert `lagebild-beitritt\n<challenge>\n<code>`. `Beitreten` und `LageErstellen` tragen öffentlichen Schlüssel, Challenge und Signatur; der Server prüft die Signatur (Node `crypto`, Ed25519) und leitet die Geräte-ID selbst aus dem Schlüssel ab.
+- **Ein Gerät kommt in einer Mission nur einmal vor** (Geräte-ID je Mission eindeutig, auch in der DB). Tritt dasselbe Gerät erneut bei, bekommt es **seinen bisherigen Eintrag zurück**: gleiche Teilnehmer-ID (Spur, Marker, Chat bleiben seine), neues Token (alte Tokens dieses Eintrags werden ungültig), Rufname und Funktion aus dem Beitritt. Die **Rolle wird höchstens angehoben, nie gesenkt** (Beobachter < Teilnehmer < Gruppenführer < Leitung); Leitung wird man so nie (siehe Rollen).
+- Ohne Ed25519 in WebCrypto (Android-WebView < 137, iOS < 17, alte Browser): kein Beitritt, Hinweis «Bitte App bzw. Browser aktualisieren».
+- Die Leitung sieht im Teilnehmerdetail die **gekürzte Kennung** und den **Web-Stand** des Geräts (`hallo` trägt den Web-Stand mit). Die Kennung ist kein Geheimnis: ohne den privaten Schlüssel lässt sie sich nicht nutzen.
+- Bestehende Einträge ohne Kennung (vor der Umstellung beigetreten) laufen mit ihrem Token weiter; ein neuer Beitritt dieser Geräte legt einmalig einen neuen Eintrag mit Kennung an.
+
+### Rollen
+- **Leitung** (genau eine je Mission): alle Rechte wie heute. **Gruppenführer:** Rechte eines Teilnehmers, dazu über die **eigene Gruppe** (= Einheit, zugleich Chat-Gruppe): Objekte von Mitgliedern der Gruppe ändern und löschen, Bloodhound-Aufträge an Mitglieder der Gruppe, Alarme der Gruppe aufheben (O3). Nicht: Rollen, Codes, Phase, Ebenen, Statusliste, Taufnamenslisten, fixierte Raster, Mitglieder entfernen. **Teilnehmer:** wie heute. **Beobachter:** sieht alles, sendet nichts (keine Position, kein Chat, keine Änderungen); der Server verwirft Positionen still und lehnt alles andere ab, die Oberfläche blendet Melden, Zeichnen usw. aus.
+- **Codes:** Teilnehmer-Code (8 Zeichen), **Gruppenführer-Code** (10 Zeichen, ersetzt den Leitungs-Code), **Beobachter-Code** (8 Zeichen). Der Code bestimmt die Rolle beim Beitritt. Leitung › Zugang zeigt alle drei mit QR und Link, jeder einzeln erneuerbar.
+- **Leitung nur per Übergabe:** Im Teilnehmerdetail «Leitung übergeben» (mit Bestätigung) an ein verbundenes Mitglied, das nicht Beobachter ist. Das Ziel wird Leitung, die bisherige Leitung Teilnehmer (wie Spec v5 «Übergabe»). Meldung an alle.
+- **Rolle setzen:** Die Leitung setzt im Teilnehmerdetail jedes andere Mitglied auf Gruppenführer, Teilnehmer oder Beobachter und ändert dessen Einheit. Meldung im Meldungslog.
+- **Bekannte Lücke bis Etappe 4:** Fällt das Leitungsgerät aus, hat die Mission keine Leitung, bis dasselbe Gerät zurückkommt (Wiederbeitritt gibt den Eintrag samt Rolle zurück). Die automatische Ersatzleitung kommt mit Etappe 4.
+- **Umstieg laufender Missionen:** Gibt es mehrere Leitungen, bleibt die zuerst beigetretene Leitung, alle weiteren werden Gruppenführer. Der Hash des bisherigen Leitungs-Codes gilt als Gruppenführer-Code; einen Beobachter-Code gibt es erst nach «Erneuern».
+- Regeln als Reducer in `shared/regeln/` (eine Prüfung «darf ändern» für Ersteller, Gruppenführer der Gruppe und Leitung, von allen Regeln genutzt).
+
+### Meine Angaben live
+- Neue Nachricht `ich.aendern {rufname?, funktion?, einheit?, sidc?}`: wirkt sofort für alle (Delta `teilnehmer`). Ein neuer Rufname steht im Meldungslog («Adler 1 heisst jetzt Adler 2»). Gruppenführer ohne `einheit` (siehe Profil).
+- Die Leitung ändert Rolle und Einheit anderer mit `teilnehmer.aendern {id, rolle?, einheit?}` und übergibt mit `leitung.uebergeben {id}`.
