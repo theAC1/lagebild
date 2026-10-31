@@ -253,11 +253,11 @@ test('quer: mehrteiliges Gebäude – Teile antippen sammelt (dazu/weg), getauft
     await expect(wahl).toBeVisible({ timeout: 1500 });
   }).toPass({ timeout: 20_000 });
   await expect(wahl).toContainText('1 Teil');
-  await tippe(p, -120, 30);
+  await tippe(p, -120, 22);
   await expect(wahl).toContainText('2 Teile');
-  await tippe(p, -120, 30); // nochmals: weg
+  await tippe(p, -120, 22); // nochmals: weg
   await expect(wahl).toContainText('1 Teil');
-  await tippe(p, -120, 30);
+  await tippe(p, -120, 22);
   await expect(wahl).toContainText('2 Teile');
   await expect(p.locator('.toasts .toast')).toHaveCount(0, { timeout: 10_000 }); // Hinweis eines zu frühen Tipps
   await querBild(p, 'teile');

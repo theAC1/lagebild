@@ -122,7 +122,7 @@ function messe(): Befund {
     for (const b of knoepfe.slice(i + 1)) {
       if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
       const s = schnitt(a.sicht, b.sicht);
-      if (s.r - s.l > 1 && s.b - s.t > 1) fehler.push(`«${a.n}» überlappt «${b.n}»`);
+      if (s.r - s.l > 1 && s.b - s.t > 1) fehler.push(`«${a.n}» überlappt «${b.n}» (${[a.sicht, b.sicht].map((q) => [q.l, q.t, q.r, q.b].map(Math.round).join(",")).join(" / ")})`);
     }
   // freie Karte: Raster von Stichproben, Treffer = Karte (Zeichenfläche oder Symbole darauf)
   let frei = 0;
@@ -226,5 +226,53 @@ test('AN: Wiedergabe offen mit Ereignisliste @layout', async () => {
     const pause = wg.getByRole('button', { name: 'Pause' });
     if (await pause.isVisible()) await pause.click(); // am Ende hält die Wiedergabe von selbst
     await pruefe(a, 'AN Wiedergabe Mitlauf', true);
+  }
+});
+
+/** Taufmodus-Leiste: Hinweis nie abgeschnitten (kein Ellipsis/Überlauf), Leiste im Bild und höchstens ein Viertel hoch. */
+async function pruefeTaufleiste(a: Ansicht, zustand: string) {
+  const wo = `${a.name} Taufmodus ${zustand}`;
+  await a.p.waitForTimeout(300);
+  const m = await a.p.evaluate(() => {
+    const leiste = document.querySelector('.tf-modus')!.getBoundingClientRect();
+    const abgeschnitten = [...document.querySelectorAll('.tf-modus .text > *')]
+      .filter((e) => e.checkVisibility())
+      .filter((e) => e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1 || getComputedStyle(e).textOverflow === 'ellipsis')
+      .map((e) => e.textContent);
+    return { abgeschnitten, l: leiste.left, r: leiste.right, t: leiste.top, b: leiste.bottom, h: leiste.height, vw: innerWidth, vh: innerHeight };
+  });
+  expect(m.abgeschnitten, `${wo}: Text abgeschnitten`).toEqual([]);
+  expect(m.l, wo).toBeGreaterThanOrEqual(0);
+  expect(m.r, wo).toBeLessThanOrEqual(m.vw);
+  expect(m.b, wo).toBeLessThanOrEqual(m.vh);
+  expect(m.h, `${wo}: Leiste zu hoch`).toBeLessThanOrEqual(m.vh * 0.3);
+  const b = await a.p.evaluate(messe);
+  expect(b.fehler, wo).toEqual([]);
+}
+
+test('Taufmodus: Leiste lesbar, Knöpfe ganz sichtbar @layout', async () => {
+  await phase('lv');
+  for (const a of ansichten) {
+    const p = a.p;
+    if (a.bed === 'daumen') {
+      await p.getByRole('button', { name: 'Mehr', exact: true }).click();
+      await p.getByRole('menuitem', { name: 'Geländetaufe' }).click();
+    } else await p.getByRole('button', { name: 'Geländetaufe', exact: true }).click();
+    await p.getByRole('button', { name: 'Taufmodus starten', exact: true }).click();
+    await pruefeTaufleiste(a, 'Start');
+    await p.getByRole('button', { name: 'Fläche zeichnen', exact: true }).click();
+    await pruefeTaufleiste(a, 'Fläche leer');
+    const k = (await p.locator('.maplibregl-canvas').boundingBox())!;
+    for (const [i, [fx, fy]] of ([[0.4, 0.55], [0.5, 0.7], [0.6, 0.55]] as const).entries()) {
+      await p.mouse.click(k.x + k.width * fx, k.y + k.height * fy);
+      await p.waitForTimeout(500);
+      if (i < 2) await pruefeTaufleiste(a, `Fläche ${i + 1} Punkte`);
+    }
+    await expect(p.getByRole('button', { name: 'Abschliessen', exact: true })).toBeEnabled();
+    await pruefeTaufleiste(a, 'Fläche 3 Punkte');
+    for (let n = 0; n < 3; n++) await p.getByRole('button', { name: 'Zurück', exact: true }).click();
+    await p.getByRole('button', { name: 'Abbrechen', exact: true }).click();
+    await p.getByRole('button', { name: 'Fertig', exact: true }).click();
+    await expect(p.locator('.tf-modus')).toHaveCount(0);
   }
 });

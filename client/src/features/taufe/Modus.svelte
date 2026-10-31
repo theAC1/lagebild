@@ -36,7 +36,7 @@
   <div class="tf-rahmen" aria-hidden="true"></div>
   <section class="tf-modus" aria-label="Taufmodus">
     <div class="text">
-      <strong>{#if bearbeitet}Punkte «{bearbeitet.name}»{:else if tz.zeichnen && !tz.zeichnen.fertig}Fläche zeichnen{:else}Taufmodus{#if verlaengert} · {FAMILIE_LABEL[verlaengert.familie]} verlängern{/if}{/if}</strong>
+      <strong>{#if bearbeitet}Punkte «{bearbeitet.name}»{:else if verlaengert}Taufmodus · {FAMILIE_LABEL[verlaengert.familie]} verlängern{:else}<span class="kontext">{tz.zeichnen && !tz.zeichnen.fertig ? 'Fläche zeichnen' : 'Taufmodus'}</span>{/if}</strong>
       <span>{hinweis}</span>
     </div>
     <div class="knoepfe">
@@ -106,20 +106,29 @@
     min-height: 40px;
     padding: 0 12px;
   }
-  /* Querformat Handy: eine Zeile, damit die Karte frei bleibt */
+  /* Querformat Handy: kompakt, der Hinweis bricht um (nie abgeschnitten), der Titel entfällt (Rahmen + Hinweis zeigen den Modus),
+     die Knöpfe rutschen bei zu wenig Breite in eine eigene Zeile */
   @media (max-height: 500px) {
     .tf-modus {
-      flex-wrap: nowrap;
+      max-width: 460px;
+      right: calc(var(--rechts, 0px) + 10px);
       padding: 4px 6px 4px 10px;
+      gap: 2px 10px;
     }
-    .text strong,
+    .text {
+      flex: 1 1 8rem;
+    }
+    .text :global(.kontext) {
+      display: none;
+    }
     .text span {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      font-size: 0.8rem;
+    }
+    .knoepfe {
+      margin-left: auto;
     }
     .knoepfe button {
-      min-height: 36px;
+      min-height: 44px;
       padding: 0 10px;
     }
   }
