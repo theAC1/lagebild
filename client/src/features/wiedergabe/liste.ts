@@ -130,8 +130,11 @@ export const SPALTEN = ['Zeit', 'Rufname', 'Einheit', 'Ereignis', 'Details', 'Ko
 export const felder = (z: Zeile, koord: (p: Punkt) => string, zeit: (t: number) => string = zeitText): string[] =>
   [zeit(z.t), z.rufname, z.einheit, z.ereignis, z.details, z.punkt ? koord(z.punkt) : '', z.zelle];
 
-/** CSV für Excel (de-CH): Semikolon, CRLF, UTF-8 mit BOM. */
+/** CSV für Excel (de-CH): Semikolon, CRLF, UTF-8 mit BOM. Formelanfänge (= + - @ Tab CR) mit ' entschärft (OWASP). */
 export function csv(zeilen: Zeile[], koord: (p: Punkt) => string, zeit: (t: number) => string = zeitText): string {
-  const feld = (s: string) => (/[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+  const feld = (roh: string) => {
+    const s = /^[=+\-@\t\r]/.test(roh) ? `'${roh}` : roh;
+    return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
   return '﻿' + [SPALTEN, ...zeilen.map((z) => felder(z, koord, zeit))].map((r) => r.map(feld).join(';')).join('\r\n') + '\r\n';
 }

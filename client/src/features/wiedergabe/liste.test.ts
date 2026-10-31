@@ -66,4 +66,10 @@ describe('csv', () => {
     expect(text.startsWith('﻿Zeit;Rufname;Einheit;Ereignis;Details;Koordinate;Rasterzelle\r\n')).toBe(true);
     expect(text).toContain('31.10.2026 14:03:27;Bravo;Zug 1;Chat;"a; ""b""\nc";2\'600\'000 / 1\'200\'000;');
   });
+  it('Formel-Injection: Felder mit = + - @ Tab CR beginnen mit Apostroph', () => {
+    const z: Zeile = { t: 0, von: 'a', rufname: '=HYPERLINK("x")', einheit: '+1', ereignis: '-2', details: '@SUM(A1)', punkt: null, zelle: '\tx' };
+    const zeile = csv([z], () => '', () => 'Z').split('\r\n')[1];
+    expect(zeile).toBe(`Z;"'=HYPERLINK(""x"")";'+1;'-2;'@SUM(A1);;'\tx`);
+    expect(csv([{ ...z, rufname: '\rA' }], () => '', () => 'Z')).toContain(`;"'\rA";`);
+  });
 });
