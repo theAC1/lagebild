@@ -299,6 +299,21 @@ test('Export GPX, Nachbearbeitung statt Beenden, zurück und löschen', async ()
   await wiedergabe.getByRole('button', { name: 'Abspielen' }).click();
   await expect(wiedergabe.getByRole('button', { name: 'Pause' })).toBeVisible();
   await bild(teilnehmer, 'e2e-phase-an');
+
+  // Ereignisliste: Zeile antippen springt hin; Export CSV und PDF für alle Mitglieder
+  const liste = wiedergabe.getByRole('region', { name: 'Ereignisliste' });
+  await expect(liste.getByRole('button', { name: /Marker gesetzt · Adler – Sperre Nord/ })).toBeVisible();
+  await expect(liste.getByRole('button', { name: /Status · Bravo – Halt/ })).toBeVisible();
+  const [csvDatei] = await Promise.all([teilnehmer.waitForEvent('download'), liste.getByRole('button', { name: 'CSV', exact: true }).click()]);
+  expect(csvDatei.suggestedFilename()).toBe('ereignisse-uebung-aare.csv');
+  const text = await readFile((await csvDatei.path())!, 'utf8');
+  expect(text).toContain('Zeit;Rufname;Einheit;Ereignis;Details;Koordinate;Rasterzelle');
+  expect(text).toMatch(/;Adler;KP;Marker gesetzt;Sperre Nord;2'\d{3}'\d{3}\.?\d* \/ 1'\d{3}'\d{3}/);
+  const [pdfDatei] = await Promise.all([teilnehmer.waitForEvent('download'), liste.getByRole('button', { name: 'PDF', exact: true }).click()]);
+  expect((await readFile((await pdfDatei.path())!)).subarray(0, 8).toString('latin1')).toBe('%PDF-1.4');
+  await liste.getByRole('button', { name: /Marker gesetzt · Adler – Sperre Nord/ }).click();
+  await expect(sperre).toHaveCount(1);
+
   // Schliessen: Live-Stand zurück
   await zeitpunkt.fill('0');
   await expect(sperre).toHaveCount(0);

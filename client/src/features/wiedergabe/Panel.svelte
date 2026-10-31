@@ -5,7 +5,10 @@
   import type { PanelProps } from '../registry.ts';
   import { store } from '../../lib/store.svelte.ts';
   import { schliesse } from '../../lib/ui.svelte.ts';
-  import { uhrzeit } from '../leitung/logik.ts';
+  import { formatKoord } from '../../lib/coords.ts';
+  import { toast } from '../../lib/ui.svelte.ts';
+  import { slug, uhrzeit } from '../leitung/logik.ts';
+  import { csv, ereignisListe, felder, SPALTEN, zeitText } from './liste.ts';
   import { dauer, versatzAus } from './logik.ts';
   import { fenster, pause, spiele, springe, springeVersatz, starte, stoppe, TEMPI, wg } from './zustand.svelte.ts';
 
@@ -29,10 +32,46 @@
       phase: (store.lage?.phasen.find((p) => p.t === f[i].bis)?.phase ?? 'ap').toUpperCase(),
     })),
   );
-  const inLv = (t: number) => f.some((x) => t >= x.von && t <= x.bis);
-  const zeiten = $derived(
-    [...new Set([...(wg.protokoll?.ereignisse ?? []).map((e) => e.t), ...store.notizen.map((n) => n.t)])].filter(inLv).sort((a, b) => a - b),
+  const zeilen = $derived(
+    wg.protokoll && store.lage && store.ich
+      ? ereignisListe({ protokoll: wg.protokoll, lage: store.lage, notizen: store.notizen, ich: { id: store.ich, rolle: store.istLeitung ? 'leitung' : 'teilnehmer' } })
+      : [],
   );
+  const zeiten = $derived([...new Set(zeilen.map((z) => z.t))]);
+  /** Index der letzten Zeile bis zum Zeitpunkt (hervorgehoben, «Zuletzt»). */
+  const aktuell = $derived(zeilen.findLastIndex((z) => z.t <= wg.t));
+  const koord = (p: { lat: number; lon: number }) => formatKoord(p, store.einstellungen.koordFormat);
+
+  // PDF: Spaltenbreiten in Zeichen (Courier, A4 quer, 174 Zeichen je Zeile)
+  const BREITEN = [19, 12, 10, 18, 70, 25, 14];
+
+  function herunterladen(daten: BlobPart, typ: string, endung: string) {
+    const url = URL.createObjectURL(new Blob([daten], { type: typ }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ereignisse-${slug(store.lage?.name ?? 'lage')}.${endung}`;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+  async function exportiere(art: 'csv' | 'pdf') {
+    try {
+      if (art === 'csv') return herunterladen(csv(zeilen, koord), 'text/csv;charset=utf-8', 'csv');
+      const { textPdf } = await import('./pdf.ts');
+      const titel = `Ereignisse «${store.lage?.name ?? ''}» – ${zeitText(f[0]?.von ?? 0)} bis ${zeitText(f.at(-1)?.bis ?? 0)}`;
+      herunterladen(textPdf(titel, SPALTEN, zeilen.map((z) => felder(z, koord)), BREITEN) as BlobPart, 'application/pdf', 'pdf');
+    } catch (e) {
+      toast(`Export fehlgeschlagen: ${(e as Error).message}`);
+    }
+  }
+
+  let liste = $state<HTMLElement>();
+  // aktuelle Zeile beim Abspielen im Blick halten
+  $effect(() => {
+    void aktuell;
+    liste?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' });
+  });
 
   function naechstes(richtung: 1 | -1) {
     pause();
@@ -92,6 +131,28 @@
         {#each TEMPI as x (x)}<button aria-pressed={wg.tempo === x} onclick={() => (wg.tempo = x)}>{x}×</button>{/each}
       </div>
     </div>
+    {#if aktuell >= 0}
+      {@const z = zeilen[aktuell]}
+      <p class="zuletzt" role="status">Zuletzt <span class="mono">{uhrzeit(z.t)}</span> · {z.rufname} · {z.ereignis}{z.details ? `: ${z.details}` : ''}</p>
+    {/if}
+  </section>
+
+  <section class="ereignisse" aria-label="Ereignisliste">
+    <div class="kopfzeile">
+      <h3>Ereignisse ({zeilen.length})</h3>
+      <button onclick={() => exportiere('csv')}>CSV</button>
+      <button onclick={() => exportiere('pdf')}>PDF</button>
+    </div>
+    <ol class="liste" bind:this={liste}>
+      {#each zeilen as z, i (i)}
+        <li>
+          <button class="zeile" aria-current={i === aktuell} onclick={() => (pause(), springe(z.t))}>
+            <span class="mono leise">{uhrzeit(z.t)}</span>
+            <span><strong>{z.ereignis}</strong> · {z.rufname}{z.details ? ` – ${z.details}` : ''}{z.zelle ? ` · ${z.zelle}` : ''}</span>
+          </button>
+        </li>
+      {/each}
+    </ol>
   </section>
 {/if}
 
@@ -143,5 +204,47 @@
   }
   .fehler {
     color: var(--danger);
+  }
+  .zuletzt {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-2);
+    overflow-wrap: anywhere;
+  }
+  .ereignisse {
+    margin-top: 12px;
+    display: grid;
+    gap: 6px;
+  }
+  .kopfzeile {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .kopfzeile h3 {
+    flex: 1;
+    margin: 0;
+    font-size: 1rem;
+  }
+  .liste {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .zeile {
+    width: 100%;
+    min-height: 40px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px;
+    align-items: baseline;
+    padding: 4px 6px;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    font-size: 0.88rem;
+  }
+  .zeile[aria-current='true'] {
+    background: color-mix(in srgb, #2e9e44 25%, transparent);
   }
 </style>
