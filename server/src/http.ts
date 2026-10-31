@@ -224,6 +224,8 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
     if (route === 'POST /api/foto') {
       const { lage, teilnehmer } = auth(req);
       if (phaseVon(lage) === 'an') throw new HttpFehler(410, 'Lage ist in der Nachbearbeitung');
+      // Fotos gehören zu Sichtungen, und die gibt es nur in LV
+      if (phaseVon(lage) === 'ap') throw new HttpFehler(409, 'Fotos erst in der Lageverfolgung');
       // alles vor dem Lesen des Bodys prüfen: der wird ganz im RAM gepuffert
       if (!limitFoto(teilnehmer.id)) throw new HttpFehler(429, 'Zu viele Fotos – bitte kurz warten');
       if (db.fotoAnzahl(lage.id) >= MAX_FOTOS_JE_LAGE) throw new HttpFehler(507, 'Foto-Kontingent der Lage erschöpft');

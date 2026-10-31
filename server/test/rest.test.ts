@@ -116,6 +116,12 @@ describe('REST', () => {
     expect(status.slice(10)).toEqual([429, 429]);
   });
 
+  it('Foto-Upload nur in LV: in AP abgelehnt (keine Sichtungen dort)', async () => {
+    const tn = await s.beitreten((await s.lage('Plan', 'ap')).teilnehmerCode, 'Foto');
+    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(100)]);
+    expect((await s.api('/api/foto', { method: 'POST', token: tn.token, body: jpeg })).status).toBe(409);
+  });
+
   it('Rate-Limit pro IP beim Erstellen', async () => {
     const body = JSON.stringify({ name: 'X', erstellPasswort: 'falsch' });
     const status: number[] = [];
