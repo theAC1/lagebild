@@ -85,9 +85,11 @@ describe('Flächen über Kachelgrenzen', () => {
   it('Regression 31.10.: Gebäude über die Naht geteilter Kacheln (MapLibre schneidet z14 bis z16) bleibt ganz', () => {
     // «schräge Fassade»: ab Zoom 15 liefert MapLibre z15/z16-Stücke; die Naht bei x = 1024 lag nicht im z14-Raster
     const z16 = [{ x: 0, y: 0, z: 16 }, { x: 1, y: 0, z: 16 }];
-    const haus = rechteck(1000, 100, 1060, 200);
+    // Ecke (1023, 200) liegt 1 Einheit vor der Naht: sie bleibt, der Nahtschnittpunkt fängt sich an ihr
+    const haus: Ring = [[1000, 100], [1060, 100], [1060, 200], [1023, 200], [1000, 150], [1000, 100]];
     const p = vereineFlaeche(z16.map((kachel) => ({ ringe: [haus], kachel })), [1010, 150]);
-    expect(p[0][0]).toHaveLength(5);
+    expect(p[0][0]).toHaveLength(6);
+    expect(p[0][0]).toContainEqual([1023, 200]);
     expect(bbox(p[0][0])).toEqual([1000, 100, 1060, 200]);
   });
   it('Wald mit Loch über die Grenze: Loch bleibt Loch', () => {
