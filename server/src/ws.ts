@@ -90,7 +90,7 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
     };
   }
 
-  function hallo(ws: WebSocket, token: string): Verbindung | undefined {
+  function hallo(ws: WebSocket, token: string, stand: number | undefined): Verbindung | undefined {
     const tokenHash = sha256(token);
     const gefunden = db.teilnehmerNachToken(tokenHash);
     const lage = gefunden && db.lage(gefunden.lageId);
@@ -109,7 +109,7 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
       alt.ws.close(4004, 'zu viele Verbindungen');
     }
     set.add(v);
-    const jetzt = { ...t, zuletzt: Date.now() };
+    const jetzt = { ...t, zuletzt: Date.now(), ...(stand !== undefined && { stand }) };
     db.teilnehmerSpeichern(jetzt);
     senden(ws, snapshot(v, lage));
     anAlle(lage.id, { typ: 'teilnehmer', teilnehmer: mitOnline(lage.id, jetzt) });
@@ -146,7 +146,11 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
 
   /** Ein Delta der Regeln verteilen: gefiltert nach Empfänger, `online` aus den Verbindungen; Entfernen und Beenden werfen hinaus. */
   function verteile(lageId: string, d: ServerMsg): void {
-    if (d.typ === 'teilnehmer') return anAlle(lageId, { typ: 'teilnehmer', teilnehmer: mitOnline(lageId, d.teilnehmer) });
+    if (d.typ === 'teilnehmer') {
+      // Rolle und Einheit filtern Chat und Meldungen: geänderte sofort übernehmen
+      for (const v of verbindungen(lageId)) if (v.id === d.teilnehmer.id) Object.assign(v, { rolle: d.teilnehmer.rolle, einheit: d.teilnehmer.einheit });
+      return anAlle(lageId, { typ: 'teilnehmer', teilnehmer: mitOnline(lageId, d.teilnehmer) });
+    }
     if (d.typ === 'teilnehmer.weg') rauswerfen(lageId, d.id);
     if (d.typ === 'chat' || d.typ === 'meldung') {
       for (const e of verbindungen(lageId)) if (empfaengt(d, e)) senden(e.ws, d);
@@ -161,13 +165,14 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
     if (m.typ === 'hallo') return fehler(v, 'Bereits angemeldet');
     if (m.typ === 'lage.codeErneuern') {
       if (t.rolle !== 'leitung') return fehler(v, 'Nur für die Leitung');
-      const teilnehmerCode = neuerCode(8);
-      db.teilnehmerCodeSetzen(lage.id, sha256(teilnehmerCode));
-      log('info', 'teilnehmer-code erneuert', { lageId: lage.id });
-      return senden(v.ws, { typ: 'code', teilnehmerCode });
+      const art = m.art ?? 'teilnehmer';
+      const code = neuerCode(art === 'gruppenfuehrer' ? 10 : 8);
+      db.codeSetzen(lage.id, art, sha256(code));
+      log('info', 'code erneuert', { lageId: lage.id, art });
+      return senden(v.ws, { typ: 'code', art, code });
     }
     if (m.typ === 'alarm.ausloesen' && !limitAlarme(t.id, jetzt)) return fehler(v, 'Zu viele Alarme – bitte kurz warten');
-    const r = wende(sichtAusDb(db, lage, letztePos), { autor: t, msg: m, jetzt, neueId: randomUUID });
+    const r = wende(sichtAusDb(db, lage, letztePos, (id) => istOnline(lage.id, id)), { autor: t, msg: m, jetzt, neueId: randomUUID });
     if (istAbgelehnt(r)) return fehler(v, r.abgelehnt);
     speichere(db, lage.id, r.aenderungen, letztePos);
     for (const d of r.deltas) {
@@ -218,7 +223,7 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
       const p = ClientMsg.safeParse(roh);
       if (!v) {
         if (!p.success || p.data.typ !== 'hallo') return ws.close(4003, 'hallo erwartet');
-        v = hallo(ws, p.data.token);
+        v = hallo(ws, p.data.token, p.data.stand);
         if (v) {
           clearTimeout(timer);
           freigeben();

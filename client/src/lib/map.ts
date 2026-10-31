@@ -1,6 +1,6 @@
 // Zugriff auf die MapLibre-Karte für Features: Instanz, Fadenkreuz-Punktwahl, Radial-Einträge.
 import { Marker, type Map as MapLibreMap } from 'maplibre-gl';
-import type { Phase, Punkt } from '../../../shared/protocol.ts';
+import type { Phase, Punkt, Rolle } from '../../../shared/protocol.ts';
 import { store } from './store.svelte.ts';
 import { toast, ui, type RadialArt, type RadialZiel, type ToastKnopf } from './ui.svelte.ts';
 
@@ -99,6 +99,8 @@ export interface RadialAktion {
   sichtbar?: (z: RadialZiel) => boolean;
   /** Nur in diesen Phasen (Spec v6); ohne Angabe immer. */
   phasen?: Phase[];
+  /** Nur für diese Rollen (Spec v7); ohne Angabe für alle. */
+  rollen?: Rolle[];
 }
 
 /** Höchstens so viele Knöpfe im Ring; spätere Registrierungen fallen weg. */
@@ -116,7 +118,13 @@ export function registriereRadialAktion(a: RadialAktion): () => void {
 
 export const radialAktionenFuer = (z: RadialZiel): RadialAktion[] =>
   radialAktionen
-    .filter((a) => (typeof a.fuer === 'string' ? a.fuer === z.art : a.fuer.includes(z.art)) && (!a.phasen || a.phasen.includes(store.phase)) && (a.sichtbar?.(z) ?? true))
+    .filter(
+      (a) =>
+        (typeof a.fuer === 'string' ? a.fuer === z.art : a.fuer.includes(z.art)) &&
+        (!a.phasen || a.phasen.includes(store.phase)) &&
+        (!a.rollen || (!!store.ichSelbst && a.rollen.includes(store.ichSelbst.rolle))) &&
+        (a.sichtbar?.(z) ?? true),
+    )
     .slice(0, MAX_RADIAL);
 
 /** DOM-Symbol (Marker-Element) als Ziel fürs Radial-Menü und den Doppelklick markieren. */

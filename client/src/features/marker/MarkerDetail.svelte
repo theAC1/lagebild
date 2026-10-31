@@ -1,18 +1,18 @@
 <script lang="ts">
   import { azimut, distanz, formatDistanz, formatLv95, formatMgrs, formatRichtung } from '../../lib/coords.ts';
   import { waehlePunkt, zentriere } from '../../lib/map.ts';
-  import { formatAlter, send, serverJetzt, store } from '../../lib/store.svelte.ts';
+  import { darfAendern, formatAlter, send, serverJetzt, store } from '../../lib/store.svelte.ts';
   import { funktionLabel, symbolSvg } from '../../lib/symbol.ts';
   import { groesse } from '../../lib/groesse.svelte.ts';
   import { oeffne, schliesse, toast } from '../../lib/ui.svelte.ts';
-  import { darfAendern, formatZeit, markerName, setzenNachricht } from './logik.ts';
+  import { formatZeit, markerName, setzenNachricht } from './logik.ts';
   import { rasterAnsprachen } from '../raster/zustand.svelte.ts';
 
   let { id }: { id: string } = $props();
 
   const m = $derived(store.marker.get(id));
   const ersteller = $derived(m ? (store.teilnehmer.get(m.von)?.rufname ?? 'nicht mehr in der Lage') : '');
-  const darf = $derived(m ? darfAendern(m, store.ich, store.istLeitung) : false);
+  const darf = $derived(m ? darfAendern(m.von) : false);
   let loeschenFragen = $state(false);
 
   async function verschieben() {

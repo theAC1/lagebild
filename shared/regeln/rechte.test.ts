@@ -1,7 +1,7 @@
 // Rechte direkt gegen die Regeln: Leitung vs. Teilnehmer, fixiertes Raster, Taufe-Konflikte, gesperrte Ebenen.
 import { describe, expect, it } from 'vitest';
 import { STANDARD_STIL, standardEbeneId, type RasterDef, type TaufeInput, type ZeichnungInput } from '../protocol.ts';
-import { deltas, grund, LAGE, welt } from './testwelt.ts';
+import { deltas, grund, LAGE, leereLage, tn, welt } from './testwelt.ts';
 
 const GRANDE: RasterDef = { art: 'grande', e: 2_600_000, n: 1_200_600, zeilen: 15, spalten: 21, zellM: 80 };
 const STD = standardEbeneId(LAGE.id);
@@ -126,16 +126,19 @@ describe('Leitung vs. Teilnehmer', () => {
     expect(w.daten.eintraege.marker![0]).toMatchObject({ von: 'a', erstelltAm: 2000, geaendertAm: 5000 });
   });
 
-  it('nur die Leitung: Status-Set, Phase, Entfernen, Ebenen, Bloodhound-Auftrag', () => {
-    const w = welt();
+  it('nur die Leitung (auch nicht Gruppenführer): Status-Set, Phase, Entfernen, Ebenen, Taufnamen, Rollen, Übergabe', () => {
+    const w = welt(leereLage(LAGE, [tn('ltg', 'leitung'), tn('a'), tn('b', 'teilnehmer', { einheit: 'Zug 2' }), tn('gf', 'gruppenfuehrer')]));
     const nurLeitung = [
       { typ: 'lage.statusSet', statusSet: LAGE.statusSet },
       { typ: 'lage.phase', phase: 'an' },
-      { typ: 'teilnehmer.entfernen', id: 'b' },
+      { typ: 'teilnehmer.entfernen', id: 'a' },
       { typ: 'ebene.neu', name: 'x' },
-      { typ: 'bloodhound.auftrag', an: 'b', ziel: { art: 'punkt', punkt: { lat: 47, lon: 8 } } },
+      { typ: 'lage.taufListen', taufListen: {} },
+      { typ: 'teilnehmer.aendern', id: 'a', rolle: 'beobachter' },
+      { typ: 'leitung.uebergeben', id: 'a' },
     ] as const;
-    for (const m of nurLeitung) expect(grund(w.tu('a', m))).toBe('Nur für die Leitung');
+    for (const von of ['a', 'gf'])
+      for (const m of nurLeitung) expect(grund(w.tu(von, m)), `${von} ${m.typ}`).toBe('Nur für die Leitung');
     expect(grund(w.tu('ltg', { typ: 'teilnehmer.entfernen', id: 'ltg' }))).toBe('Sich selbst entfernen ist nicht möglich');
     expect(grund(w.tu('ltg', { typ: 'lage.phase', phase: 'an' }))).toBeUndefined();
     expect(w.daten.lage.phasen.at(-1)?.phase).toBe('an');
@@ -145,7 +148,7 @@ describe('Leitung vs. Teilnehmer', () => {
     const w = welt();
     w.tu('a', { typ: 'alarm.ausloesen', art: 'notfall', pos: null });
     const id = w.daten.eintraege.alarm![0].id;
-    expect(grund(w.tu('b', { typ: 'alarm.aufheben', id }))).toBe('Nur Auslöser oder Leitung können den Alarm aufheben');
+    expect(grund(w.tu('b', { typ: 'alarm.aufheben', id }))).toBe('Nur Auslöser, Gruppenführer der Einheit oder Leitung können den Alarm aufheben');
     expect(grund(w.tu('ltg', { typ: 'alarm.aufheben', id }))).toBeUndefined();
     expect(grund(w.tu('a', { typ: 'alarm.aufheben', id }))).toBe('Alarm nicht aktiv');
   });
@@ -159,7 +162,8 @@ describe('Leitung vs. Teilnehmer', () => {
     const id = w.daten.eintraege.bloodhound![0].id;
     expect(grund(w.tu('b', { typ: 'bloodhound.quittieren', id }))).toBe('Nur der Empfänger kann den Auftrag bearbeiten');
     expect(grund(w.tu('ltg', { typ: 'bloodhound.erreicht', id }))).toBe('Nur der Empfänger kann den Auftrag bearbeiten');
-    expect(grund(w.tu('a', { typ: 'bloodhound.aufheben', id }))).toBe('Nur für die Leitung');
+    expect(grund(w.tu('a', { typ: 'bloodhound.aufheben', id }))).toBe('Nur Leitung oder Gruppenführer der Einheit');
+    expect(grund(w.tu('b', { typ: 'bloodhound.auftrag', an: 'a', ziel: { art: 'punkt', punkt: { lat: 47, lon: 8 } } }))).toBe('Nur Leitung oder Gruppenführer der Einheit');
     expect(grund(w.tu('a', { typ: 'bloodhound.quittieren', id }))).toBeUndefined();
     expect(w.daten.eintraege.bloodhound![0]).toMatchObject({ quittiertAm: expect.any(Number), ende: null });
     w.tu('ltg', { typ: 'bloodhound.auftrag', an: 'a', ziel: { art: 'punkt', punkt: { lat: 47, lon: 8 } } });

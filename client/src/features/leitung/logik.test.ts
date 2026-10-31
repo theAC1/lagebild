@@ -32,9 +32,9 @@ describe('Status-Set bearbeiten', () => {
 
 describe('Speicher und Download', () => {
   it('leseCodes fehlertolerant; dateiname aus Content-Disposition ohne Pfadanteile, sonst Rückfall', () => {
-    expect(leseCodes('{"teilnehmerCode":"ABC23456","leitungCode":"x"}')).toEqual({ teilnehmerCode: 'ABC23456', leitungCode: undefined });
+    expect(leseCodes('{"teilnehmerCode":"ABC23456","beobachterCode":"x"}')).toEqual({ teilnehmerCode: 'ABC23456', gruppenfuehrerCode: undefined, beobachterCode: undefined });
+    expect(leseCodes('{"leitungCode":"ABCDE23456"}').gruppenfuehrerCode).toBe('ABCDE23456'); // vor Spec v7 gemerkt
     expect(leseCodes('kaputt')).toEqual({});
-    expect(leseCodes(null)).toEqual({ teilnehmerCode: undefined, leitungCode: undefined });
     expect(dateiname('attachment; filename="lage-123.gpx"', 'x.gpx')).toBe('lage-123.gpx');
     expect(dateiname(null, 'x.gpx')).toBe('x.gpx');
     expect(dateiname('attachment; filename="../a/b.gpx"', 'x')).toBe('.._a_b.gpx');

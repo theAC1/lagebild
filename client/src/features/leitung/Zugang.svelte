@@ -1,20 +1,30 @@
 <script lang="ts">
+  import type { CodeRolle } from '../../../../shared/protocol.ts';
+  import { ROLLE_NAME } from '../../../../shared/regeln/rollen.ts';
   import { sendeBestaetigt, store } from '../../lib/store.svelte.ts';
   import { istApp, serverBasis } from '../../lib/umgebung.ts';
   import { lies, schreibe, toast } from '../../lib/ui.svelte.ts';
-  import { codesKey, leseCodes, zugangsLink, type GemerkteCodes } from './logik.ts';
+  import { codeFeld, codesKey, leseCodes, zugangsLink, type GemerkteCodes } from './logik.ts';
+
+  // Der Code bestimmt die Rolle beim Beitritt (Spec v7); Leitung wird man nur per Übergabe
+  const ARTEN: CodeRolle[] = ['teilnehmer', 'gruppenfuehrer', 'beobachter'];
+  const HINWEIS: Record<CodeRolle, string> = {
+    teilnehmer: 'Für alle, die mitarbeiten.',
+    gruppenfuehrer: 'Zusätzlich Objekte der eigenen Einheit ändern, ihr Bloodhound-Aufträge geben und ihre Alarme aufheben.',
+    beobachter: 'Sieht alles, sendet nichts – auch keine Position.',
+  };
 
   const lageId = $derived(store.lage?.id ?? '');
   let codes = $state<GemerkteCodes>({});
-  let eingabe = $state('');
+  let art = $state<CodeRolle>('teilnehmer');
   let qr = $state<string | null>(null);
-  let leitungZeigen = $state(false);
 
   $effect(() => {
     codes = lageId ? leseCodes(lies(codesKey(lageId))) : {};
   });
 
-  const link = $derived(codes.teilnehmerCode ? zugangsLink(serverBasis(istApp(), location.origin), codes.teilnehmerCode) : null);
+  const code = $derived(codes[codeFeld(art)]);
+  const link = $derived(code ? zugangsLink(serverBasis(istApp(), location.origin), code) : null);
 
   $effect(() => {
     const l = link;
@@ -28,19 +38,10 @@
     return () => (aktuell = false);
   });
 
-  function uebernehmen(e: SubmitEvent) {
-    e.preventDefault();
-    const code = eingabe.trim().toUpperCase();
-    if (!/^[A-Z0-9]{6,12}$/.test(code)) return toast('Code: 6–12 Buchstaben/Ziffern.');
-    codes = { ...codes, teilnehmerCode: code };
-    schreibe(codesKey(lageId), JSON.stringify(codes));
-    eingabe = '';
-  }
-
   async function teilen() {
     if (!link) return;
     try {
-      if (navigator.share) await navigator.share({ title: store.lage?.name ?? 'Lagebild', text: 'Beitreten zur Lage', url: link });
+      if (navigator.share) await navigator.share({ title: store.lage?.name ?? 'Lagebild', text: `Beitreten zur Mission (${ROLLE_NAME[art]})`, url: link });
       else {
         await navigator.clipboard.writeText(link);
         toast('Link kopiert.');
@@ -51,20 +52,19 @@
   }
 
   let erneuernFrage = $state(false);
-  let erneuert = $state(false);
 
-  /** Neuer Teilnehmer-Code: sperrt Entfernte und abgeflossene Codes aus. Wer schon drin ist, bleibt drin. */
+  /** Neuer Code der gewählten Rolle: sperrt Entfernte und abgeflossene Codes aus. Wer schon drin ist, bleibt drin. */
   async function erneuern() {
     erneuernFrage = false;
     const lid = lageId;
+    const a = art;
     const antwort: { code?: string } = {};
-    const z = await sendeBestaetigt({ typ: 'lage.codeErneuern' }, (m) => m.typ === 'code' && Boolean((antwort.code = m.teilnehmerCode)));
+    const z = await sendeBestaetigt({ typ: 'lage.codeErneuern', art: a }, (m) => m.typ === 'code' && m.art === a && Boolean((antwort.code = m.code)));
     if (z === 'unbestaetigt') return toast('Keine Antwort vom Server – Code evtl. trotzdem erneuert, bitte erneut versuchen.', 8000);
     if (!antwort.code || lid !== lageId) return;
-    codes = { ...codes, teilnehmerCode: antwort.code };
+    codes = { ...codes, [codeFeld(a)]: antwort.code };
     schreibe(codesKey(lid), JSON.stringify(codes));
-    erneuert = true;
-    toast('Neuer Teilnehmer-Code – der alte gilt nicht mehr.', 6000);
+    toast(`Neuer ${ROLLE_NAME[a]}-Code – der alte gilt nicht mehr.`, 6000);
   }
 
   function vergessen() {
@@ -73,10 +73,17 @@
   }
 </script>
 
-{#if codes.teilnehmerCode}
+<div class="segmente" role="group" aria-label="Code für">
+  {#each ARTEN as a (a)}
+    <button aria-pressed={art === a} onclick={() => ((art = a), (erneuernFrage = false))}>{ROLLE_NAME[a]}</button>
+  {/each}
+</div>
+<p class="leise klein">{HINWEIS[art]}</p>
+
+{#if code}
   <div class="code-box">
-    <span class="leise">Teilnehmer-Code</span>
-    <span class="code mono markierbar">{codes.teilnehmerCode}</span>
+    <span class="leise">{ROLLE_NAME[art]}-Code</span>
+    <span class="code mono markierbar">{code}</span>
   </div>
   <div class="qr">
     {#if qr}<img src={qr} alt="QR-Code zum Beitreten: {link}" />{:else}<span class="leise">QR-Code wird erzeugt …</span>{/if}
@@ -85,51 +92,28 @@
   <button class="primaer breit" onclick={teilen}>Link teilen</button>
 {:else}
   <p class="leise">
-    Der Teilnehmer-Code wird nur beim Erstellen der Lage angezeigt und ist auf diesem Gerät nicht gespeichert. Code hier eingeben, um den
-    QR-Code zu erzeugen:
+    Der {ROLLE_NAME[art]}-Code ist auf diesem Gerät nicht gespeichert (z.B. nach einer Übergabe der Leitung). «Erneuern» erzeugt einen
+    neuen; der bisherige gilt dann nicht mehr.
   </p>
-  <form class="eingabe" onsubmit={uebernehmen}>
-    <input class="mono" bind:value={eingabe} placeholder="Teilnehmer-Code" autocomplete="off" autocapitalize="characters" maxlength="12" />
-    <button class="primaer" type="submit">Übernehmen</button>
-  </form>
 {/if}
 
 <div class="erneuern">
   {#if erneuernFrage}
     <div class="frage" role="alert">
-      <span>Neuen Teilnehmer-Code erzeugen? Der alte Code und QR gelten danach nicht mehr; wer schon beigetreten ist, bleibt.</span>
+      <span>Neuen {ROLLE_NAME[art]}-Code erzeugen? Der alte Code und QR gelten danach nicht mehr; wer schon beigetreten ist, bleibt.</span>
       <div class="knoepfe">
         <button onclick={() => (erneuernFrage = false)}>Abbrechen</button>
         <button class="primaer" onclick={erneuern}>Ja, erneuern</button>
       </div>
     </div>
   {:else}
-    <button class="breit" disabled={store.verbindung !== 'verbunden'} onclick={() => (erneuernFrage = true)}>Teilnehmer-Code erneuern …</button>
-    <p class="leise klein">
-      {erneuert ? 'Code erneuert.' : 'Z.B. nach dem Entfernen einer Person oder wenn der Code abgeflossen ist.'}
-    </p>
+    <button class="breit" disabled={store.verbindung !== 'verbunden'} onclick={() => (erneuernFrage = true)}>{ROLLE_NAME[art]}-Code erneuern …</button>
+    <p class="leise klein">Z.B. nach dem Entfernen einer Person oder wenn der Code abgeflossen ist.</p>
   {/if}
 </div>
 
-{#if codes.leitungCode}
-  <div class="leitung">
-    {#if leitungZeigen}
-      <div class="code-box warnung">
-        <span class="leise">Leitungs-Code</span>
-        <span class="code mono markierbar">{codes.leitungCode}</span>
-      </div>
-      <button class="breit" onclick={() => (leitungZeigen = false)}>Leitungs-Code verbergen</button>
-    {:else}
-      <button class="breit" onclick={() => (leitungZeigen = true)}>Leitungs-Code anzeigen</button>
-    {/if}
-  </div>
-{/if}
-<p class="hinweis">
-  Der Leitungs-Code gibt volle Kontrolle über die Lage. Er ist nur beim Erstellen sichtbar und lässt sich nicht wiederherstellen – nie per
-  QR oder Chat weitergeben.
-</p>
-{#if codes.teilnehmerCode || codes.leitungCode}
-  <button class="breit" onclick={vergessen}>Codes auf diesem Gerät vergessen</button>
+{#if Object.values(codes).some(Boolean)}
+  <button class="breit vergessen" onclick={vergessen}>Codes auf diesem Gerät vergessen</button>
 {/if}
 
 <style>
@@ -141,9 +125,6 @@
     border: 1px solid var(--line);
     border-radius: var(--radius);
     background: var(--bg);
-  }
-  .code-box.warnung {
-    border-color: var(--warn);
   }
   .code {
     font-size: clamp(1.8rem, 9vw, 2.6rem);
@@ -177,22 +158,16 @@
   .breit {
     width: 100%;
   }
-  .eingabe {
-    display: flex;
-    gap: 8px;
-  }
-  .eingabe input {
-    text-transform: uppercase;
-  }
-  .leitung {
-    display: grid;
-    gap: 8px;
-    margin-top: 16px;
-  }
   .erneuern {
     display: grid;
     gap: 6px;
     margin-top: 16px;
+  }
+  .vergessen {
+    margin-top: 12px;
+  }
+  .segmente {
+    margin-bottom: 6px;
   }
   .klein {
     margin: 0;
@@ -211,9 +186,5 @@
   }
   .knoepfe button {
     flex: 1;
-  }
-  .hinweis {
-    color: var(--warn);
-    font-size: 0.9rem;
   }
 </style>

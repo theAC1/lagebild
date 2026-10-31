@@ -13,10 +13,10 @@ export const ART_LABEL: Record<ZeichnungArt, string> = {
 export const artLabel = (z: Pick<Zeichnung, 'art' | 'raumArt'>): string => (z.art === 'raum' && z.raumArt ? RAUM[z.raumArt].label : ART_LABEL[z.art]);
 export const zeichnungName = (z: Pick<Zeichnung, 'art' | 'raumArt' | 'bezeichnung' | 'text'>): string => z.bezeichnung || (z.art === 'text' ? z.text : '') || artLabel(z);
 
-/** Bearbeiten/Löschen: Ersteller oder Leitung; in gesperrter Ebene nur Leitung (wie der Server prüft). */
-export function darfAendern(z: Pick<Zeichnung, 'von' | 'ebeneId'>, ich: string | null, leitung: boolean, ebenen: ReadonlyMap<string, Ebene>): boolean {
+/** Bearbeiten/Löschen: wer «darf ändern» (`darfVon`, shared/regeln/rollen.ts); in gesperrter Ebene nur Leitung (wie der Reducer). */
+export function darfAendern(z: Pick<Zeichnung, 'ebeneId'>, darfVon: boolean, leitung: boolean, ebenen: ReadonlyMap<string, Ebene>): boolean {
   if (leitung) return true;
-  return z.von === ich && !ebenen.get(z.ebeneId)?.gesperrt;
+  return darfVon && !ebenen.get(z.ebeneId)?.gesperrt;
 }
 
 /** Inhalt ohne Server-Felder (für zeichnung.aendern und Rückgängig). */

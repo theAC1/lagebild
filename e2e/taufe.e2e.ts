@@ -2,9 +2,9 @@
 // Gebäude/Strasse taufen, verlängern, Stossrichtung, Layer aus/an, doppelter Name. Gegen den echten Server.
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
 import { kachel, ll, MITTE } from './taufe-kacheln.ts';
-import { dokuBild, HOCH, QUER, wische } from './hilfen.ts';
+import { beitreten, dokuBild, HOCH, neueMission, QUER, wische } from './hilfen.ts';
+import type { Beigetreten } from '../shared/protocol.ts';
 
-const SIDC = '10031000001211000000';
 const TAG = new Date('2026-10-30T11:00:00+01:00');
 
 test.describe.configure({ mode: 'serial' });
@@ -13,7 +13,7 @@ type Sitzung = { page: Page; token: string; kacheln: string[] };
 let leitung: Sitzung;
 let bravo: Sitzung;
 
-async function sitzung(browser: Browser, code: string, rufname: string, viewport: typeof HOCH): Promise<Sitzung> {
+async function sitzung(browser: Browser, code: string | Beigetreten, rufname: string, viewport: typeof HOCH): Promise<Sitzung> {
   const ctx = await browser.newContext({ geolocation: MITTE, viewport });
   await ctx.clock.install({ time: TAG });
   const kacheln: string[] = [];
@@ -22,9 +22,8 @@ async function sitzung(browser: Browser, code: string, rufname: string, viewport
     kacheln.push(`${z}/${x}/${y}`);
     return route.fulfill({ status: 200, contentType: 'application/x-protobuf', body: kachel(z, x, y), headers: { 'access-control-allow-origin': '*' } });
   });
-  const r = await ctx.request.post('/api/beitreten', { data: { code, rufname, einheit: 'Zug 1', funktion: '', sidc: SIDC } });
-  expect(r.status()).toBe(201);
-  const { token } = await r.json();
+  const r = await beitreten(ctx.request, code, { rufname });
+  const { token } = r;
   await ctx.addInitScript((t) => localStorage.setItem('lagebild.token', t), token); // Bedienung: Vorgabe «Daumen-Ränder»
   const page = await ctx.newPage();
   page.on('pageerror', (e) => {
@@ -75,10 +74,9 @@ function ausdehnung(t: ExportTaufe): number[] {
 
 test.beforeAll(async ({ browser }) => {
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name: 'Übung Taufe', erstellPasswort: 'e2e', phase: 'lv' } });
-  const codes = await r.json();
+  const codes = await neueMission(ctx.request, 'Übung Taufe', 'lv');
   await ctx.close();
-  leitung = await sitzung(browser, codes.leitungCode, 'Adler', HOCH);
+  leitung = await sitzung(browser, codes, 'Adler', HOCH);
   bravo = await sitzung(browser, codes.teilnehmerCode, 'Bravo', QUER);
   await zentriere(leitung.page);
   await zentriere(bravo.page);

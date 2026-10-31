@@ -1,6 +1,6 @@
 // Leitung: Status-Set-Entwurf, Slug, Zugangslink, gemerkte Codes, Download-Dateiname (rein, testbar).
 import { z } from 'zod';
-import { StatusDef, type Phase } from '../../../../shared/protocol.ts';
+import { StatusDef, type CodeRolle, type Phase } from '../../../../shared/protocol.ts';
 
 /** Knopf und Rückfrage je Zielphase (Spec v6); der Knopf nennt, ob es vor- oder zurückgeht. */
 export const PHASE_TEXT: Record<Phase, { knopf: (von: Phase) => string; frage: string }> = {
@@ -60,15 +60,18 @@ export function pruefeStatusSet(set: StatusDef[]): string | null {
 /** Teilnehmer-Link für QR-Code und Weitergabe. */
 export const zugangsLink = (origin: string, code: string): string => `${origin}/?code=${encodeURIComponent(code)}`;
 
-/** localStorage-Schlüssel der beim Erstellen erhaltenen Codes (siehe Kern-Wunsch Login.svelte). */
+/** localStorage-Schlüssel der beim Eröffnen erhaltenen und der erneuerten Codes. */
 export const codesKey = (lageId: string): string => `lagebild.codes.${lageId}`;
-export type GemerkteCodes = { teilnehmerCode?: string; leitungCode?: string };
+/** Feldname des Codes einer Rolle, wie in `LageErstellt` und im Speicher. */
+export const codeFeld = (r: CodeRolle) => `${r}Code` as const;
+export type GemerkteCodes = Partial<Record<ReturnType<typeof codeFeld>, string>>;
 
+/** Gemerkte Codes je Rolle; ein vor Spec v7 gemerkter Leitungs-Code gilt als Gruppenführer-Code. */
 export function leseCodes(roh: string | null): GemerkteCodes {
   try {
     const j = JSON.parse(roh ?? '{}');
     const s = (v: unknown) => (typeof v === 'string' && /^[A-Z0-9]{6,12}$/.test(v) ? v : undefined);
-    return { teilnehmerCode: s(j?.teilnehmerCode), leitungCode: s(j?.leitungCode) };
+    return { teilnehmerCode: s(j?.teilnehmerCode), gruppenfuehrerCode: s(j?.gruppenfuehrerCode) ?? s(j?.leitungCode), beobachterCode: s(j?.beobachterCode) };
   } catch {
     return {};
   }

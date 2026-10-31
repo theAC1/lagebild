@@ -1,21 +1,20 @@
 // Spec v2: Querformat (Handy, Tablet, Desktop), zwei Panels, Desktop-Bedienung, Radial-Menü.
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { bedienung, dokuBild, HOCH, QUER } from './hilfen.ts';
+import { bedienung, beitreten, dokuBild, HOCH, neueMission, QUER } from './hilfen.ts';
+import type { Beigetreten } from '../shared/protocol.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const NAH = { latitude: 46.9466, longitude: 7.4462 }; // ~150 m östlich
-const SIDC = '10031000001211000000';
 
 test.describe.configure({ mode: 'serial' });
 
 let leitung: Page;
 let bravo: Page;
 
-async function seite(browser: Browser, code: string, rufname: string, geolocation: typeof ADLER, viewport: { width: number; height: number }): Promise<Page> {
+async function seite(browser: Browser, code: string | Beigetreten, rufname: string, geolocation: typeof ADLER, viewport: { width: number; height: number }): Promise<Page> {
   const ctx = await browser.newContext({ geolocation, viewport });
-  const r = await ctx.request.post('/api/beitreten', { data: { code, rufname, einheit: 'Zug 1', funktion: '', sidc: SIDC } });
-  expect(r.status()).toBe(201);
-  const { token } = await r.json();
+  const r = await beitreten(ctx.request, code, { rufname });
+  const { token } = r;
   await ctx.addInitScript((t) => localStorage.setItem('lagebild.token', t), token);
   await ctx.addInitScript(bedienung, 'klassisch');
   const page = await ctx.newPage();
@@ -62,10 +61,9 @@ async function pruefeQuerLayout(p: Page, breite: number) {
 
 test.beforeAll(async ({ browser }) => {
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name: 'Querformat', erstellPasswort: 'e2e', phase: 'lv' } });
-  const lage = (await r.json()) as { teilnehmerCode: string; leitungCode: string };
+  const lage = await neueMission(ctx.request, 'Querformat', 'lv');
   await ctx.close();
-  leitung = await seite(browser, lage.leitungCode, 'Adler', ADLER, QUER);
+  leitung = await seite(browser, lage, 'Adler', ADLER, QUER);
   bravo = await seite(browser, lage.teilnehmerCode, 'Bravo', NAH, HOCH);
   await expect(leitung.locator('.bft-label', { hasText: 'Bravo' })).toBeVisible();
 });

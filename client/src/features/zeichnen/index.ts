@@ -1,3 +1,4 @@
+import { OHNE_BEOBACHTER } from '../../../../shared/regeln/rollen.ts';
 import type { Feature } from '../registry.ts';
 import Detail from './Detail.svelte';
 import { IKON_ZEICHNEN } from './ikonen.ts';
@@ -13,6 +14,7 @@ const feature: Feature = {
   Detail,
   detailArt: 'zeichnung',
   phasen: ['ap', 'lv'],
+  rollen: OHNE_BEOBACHTER,
 };
 
 export default feature;

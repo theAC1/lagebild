@@ -1,8 +1,9 @@
 // Führungsraster: je Lage höchstens ein Grande und ein Piccolo.
-// Erstellen: alle. Nicht fixiert ändern, fixieren, löschen: Ersteller oder Leitung.
+// Erstellen: alle. Nicht fixiert ändern, fixieren, löschen: wer «darf ändern» (rollen.ts).
 // Fixiert: nur die Leitung löst oder löscht es; ändern geht erst nach dem Lösen.
 import { rasterId, type Raster } from '../protocol.ts';
 import { RASTER_NAME } from '../raster.ts';
+import { darfAendern, einheiten } from './rollen.ts';
 import { lauf, nein, type Befehl, type Ereignis, type Ergebnis, type Zustand } from './typen.ts';
 
 export const RASTER_TYPEN = ['raster.setzen', 'raster.fixieren', 'raster.loeschen'] as const;
@@ -15,7 +16,7 @@ export function wendeRaster(z: Zustand, e: Ereignis & { msg: RasterBefehl }): Er
   const id = rasterId(z.lage.id, art);
   const alt = z.eintrag('raster', id);
   const name = `Führungsraster ${RASTER_NAME[art]}`;
-  const darfOffenes = (r: Raster): boolean => leitung || r.von === t.id;
+  const darfOffenes = (r: Raster): boolean => darfAendern(t, r.von, einheiten(z));
   const l = lauf(e);
   const speichere = (r: Raster): void => l.tu({ was: 'speichern', art: 'raster', obj: r, t: r.geaendertAm }, { typ: 'raster', raster: r });
 

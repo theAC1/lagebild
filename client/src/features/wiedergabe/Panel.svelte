@@ -34,7 +34,7 @@
   );
   const zeilen = $derived(
     wg.protokoll && store.lage && store.ich
-      ? ereignisListe({ protokoll: wg.protokoll, lage: store.lage, notizen: store.notizen, ich: { id: store.ich, rolle: store.istLeitung ? 'leitung' : 'teilnehmer' } })
+      ? ereignisListe({ protokoll: wg.protokoll, lage: store.lage, notizen: store.notizen, ich: { id: store.ich, rolle: store.ichSelbst?.rolle ?? 'teilnehmer' } })
       : [],
   );
   const zeiten = $derived([...new Set(zeilen.map((z) => z.t))]);

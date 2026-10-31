@@ -4,8 +4,8 @@ import type { Lage } from '../../shared/protocol.ts';
 import type { Aenderung, Zustand } from '../../shared/regeln/index.ts';
 import type { Db } from './db.ts';
 
-/** Liest lazy aus der DB: nur was eine Regel braucht (Budgets per COUNT/SUM statt alles zu laden). */
-export function sichtAusDb(db: Db, lage: Lage, letztePos: ReadonlyMap<string, number> = new Map()): Zustand {
+/** Liest lazy aus der DB: nur was eine Regel braucht (Budgets per COUNT/SUM statt alles zu laden). `online` aus den Verbindungen. */
+export function sichtAusDb(db: Db, lage: Lage, letztePos: ReadonlyMap<string, number> = new Map(), online: (id: string) => boolean = () => false): Zustand {
   return {
     lage,
     eintrag: (art, id) => db.eintrag(lage.id, art, id),
@@ -14,7 +14,7 @@ export function sichtAusDb(db: Db, lage: Lage, letztePos: ReadonlyMap<string, nu
     groesse: (art) => db.groesse(lage.id, art),
     idVergeben: (art, id) => db.idVergeben(art, id),
     ebenen: () => db.ebenenSicherstellen(lage.id),
-    teilnehmerListe: (auchEntfernte) => db.teilnehmerListe(lage.id, auchEntfernte),
+    teilnehmerListe: (auchEntfernte) => db.teilnehmerListe(lage.id, auchEntfernte).map((t) => ({ ...t, online: online(t.id) })),
     teilnehmerAktiv: (id) => db.teilnehmerAktiv(lage.id, id),
     fotoVorhanden: (id) => db.foto(id)?.lageId === lage.id,
     letztePosAm: (id) => letztePos.get(id),

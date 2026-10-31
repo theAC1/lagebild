@@ -1,5 +1,7 @@
-// Bloodhound-Aufträge (Linie für alle sichtbar, Meldungen nur an Leitung und Empfänger, nie ans Ziel): erteilen/aufheben nur Leitung; quittieren/beendet/erreicht nur der Empfänger. Je Empfänger ein offener.
+// Bloodhound-Aufträge (Linie für alle sichtbar, Meldungen nur an Leitung und Empfänger, nie ans Ziel): erteilen/aufheben Leitung
+// und Gruppenführer an die eigene Einheit; quittieren/beendet/erreicht nur der Empfänger. Je Empfänger ein offener.
 import type { BloodhoundAuftrag, BloodhoundEnde } from '../protocol.ts';
+import { darfAuftrag, einheiten } from './rollen.ts';
 import { lauf, nein, type Befehl, type Ereignis, type Ergebnis, type Lauf, type Zustand } from './typen.ts';
 
 export const MAX_AUFTRAEGE_JE_LAGE = 1000;
@@ -23,13 +25,15 @@ type BloodhoundBefehl = Extract<Befehl, { typ: (typeof BLOODHOUND_TYPEN)[number]
 
 export function wendeBloodhound(z: Zustand, e: Ereignis & { msg: BloodhoundBefehl }): Ergebnis {
   const { autor: t, msg: m, jetzt } = e;
-  const leitung = t.rolle === 'leitung';
+  const einheit = einheiten(z);
+  const fuehrt = (an: string): boolean => darfAuftrag(t, an, einheit);
   const l = lauf(e);
   const speichere = (a: BloodhoundAuftrag): void => l.tu({ was: 'speichern', art: 'bloodhound', obj: a, t: a.erstelltAm }, { typ: 'bloodhound', auftrag: a });
 
   if (m.typ === 'bloodhound.auftrag') {
-    if (!leitung) return nein('Nur für die Leitung');
     if (!z.teilnehmerAktiv(m.an)) return nein('Empfänger nicht gefunden');
+    if (!fuehrt(m.an)) return nein('Nur Leitung oder Gruppenführer der Einheit');
+    if (z.teilnehmerListe().find((x) => x.id === m.an)?.rolle === 'beobachter') return nein('Beobachter bekommen keine Aufträge');
     const ziel = m.ziel;
     const vorhanden = ziel.art === 'punkt' ? true : ziel.art === 'teilnehmer' ? z.teilnehmerAktiv(ziel.id!) : !!z.eintrag(ziel.art, ziel.id!);
     if (!vorhanden) return nein('Ziel nicht gefunden');
@@ -45,7 +49,7 @@ export function wendeBloodhound(z: Zustand, e: Ereignis & { msg: BloodhoundBefeh
   const a = z.eintrag('bloodhound', m.id);
   if (!a || !offen(a)) return nein('Auftrag nicht aktiv');
   if (m.typ === 'bloodhound.aufheben') {
-    if (!leitung) return nein('Nur für die Leitung');
+    if (!fuehrt(a.an)) return nein('Nur Leitung oder Gruppenführer der Einheit');
   } else if (a.an !== t.id) return nein('Nur der Empfänger kann den Auftrag bearbeiten');
   if (m.typ === 'bloodhound.quittieren') {
     if (a.quittiertAm === null) speichere({ ...a, quittiertAm: jetzt });

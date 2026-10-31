@@ -1,7 +1,8 @@
-// Codes, Tokens, Hashing, Rate-Limits und Logging.
-import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+// Codes, Tokens, Hashing, Gerätenachweis, Rate-Limits und Logging.
+import { createHash, createPublicKey, randomBytes, randomInt, timingSafeEqual, verify } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import { isIP } from 'node:net';
+import { geraetIdAus, type GeraetNachweis } from '../../shared/protocol.ts';
 
 /** Ohne verwechselbare Zeichen (0/O, 1/I/L). */
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -19,6 +20,41 @@ export const sha256 = (s: string): string => createHash('sha256').update(s).dige
 /** Zeitkonstanter Vergleich beliebig langer Strings (über deren Hashes). */
 export const gleich = (a: string, b: string): boolean =>
   timingSafeEqual(createHash('sha256').update(a).digest(), createHash('sha256').update(b).digest());
+
+/**
+ * Challenges für den Gerätenachweis (Spec v7): 32 Byte zufällig, `gueltigMs` gültig, einmal verwendbar, höchstens `max`
+ * offen. ponytail: ist der Speicher voll (Flut aus sehr vielen IPs), gibt es bis zum Ablauf keine neuen; dann das Limit je IP senken.
+ */
+export function challenges(max = 10_000, gueltigMs = 2 * 60_000) {
+  const offen = new Map<string, number>();
+  return {
+    /** Neue Challenge, undefined wenn der Speicher voll ist. */
+    neu(jetzt = Date.now()): string | undefined {
+      if (offen.size >= max) for (const [c, bis] of offen) if (bis <= jetzt) offen.delete(c);
+      if (offen.size >= max) return undefined;
+      const c = randomBytes(32).toString('base64url');
+      offen.set(c, jetzt + gueltigMs);
+      return c;
+    },
+    /** true, wenn `c` offen und nicht abgelaufen war; danach ist sie verbraucht. */
+    einloesen(c: string, jetzt = Date.now()): boolean {
+      const bis = offen.get(c);
+      offen.delete(c);
+      return bis !== undefined && bis > jetzt;
+    },
+  };
+}
+
+/** Geräte-ID aus dem Nachweis, wenn die Ed25519-Signatur über `text` stimmt; sonst undefined. Die Challenge prüft der Aufrufer. */
+export function geraetId(g: GeraetNachweis, text: string): string | undefined {
+  try {
+    const schluessel = createPublicKey({ key: { kty: 'OKP', crv: 'Ed25519', x: g.pub }, format: 'jwk' });
+    if (!verify(null, Buffer.from(text), schluessel, Buffer.from(g.signatur, 'base64url'))) return undefined;
+    return geraetIdAus(createHash('sha256').update(Buffer.from(g.pub, 'base64url')).digest());
+  } catch {
+    return undefined; // kein gültiger Ed25519-Schlüssel
+  }
+}
 
 /**
  * Festes Zeitfenster je Schlüssel. Aufruf zählt einen Versuch und gibt false zurück, wenn das Limit erreicht ist.

@@ -1,27 +1,26 @@
 // Spec v3: Bedienung «Daumen-Ränder» (Vorgabe) – Querformat Handy/Tablet, Hochformat, Meldungen mit wenig Tipps,
 // Marker per Fadenkreuz, Alarm halten, Tag/Nacht nach Sonnenstand.
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
-import { dokuBild, HOCH, QUER } from './hilfen.ts';
+import { beitreten, dokuBild, HOCH, neueMission, QUER } from './hilfen.ts';
+import type { Beigetreten, LageErstellt } from '../shared/protocol.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const NAH = { latitude: 46.9466, longitude: 7.4462 }; // ~150 m östlich
-const SIDC = '10031000001211000000';
 // Uhrzeit fürs Thema (Bern, 29.10.: Sonnenaufgang ≈ 07:13, Untergang ≈ 17:11 MEZ)
 const NACHT = new Date('2026-10-29T22:00:00+01:00');
 const TAG = new Date('2026-10-29T12:00:00+01:00');
 
 test.describe.configure({ mode: 'serial' });
 
-let codes: { teilnehmerCode: string; leitungCode: string };
+let codes: LageErstellt;
 let leitung: Page;
 let bravo: Page;
 
-async function seite(browser: Browser, code: string, rufname: string, geolocation: typeof ADLER, viewport: typeof QUER, zeit = NACHT): Promise<Page> {
+async function seite(browser: Browser, code: string | Beigetreten, rufname: string, geolocation: typeof ADLER, viewport: typeof QUER, zeit = NACHT): Promise<Page> {
   const ctx = await browser.newContext({ geolocation, viewport });
   await ctx.clock.install({ time: zeit });
-  const r = await ctx.request.post('/api/beitreten', { data: { code, rufname, einheit: 'Zug 1', funktion: '', sidc: SIDC } });
-  expect(r.status()).toBe(201);
-  const { token } = await r.json();
+  const r = await beitreten(ctx.request, code, { rufname });
+  const { token } = r;
   await ctx.addInitScript((t) => localStorage.setItem('lagebild.token', t), token); // keine Bedienung gesetzt → Vorgabe «daumen»
   const page = await ctx.newPage();
   page.on('pageerror', (e) => {
@@ -53,10 +52,9 @@ function zaehler(p: Page) {
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(120_000); // zwei Browser-Kontexte starten, Bravos erste Position muss die Leitung über den Server erreichen
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name: 'Übung Aare', erstellPasswort: 'e2e', phase: 'lv' } });
-  codes = await r.json();
+  codes = await neueMission(ctx.request, 'Übung Aare', 'lv');
   await ctx.close();
-  leitung = await seite(browser, codes.leitungCode, 'Adler', ADLER, QUER);
+  leitung = await seite(browser, codes, 'Adler', ADLER, QUER);
   bravo = await seite(browser, codes.teilnehmerCode, 'Bravo', NAH, HOCH);
   // Wartet auf den Zustand, nicht auf Zeit: Bravos Position braucht GPS-Fix, offene Verbindung und fertige Karte der Leitung
   await expect(leitung.locator('.bft-label', { hasText: 'Bravo' })).toBeVisible({ timeout: 60_000 });

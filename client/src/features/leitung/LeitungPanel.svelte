@@ -24,21 +24,25 @@
     { id: 'lage', label: 'Lage' },
   ] as const;
   type Tab = (typeof TABS)[number]['id'];
+  /** Gruppenführer (Spec v7): Aufträge an die eigene Einheit, Alarme der Einheit aufheben. */
+  const GRUPPENFUEHRER = new Set<Tab>(['auftraege', 'alarme']);
+  const tabs = $derived(store.istLeitung ? TABS : TABS.filter((t) => GRUPPENFUEHRER.has(t.id)));
 
-  let tab = $state<Tab>(untrack(() => (TABS.some((t) => t.id === params.tab) ? params.tab : 'zugang')));
+  let tab = $state<Tab>(untrack(() => (tabs.some((t) => t.id === params.tab) ? params.tab : tabs[0].id)));
   // erneutes oeffne('leitung', { tab }) (z.B. Radial-Menü «Auftrag: Bloodhound») springt zum Tab
   $effect(() => {
-    if (TABS.some((t) => t.id === params.tab)) tab = params.tab;
+    if (tabs.some((t) => t.id === params.tab)) tab = params.tab;
+    else if (!tabs.some((t) => t.id === tab)) tab = tabs[0].id; // Rolle gewechselt
   });
   const aktiveAlarme = $derived([...store.alarme.values()].filter((a) => a.aufgehobenAm === null).length);
   const log = $derived([...store.meldungen].reverse());
 </script>
 
-{#if !store.istLeitung}
-  <p class="leise">Nur für die Leitung.</p>
+{#if !store.istLeitung && store.ichSelbst?.rolle !== 'gruppenfuehrer'}
+  <p class="leise">Nur für Leitung und Gruppenführer.</p>
 {:else}
   <div class="tabs" role="tablist" aria-label="Leitung">
-    {#each TABS as t (t.id)}
+    {#each tabs as t (t.id)}
       <button role="tab" aria-selected={tab === t.id} onclick={() => (tab = t.id)}>
         {t.label}{#if t.id === 'alarme' && aktiveAlarme}<span class="zahl">{aktiveAlarme}</span>{:else if t.id === 'auftraege' && store.bloodhound.size}<span class="zahl">{store.bloodhound.size}</span>{/if}
       </button>

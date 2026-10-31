@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Marker } from 'maplibre-gl';
   import { onDestroy } from 'svelte';
+  import { OHNE_BEOBACHTER } from '../../../../shared/regeln/rollen.ts';
   import { groesse } from '../../lib/groesse.svelte.ts';
   import { getMap, markiereZiel, registriereRadialAktion } from '../../lib/map.ts';
   import { beiNachricht, store } from '../../lib/store.svelte.ts';
@@ -50,6 +51,7 @@
         oeffne('sichtung');
       },
       phasen: ['lv'],
+      rollen: OHNE_BEOBACHTER,
     }),
     beiNachricht((msg) => {
       if (msg.typ !== 'sichtung' || msg.sichtung.von === store.ich) return;

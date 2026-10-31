@@ -1,8 +1,9 @@
 // Kern-Knöpfe des Radial-Menüs. Wird einmal von App importiert; Features melden ihre Knöpfe selbst an.
+import { OHNE_BEOBACHTER } from '../../../shared/regeln/rollen.ts';
 import { features } from '../features/registry.ts';
 import { spuren, zeige } from '../features/spuren/zustand.svelte.ts';
 import { folgeMir, folgeTeilnehmer, registriereRadialAktion, type RadialZiel } from './map.ts';
-import { send, setzeEinstellung, store } from './store.svelte.ts';
+import { darfAendern, send, setzeEinstellung, store } from './store.svelte.ts';
 import { ikon, oeffne, toast, ui, waehle } from './ui.svelte.ts';
 
 /** Teilnehmer-ID hinter dem Ziel ('ich' → eigene ID). */
@@ -16,7 +17,7 @@ export function zeigeDetails(z: RadialZiel): void {
 
 const darfMarkerAendern = (z: RadialZiel): boolean => {
   const m = store.marker.get(z.id);
-  return !!m && (store.istLeitung || m.von === store.ich);
+  return !!m && darfAendern(m.von);
 };
 
 registriereRadialAktion({
@@ -71,6 +72,7 @@ registriereRadialAktion({
   icon: ikon('<path d="M4 5h16v11H9l-5 4z"/>'),
   aktion: (z) => oeffne('chat', { an: { art: 'person', id: z.id } }),
   phasen: ['ap', 'lv'],
+  rollen: OHNE_BEOBACHTER,
 });
 
 registriereRadialAktion({
@@ -80,6 +82,7 @@ registriereRadialAktion({
   aktion: () => store.meinePos && oeffne('marker', { neu: { lat: store.meinePos.lat, lon: store.meinePos.lon } }),
   sichtbar: () => !!store.meinePos,
   phasen: ['ap', 'lv'],
+  rollen: OHNE_BEOBACHTER,
 });
 
 registriereRadialAktion({

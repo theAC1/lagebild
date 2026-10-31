@@ -46,7 +46,7 @@ describe('Vorgaben und Vertrag', () => {
 describe('Server', () => {
   it('Taufe geht an alle mit Meldung, Änderung behält Ersteller, Ablehnung als fehler; Snapshot nur der eigenen Lage', async () => {
     const l = await s.lage();
-    const ltgToken = (await s.beitreten(l.leitungCode, 'Leitung', 'Stab')).token;
+    const ltgToken = l.token;
     const a = await verbinde(s.url, (await s.beitreten(l.teilnehmerCode, 'Adler')).token);
     const b = await verbinde(s.url, (await s.beitreten(l.teilnehmerCode, 'Bär')).token);
     a.senden({ typ: 'taufe.neu', taufe: gebaeude('Gold') });
@@ -67,7 +67,7 @@ describe('Server', () => {
   it('Grössenbudget je Lage', () => {
     const db = oeffneDb(':memory:');
     const lage = { id: 'L', name: 'L', statusSet: [], erstelltAm: 0, phasen: [{ phase: 'lv' as const, t: 0 }] };
-    db.lageErstellen(lage, 'tn', 'ltg');
+    db.lageErstellen(lage, { teilnehmer: 'tn', gruppenfuehrer: 'gf', beobachter: 'beob' });
     const fehler: string[] = [];
     const t = { id: 'T', rolle: 'teilnehmer' } as Teilnehmer;
     const sende = (m: Befehl) => {

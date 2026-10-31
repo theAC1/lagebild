@@ -1,7 +1,7 @@
-// Rate-Limits: welche IP zählt (CF-Connecting-IP nur vom vertrauten Proxy, IPv6 als /64) und wie der Limiter zählt.
+// Rate-Limits: welche IP zählt (CF-Connecting-IP nur vom vertrauten Proxy, IPv6 als /64) und wie der Limiter zählt; Challenges.
 import { describe, expect, it } from 'vitest';
 import type { IncomingMessage } from 'node:http';
-import { clientIp, ipSchluessel, rateLimiter } from '../src/sicherheit.ts';
+import { challenges, clientIp, ipSchluessel, rateLimiter } from '../src/sicherheit.ts';
 
 const req = (remoteAddress: string, cf?: string) =>
   ({ socket: { remoteAddress }, headers: cf === undefined ? {} : { 'cf-connecting-ip': cf } }) as unknown as IncomingMessage;
@@ -36,4 +36,15 @@ describe('rateLimiter', () => {
     expect(voll('k1', 0)).toBe(true); // bekannte Schlüssel zählen weiter
     expect(voll('neu', 60_000)).toBe(true); // nach Ablauf wird aufgeräumt
   });
+});
+
+it('Challenges: nach Ablauf ungültig; Speicher gedeckelt, Abgelaufene machen Platz', () => {
+  const c = challenges(2, 1000);
+  const a = c.neu(0)!;
+  expect(c.einloesen(a, 1000)).toBe(false); // abgelaufen
+  c.neu(500);
+  c.neu(500);
+  expect(c.neu(500)).toBeUndefined(); // voll
+  const b = c.neu(1500)!;
+  expect(c.einloesen(b, 1600)).toBe(true);
 });

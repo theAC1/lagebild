@@ -1,5 +1,6 @@
-// Zeichnungen und Ebenen: alle zeichnen; ändern/löschen Ersteller oder Leitung; gesperrte Ebene nur Leitung; Ebenen nur Leitung.
+// Zeichnungen und Ebenen: alle zeichnen; ändern/löschen wer «darf ändern» (rollen.ts); gesperrte Ebene nur Leitung; Ebenen nur Leitung.
 import { standardEbeneId, type Ebene, type Zeichnung } from '../protocol.ts';
+import { darfAendern, einheiten } from './rollen.ts';
 import { lauf, nein, type Befehl, type Ereignis, type Ergebnis, type Zustand } from './typen.ts';
 
 export const MAX_ZEICHNUNGEN_JE_LAGE = 5000;
@@ -19,6 +20,8 @@ type ZeichnenBefehl = Extract<Befehl, { typ: (typeof ZEICHNEN_TYPEN)[number] }>;
 export function wendeZeichnen(z: Zustand, e: Ereignis & { msg: ZeichnenBefehl }): Ergebnis {
   const { autor: t, msg: m, jetzt } = e;
   const leitung = t.rolle === 'leitung';
+  const einheit = einheiten(z);
+  const darf = (von: string): boolean => darfAendern(t, von, einheit);
   const l = lauf(e);
   /** Darf der Autor in dieser Ebene schreiben (neu, ändern, löschen)? Fehlertext oder undefined. */
   const ebenenFehler = (ebeneId: string): string | undefined => {
@@ -38,7 +41,7 @@ export function wendeZeichnen(z: Zustand, e: Ereignis & { msg: ZeichnenBefehl })
         if (x.id) ids.add(x.id);
       }
       if (z.anzahl('zeichnung') + m.zeichnungen.length > MAX_ZEICHNUNGEN_JE_LAGE) return nein('Zu viele Zeichnungen in dieser Lage');
-      const neu: Zeichnung[] = m.zeichnungen.map((x) => ({ ...x, id: x.id ?? e.neueId(), von: leitung && x.von ? x.von : t.id, erstelltAm: jetzt, geaendertAm: jetzt }));
+      const neu: Zeichnung[] = m.zeichnungen.map((x) => ({ ...x, id: x.id ?? e.neueId(), von: x.von && darf(x.von) ? x.von : t.id, erstelltAm: jetzt, geaendertAm: jetzt }));
       if (z.groesse('zeichnung') + zeichen(neu) > MAX_ZEICHNUNGEN_ZEICHEN_JE_LAGE) return nein('Zu viele Zeichnungsdaten in dieser Lage');
       for (const x of neu) l.tu({ was: 'speichern', art: 'zeichnung', obj: x, t: x.erstelltAm });
       l.sende({ typ: 'zeichnungen', zeichnungen: neu });
@@ -51,7 +54,7 @@ export function wendeZeichnen(z: Zustand, e: Ereignis & { msg: ZeichnenBefehl })
         const alt = z.eintrag('zeichnung', x.id);
         if (!alt) return nein('Zeichnung nicht gefunden');
         if (alte.some((a) => a.id === x.id)) return nein('Zeichnung doppelt');
-        if (alt.von !== t.id && !leitung) return nein('Keine Berechtigung für diese Zeichnung');
+        if (!darf(alt.von)) return nein('Keine Berechtigung für diese Zeichnung');
         // Quell- und Zielebene prüfen: nichts aus einer gesperrten Ebene herausnehmen, nichts hineinlegen
         const fe = ebenenFehler(alt.ebeneId) ?? ebenenFehler(x.ebeneId);
         if (fe) return nein(fe);
@@ -69,7 +72,7 @@ export function wendeZeichnen(z: Zustand, e: Ereignis & { msg: ZeichnenBefehl })
       for (const id of ids) {
         const alt = z.eintrag('zeichnung', id);
         if (!alt) return nein('Zeichnung nicht gefunden');
-        if (alt.von !== t.id && !leitung) return nein('Keine Berechtigung für diese Zeichnung');
+        if (!darf(alt.von)) return nein('Keine Berechtigung für diese Zeichnung');
         const fe = ebenenFehler(alt.ebeneId);
         if (fe) return nein(fe);
       }

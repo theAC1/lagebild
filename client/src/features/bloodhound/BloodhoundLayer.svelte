@@ -4,7 +4,7 @@
   import type { GeoJSONSource } from 'maplibre-gl';
   import { onDestroy, untrack } from 'svelte';
   import { getMap, registriereRadialAktion } from '../../lib/map.ts';
-  import { beiNachricht, store } from '../../lib/store.svelte.ts';
+  import { beiNachricht, darfAuftrag, store } from '../../lib/store.svelte.ts';
   import { ikon, oeffne, toast } from '../../lib/ui.svelte.ts';
   import Leiste from './Leiste.svelte';
   import { ErreichtWaechter, istErsetzt, STUFE_FARBE } from './logik.ts';
@@ -35,7 +35,7 @@
       icon: ikon('<path d="M5 20V4M5 5h11l-2 3.5 2 3.5H5"/>'),
       aktion: (z) => oeffne('leitung', { tab: 'auftraege', an: z.id }),
       phasen: ['lv'],
-      sichtbar: (z) => store.istLeitung && z.id !== store.ich,
+      sichtbar: (z) => darfAuftrag(z.id) && z.id !== store.ich && store.teilnehmer.get(z.id)?.rolle !== 'beobachter',
     }),
     registriereRadialAktion({
       fuer: 'punkt',
@@ -56,8 +56,8 @@
     if (p) untrack(() => fuettere('ich', p));
   });
   $effect(() => {
-    if (!store.istLeitung) return;
     for (const a of store.bloodhound.values()) {
+      if (!darfAuftrag(a.an)) continue;
       const p = store.teilnehmer.get(a.an)?.pos;
       if (p) untrack(() => fuettere(a.an, p));
     }
@@ -108,7 +108,7 @@
       const text = { aufgehoben: 'Auftrag von Leitung aufgehoben', beendet: undefined, erreicht: 'Ziel erreicht – Auftrag abgeschlossen' }[ende];
       endeLokal();
       if (text) spaeter(text);
-    } else if (store.istLeitung) {
+    } else if (darfAuftrag(a.an)) {
       const wer = rufname(a.an);
       spaeter({ aufgehoben: `Auftrag an ${wer} aufgehoben`, beendet: `${wer} hat Bloodhound beendet`, erreicht: `${wer} hat das Ziel erreicht` }[ende]);
     }

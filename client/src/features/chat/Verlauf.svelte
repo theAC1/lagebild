@@ -80,6 +80,9 @@
   {/each}
 </ol>
 
+{#if store.istBeobachter}
+  <p class="leise">Beobachter: nur lesen.</p>
+{:else}
 <form onsubmit={senden}>
   <div class="chips schnell" role="group" aria-label="Schnellmeldungen">
     {#each SCHNELL as t (t)}
@@ -97,6 +100,7 @@
   />
   <button class="primaer icon" type="submit" aria-label="Senden" disabled={gesperrt || !text.trim()}>➤</button>
 </form>
+{/if}
 <div bind:this={ende}></div>
 
 <style>

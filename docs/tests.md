@@ -5,7 +5,7 @@
 zod selbst oder die eigene Testeinrichtung bestätigt, fliegt raus. Dieselbe Regel wird nur auf der tiefsten Ebene
 geprüft: Fachregeln im Reducer (`shared/regeln`), der Server nur für I/O (Speichern, Verteilen an die richtigen
 Empfänger, HTTP-Status, Limits), der Client nur für eigene Logik (Darstellung, Parsing, Offline, Wiedergabe).
-Client-Kopien von Reducer-Regeln (`darfAendern`, `kannAufheben`) sind nicht mehr getestet – die Regel lebt im Reducer.
+Die Oberfläche nutzt die Rechte-Regeln aus `shared/regeln/rollen.ts` direkt (`darfAendern`, `darfAuftrag`, seit 01.11.); getestet werden sie nur im Reducer.
 Varianten derselben Äquivalenzklasse stehen als Schleife in einem `it` (Assertion-Meldung nennt die Eingabe).
 
 **Nachweis:** Jeder Rechte-/Sicherheitstest und je Datei mindestens zwei weitere wurden durch eine gezielte Mutation am
@@ -14,16 +14,16 @@ Tabelle: [tests-mutationen.md](tests-mutationen.md). Vorgehen: exakte Textersetz
 Test rot? → Datei wiederherstellen. Dabei geschärft: Chat-Snapshot-Filter für Nicht-Empfänger, Pfadprüfung des
 Client-Verzeichnisses (`..` kodiert, sonst normalisiert die URL), Code-erneuern-Broadcast, labels-Hindernis, rb-Schlüssel.
 
-**Zahlen (31.10.2026):** 483 Tests / 45 Dateien / 4639 Zeilen → **191 Tests / 45 Dateien / 3382 Zeilen**; nach der Taufe-Überarbeitung (31.10.) **194 Tests / 45 Dateien / 3415 Zeilen** (+3: Naht geteilter Kacheln, mehrteilige Gebäude, Selbstüberschneidung).
+**Zahlen (31.10.2026):** 483 Tests / 45 Dateien / 4639 Zeilen → **191 Tests / 45 Dateien / 3382 Zeilen**; nach der Taufe-Überarbeitung (31.10.) **194 Tests / 45 Dateien / 3415 Zeilen** (+3: Naht geteilter Kacheln, mehrteilige Gebäude, Selbstüberschneidung); nach Gerätekennung und Rollen (01.11.) **205 Tests / 46 Dateien / 3625 Zeilen** (+11: Reducer-Rollen 6, Gerätenachweis, Wiederbeitritt, Challenges, Migration Spec v7, Rollen live).
 
 ## Was wo getestet wird und warum
 
 | Ebene | Dateien | Tests | Warum nötig |
 |---|---|---|---|
-| Reducer `shared/regeln` | rechte, phase, ablaeufe | 25 | Alle Rechte (Leitung/Teilnehmer/Ersteller), Phasensperren AP/LV/AN, fixiertes Raster, gesperrte Ebenen, Taufe-Konflikte, Sichtbarkeit (Chat, Bloodhound-Meldungen), Folgen über Module (Entfernen beendet Aufträge), Regressionen (Undo-Ersteller, Positionsrate, eigener entfernter Status). Reine Funktion → ohne I/O prüfbar. |
+| Reducer `shared/regeln` | rechte, phase, ablaeufe, rollen | 31 | Alle Rechte (Leitung/Gruppenführer/Teilnehmer/Beobachter/Ersteller; Gruppenführer nur über die eigene Einheit, Beobachter nur lesen), Rolle setzen, Übergabe → genau eine Leitung, Wiederbeitritt hebt die Rolle nur an, Phasensperren AP/LV/AN, fixiertes Raster, gesperrte Ebenen, Taufe-Konflikte, Sichtbarkeit (Chat, Bloodhound-Meldungen), Folgen über Module (Entfernen beendet Aufträge), Regressionen (Undo-Ersteller, Positionsrate, eigener entfernter Status). Reine Funktion → ohne I/O prüfbar. |
 | `shared/raster` | raster | 6 | Zellansprache und Ränder (links/oben dazu, rechts/unten nicht), Quadranten, Rückweg über WGS84, Funk-Ansprache, Rahmen/Linien – falsche Zelle = falscher Funkspruch. |
-| Server WebSocket | ws, bloodhound | 17 | Anmeldung (4001/4003), Verteilen nach Empfänger (Chat, Meldungen, Snapshot-Filter), Speichern (Spur, staleNach), Limits je Teilnehmer/IP (Nachrichten, Verbindungen, Alarme), Protokoll (Seiten, Bestand, Budget), AN 410, Code erneuern, Export, Löschen inkl. Fotos. |
-| Server REST | rest, app, sicherheit, phasen | 14 | Passwort/Codes/Bearer (401/403), Rate-Limits und wer zählt (CF-Connecting-IP nur vom Proxy, IPv6 /64, nur falsche Codes), Kontingente (Teilnehmer 507, Foto 2 MB/415), Pfadprüfung `/app/` und Client-Verzeichnis, CORS nur App-Ursprünge, Migration Bestandslagen. |
+| Server WebSocket | ws, bloodhound | 18 | Anmeldung (4001/4003, Web-Stand aus hallo), Verteilen nach Empfänger (Chat, Meldungen, Snapshot-Filter, neue Einheit sofort, Übergabe nur an Verbundene), Speichern (Spur, staleNach), Limits je Teilnehmer/IP (Nachrichten, Verbindungen, Alarme), Protokoll (Seiten, Bestand, Budget), AN 410, Codes je Rolle erneuern, Export, Löschen inkl. Fotos. |
+| Server REST | rest, app, sicherheit, phasen | 18 | Gerätenachweis (Signatur, Text gebunden an Code/Name, Challenge einmal und befristet, Limit je IP), gleiches Gerät = gleicher Eintrag (auch nach Entfernen, Kennung vom Server abgeleitet), Passwort/Codes je Rolle/Bearer (401/403, Beobachter-Foto 403), Rate-Limits und wer zählt (CF-Connecting-IP nur vom Proxy, IPv6 /64, nur falsche Codes), Kontingente (Teilnehmer 507, Foto 2 MB/415), Pfadprüfung `/app/` und Client-Verzeichnis, CORS nur App-Ursprünge, Migration Bestandslagen (Phasen; Spec v7: Spalten, eine Leitung, Leitungs- → Gruppenführer-Code). |
 | Server Vertrag/Daten | zeichnen, taufe, raster | 11 | Eigene Refinements des Vertrags (Punktzahl je Art, radiusM, Taufring ≥ 4, stoss < 360, Rasterausdehnung, 100 je Nachricht), Vorgabelisten ohne NATO-Wörter, Grössenbudgets je Lage, Snapshot/Export der Einträge. |
 | Client lib | coords, coords.parse, webUpdate, sonne, labels, appVersion, umgebung, speicher | 30 | Koordinaten-Parsing aller sechs Formate gegen Referenzpunkte und Roundtrip; LV95/MGRS-Referenz, Promille, Sendelogik, Frische; Live-Update-Siegel (Signatur, Downgrade, SHA-256, fremder Schlüssel, nur https, nie ohne Antippen aktivieren); fester Server der App; Aufräumen nur fremder Lage-Schlüssel. |
 | Client raster/offline | druck, beschriftung, kacheln, laden | 21 | PDF-Raster (runder Massstab, Blattgeometrie umkehrbar, Felder ohne Überlappung, Kachelplan trifft Rahmenecke, gültige xref), Raster-Köpfe auf der Karte; Offline-Gebiete (Zoomgrenzen, Kachelzahl, URL↔Kachel, Referenzzählung beim Löschen, 60-Tage-Ablauf), Lader (einmal je Kachel, Wiederaufnahme, Netz weg, 404/503, Drossel). |

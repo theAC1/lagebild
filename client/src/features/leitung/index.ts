@@ -7,7 +7,7 @@ const feature: Feature = {
   label: 'Leitung',
   icon: ikon('<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>'),
   Panel: LeitungPanel,
-  nurLeitung: true,
+  rollen: ['leitung', 'gruppenfuehrer'], // Gruppenführer: nur Aufträge und Alarme
 };
 
 export default feature;

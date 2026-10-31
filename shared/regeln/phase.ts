@@ -10,13 +10,15 @@ export const PHASE_NAME: Record<Phase, string> = { ap: 'Aktionsplanung', lv: 'La
 /** Erlaubte Wechsel: vor und zurück, aber AP und AN nur über LV. */
 export const WECHSEL: Record<Phase, Phase[]> = { ap: ['lv'], lv: ['ap', 'an'], an: ['lv'] };
 
+/** Rollen und eigene Angaben sind kein Lageinhalt: in jeder Phase. */
+const ROLLEN = ['ich.aendern', 'teilnehmer.aendern', 'leitung.uebergeben'] as const;
 /** In AP erlaubt: planen und absprechen. Keine Position, kein Status, keine Sichtung, kein Alarm, kein Bloodhound. */
 const AP = new Set<Befehl['typ']>([
   'sendetPos', 'marker.setzen', 'marker.loeschen', 'zeichnung.neu', 'zeichnung.aendern', 'zeichnung.loeschen',
   'ebene.neu', 'ebene.aendern', 'ebene.loeschen', 'taufe.neu', 'taufe.aendern', 'taufe.loeschen', 'lage.taufListen',
-  'raster.setzen', 'raster.fixieren', 'raster.loeschen', 'chat', 'lage.statusSet', 'teilnehmer.entfernen', 'lage.phase',
+  'raster.setzen', 'raster.fixieren', 'raster.loeschen', 'chat', 'lage.statusSet', 'teilnehmer.entfernen', 'lage.phase', ...ROLLEN,
 ]);
-const AN = new Set<Befehl['typ']>(['lage.phase', 'notiz.neu', 'notiz.loeschen']);
+const AN = new Set<Befehl['typ']>(['lage.phase', 'notiz.neu', 'notiz.loeschen', ...ROLLEN]);
 
 /**
  * Sperre der Phase vor allen anderen Regeln: undefined = weiter prüfen. Positionen ausserhalb LV verwirft sie still

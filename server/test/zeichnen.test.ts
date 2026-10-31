@@ -20,7 +20,7 @@ const linie = (ebeneId: string, extra: Partial<ZInput> = {}): ZInput => ({
 
 async function szenario() {
   const l = await s.lage();
-  const ltgB = await s.beitreten(l.leitungCode, 'Leitung', 'Stab');
+  const ltgB = l;
   const aB = await s.beitreten(l.teilnehmerCode, 'Adler', 'Zug 1');
   const bB = await s.beitreten(l.teilnehmerCode, 'Bär', 'Zug 2');
   const ltg = await verbinde(s.url, ltgB.token);
@@ -101,7 +101,7 @@ describe('Server', () => {
   it('Grössenbudget je Lage: neu und wachsende Änderung werden abgelehnt, schrumpfende nicht', () => {
     const db = oeffneDb(':memory:');
     const lage = { id: 'L', name: 'L', statusSet: [], erstelltAm: 0, phasen: [{ phase: 'lv' as const, t: 0 }] };
-    db.lageErstellen(lage, 'tn', 'ltg');
+    db.lageErstellen(lage, { teilnehmer: 'tn', gruppenfuehrer: 'gf', beobachter: 'beob' });
     const std = db.ebenenSicherstellen(lage.id)[0].id;
     const fehler: string[] = [];
     const t = { id: 'T', rolle: 'teilnehmer' } as Teilnehmer;

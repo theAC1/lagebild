@@ -1,3 +1,4 @@
+import { OHNE_BEOBACHTER } from '../../../../shared/regeln/rollen.ts';
 import type { Feature } from '../registry.ts';
 import { ikon } from '../../lib/ui.svelte.ts';
 import Panel from './Panel.svelte';
@@ -15,6 +16,7 @@ const feature: Feature = {
   detailArt: 'sichtung',
   haupt: { aktion: sichtungMelden },
   phasen: ['lv'],
+  rollen: OHNE_BEOBACHTER,
 };
 
 export default feature;

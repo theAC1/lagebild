@@ -2,7 +2,9 @@
   import { azimut, distanz, formatDistanz, formatLv95, formatMgrs, formatRichtung } from '../lib/coords.ts';
   import { starte } from '../features/bloodhound/zustand.svelte.ts';
   import { zentriere } from '../lib/map.ts';
-  import { alterMs, formatAlter, frische, keinGps, statusDef, store } from '../lib/store.svelte.ts';
+  import { ROLLE_NAME } from '../../../shared/regeln/rollen.ts';
+  import RolleVerwalten from '../features/leitung/RolleVerwalten.svelte';
+  import { alterMs, darfAuftrag, formatAlter, frische, keinGps, statusDef, store } from '../lib/store.svelte.ts';
   import { teamFarbe } from '../lib/team.ts';
   import { funktionLabel, symbolSvg } from '../lib/symbol.ts';
   import { groesse } from '../lib/groesse.svelte.ts';
@@ -22,7 +24,7 @@
   <div class="kopf">
     <div class="zeichen">{@html symbolSvg(t.sidc, { size: 34 * groesse.ui })}</div>
     <div>
-      <div class="rufname">{t.rufname}{#if t.rolle === 'leitung'}<span class="badge">Leitung</span>{/if}</div>
+      <div class="rufname">{t.rufname}{#if t.rolle !== 'teilnehmer'}<span class="badge">{ROLLE_NAME[t.rolle]}</span>{/if}</div>
       <div class="leise"><span class="team" style:background={teamFarbe(t.einheit)}></span>{t.einheit}{t.funktion ? ` · ${t.funktion}` : ''} · {funktionLabel(t.sidc)}</div>
     </div>
   </div>
@@ -55,17 +57,28 @@
       <dt>Position</dt>
       <dd>unbekannt</dd>
     {/if}
+    {#if store.istLeitung}
+      <dt>Gerät</dt>
+      <dd class="mono">{t.geraet ?? 'ohne Kennung (vor Spec v7)'}</dd>
+      <dt>Web-Stand</dt>
+      <dd>{t.stand === undefined ? 'unbekannt' : t.stand || 'Entwicklung'}</dd>
+    {/if}
   </dl>
 
   <div class="aktionen">
     <button disabled={!t.pos} onclick={() => t.pos && zentriere(t.pos)}>Zentrieren</button>
     {#if !istIch}
-      <button onclick={() => oeffne('chat', { an: { art: 'person', id } })}>Chat</button>
+      {#if !store.istBeobachter}<button onclick={() => oeffne('chat', { an: { art: 'person', id } })}>Chat</button>{/if}
       <button onclick={() => oeffne('rangebearing', { ziel: { art: 'teilnehmer', id } })}>Range &amp; Bearing</button>
       <button onclick={() => starte({ art: 'teilnehmer', id })}>Bloodhound</button>
-      {#if store.istLeitung}<button onclick={() => oeffne('leitung', { tab: 'auftraege', an: id })}>Auftrag: Bloodhound</button>{/if}
+      {#if darfAuftrag(id) && t.rolle !== 'beobachter'}<button onclick={() => oeffne('leitung', { tab: 'auftraege', an: id })}>Auftrag: Bloodhound</button>{/if}
     {/if}
   </div>
+
+  {#if store.istLeitung && !istIch}
+    <h3>Rolle</h3>
+    <RolleVerwalten {t} />
+  {/if}
 {/if}
 
 <style>
@@ -140,5 +153,9 @@
   }
   .aktionen button {
     flex: 1 1 30%;
+  }
+  h3 {
+    margin: 16px 0 6px;
+    font-size: 1rem;
   }
 </style>

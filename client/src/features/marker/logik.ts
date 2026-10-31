@@ -8,9 +8,6 @@ export const MARKER_STANDARD_SIDC = baueSidc({ zugehoerigkeit: 'unbekannt', set:
 
 export type MarkerFilter = Zugehoerigkeit | 'alle';
 
-/** Ändern/Löschen dürfen Ersteller und Leitung (gleiche Regel wie der Server). */
-export const darfAendern = (m: Pick<Marker, 'von'>, ich: string | null, istLeitung: boolean) => istLeitung || (ich !== null && m.von === ich);
-
 /** Anzeigename: Bezeichnung, sonst die Funktion des Zeichens. */
 export const markerName = (m: Pick<Marker, 'bezeichnung' | 'sidc'>) => m.bezeichnung.trim() || funktionLabel(m.sidc);
 

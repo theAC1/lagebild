@@ -3,12 +3,12 @@
 //   npm run build && PORT=8830 LAGE_ERSTELL_PASSWORT=last DATA_DIR=/tmp/last npm start &
 //   PORT=8830 DATA_DIR=/tmp/last node e2e/lastmessung.ts        (DROSSEL=4 CPU-Drossel, MESS_S=15 Messfenster)
 // Schreibt die Testdaten direkt in die SQLite des laufenden Servers (frisches DATA_DIR nehmen).
-import { randomUUID } from 'node:crypto';
+import { generateKeyPairSync, randomUUID, sign } from 'node:crypto';
 import { join } from 'node:path';
 import { chromium, type Page } from '@playwright/test';
 import { WebSocket } from 'ws';
 import { oeffneDb } from '../server/src/db.ts';
-import { standardEbeneId, STANDARD_STIL, type Beigetreten, type LageErstellt, type Taufe, type Zeichnung } from '../shared/protocol.ts';
+import { beitrittsText, eroeffnungsText, standardEbeneId, STANDARD_STIL, type Beigetreten, type Challenge, type LageErstellt, type Taufe, type Zeichnung } from '../shared/protocol.ts';
 
 const URL = `http://127.0.0.1:${process.env.PORT}`;
 const DROSSEL = Number(process.env.DROSSEL ?? 4);
@@ -22,10 +22,21 @@ let saat = 7;
 const r = () => (saat = (saat * 16807) % 2147483647) / 2147483647;
 const pt = () => ({ lat: Z.lat + (r() - 0.5) * 0.03, lon: Z.lon + (r() - 0.5) * 0.045 });
 
+/** Gerätenachweis eines neuen Geräts (Spec v7). */
+async function geraet(text: (challenge: string) => string) {
+  const { challenge } = await post<Challenge>('/api/challenge', {});
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  return { pub: publicKey.export({ format: 'jwk' }).x, challenge, signatur: sign(null, Buffer.from(text(challenge)), privateKey).toString('base64url') };
+}
+
 // --- Lage und Daten -----------------------------------------------------------------------
-const l = await post<LageErstellt>('/api/lage', { name: 'Last', erstellPasswort: process.env.LAGE_ERSTELL_PASSWORT ?? 'last', phase: 'lv' });
-const neu = (code: string, rufname: string, einheit: string) => post<Beigetreten>('/api/beitreten', { code, rufname, einheit, funktion: 'Sdt', sidc: SIDC });
-const ltg = await neu(l.leitungCode, 'Leitung', 'Stab');
+const l = await post<LageErstellt>('/api/lage', {
+  name: 'Last', erstellPasswort: process.env.LAGE_ERSTELL_PASSWORT ?? 'last', phase: 'lv', rufname: 'Leitung', einheit: 'Stab', funktion: 'Kdt', sidc: SIDC,
+  geraet: await geraet((c) => eroeffnungsText(c, 'Last')),
+});
+const neu = async (code: string, rufname: string, einheit: string) =>
+  post<Beigetreten>('/api/beitreten', { code, rufname, einheit, funktion: 'Sdt', sidc: SIDC, geraet: await geraet((c) => beitrittsText(c, code)) });
+const ltg: Beigetreten = l;
 const tn: Beigetreten[] = [];
 for (let i = 0; i < 49; i++) tn.push(await neu(l.teilnehmerCode, `TN${i}`, `Zug ${i % 5}`));
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { send, store } from '../../lib/store.svelte.ts';
+  import { darfAendern, send, store } from '../../lib/store.svelte.ts';
   import { zentriere } from '../../lib/map.ts';
   import { toast } from '../../lib/ui.svelte.ts';
   import { uhrzeit } from './logik.ts';
@@ -32,7 +32,7 @@
           {@const p = { lat: a.lat, lon: a.lon }}
           <button onclick={() => zentriere(p, 16)}>Auf Karte</button>
         {/if}
-        {#if aktiv}<button class="gefahr" onclick={() => aufheben(a.id)}>Aufheben</button>{/if}
+        {#if aktiv && darfAendern(a.von)}<button class="gefahr" onclick={() => aufheben(a.id)}>Aufheben</button>{/if}
       </div>
     </li>
   {/each}

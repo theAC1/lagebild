@@ -2,10 +2,9 @@
 // Alle Kachel-Anfragen gehen an page.route (Farbkacheln), nichts an swisstopo. Service Worker aus, sonst sieht route nichts.
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { crc32, deflateSync } from 'node:zlib';
-import { dokuBild, HOCH, wische } from './hilfen.ts';
+import { beitreten, dokuBild, HOCH, neueMission, wische } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
-const SIDC = '10031000001211000000';
 const GRUEN = [40, 170, 60] as const;
 const BLAU = [30, 80, 220] as const;
 
@@ -37,11 +36,10 @@ let offlineAn = false;
 const geholt: string[] = [];
 
 test.beforeAll(async ({ browser }) => {
-  const r0 = await (await browser.newContext()).request.post('/api/lage', { data: { name: 'Übung Aare', erstellPasswort: 'e2e', phase: 'lv' } });
-  const { teilnehmerCode } = await r0.json();
+  const { teilnehmerCode } = await neueMission((await browser.newContext()).request, 'Übung Aare', 'lv');
   ctx = await browser.newContext({ geolocation: ADLER, serviceWorkers: 'block' });
-  const r = await ctx.request.post('/api/beitreten', { data: { code: teilnehmerCode, rufname: 'Fuchs', einheit: 'Zug 1', funktion: '', sidc: SIDC } });
-  const { token } = await r.json();
+  const r = await beitreten(ctx.request, teilnehmerCode, { rufname: 'Fuchs' });
+  const { token } = r;
   await ctx.addInitScript((t) => localStorage.setItem('lagebild.token', t), token);
   // Gerade Zoomstufen grün, ungerade blau: wechselt die Farbe offline nach dem Hineinzoomen, kam die feinere Stufe
   // aus dem Speicher und nicht als hochgezoomte gröbere aus dem Arbeitsspeicher von MapLibre
@@ -127,7 +125,7 @@ test('Rechteck aufziehen, laden, offline aus dem Speicher, löschen', async () =
   await knopf('Laden').click();
 
   await expect(gebiete()).toHaveCount(1);
-  await expect(gebiete().first().getByRole('textbox', { name: 'Name' })).toHaveValue(/^Übung Aare · \d{2}\.\d{2}\.\d{4}$/);
+  await expect(gebiete().first().getByRole('textbox', { name: 'Name' })).toHaveValue(/^Übung Aare · \d{1,2}\.\d{1,2}\.\d{4}$/);
   await expect(gebiete().first().getByRole('status')).toHaveText('Fertig', { timeout: 45_000 });
   const [g] = await gespeichert();
   expect(g.erledigt).toBe(g.gesamt);

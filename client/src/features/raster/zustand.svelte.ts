@@ -2,7 +2,7 @@
 import { SvelteMap } from 'svelte/reactivity';
 import type { Punkt, Raster, RasterArt } from '../../../../shared/protocol.ts';
 import { ansprache, RASTER_NAME, zelleVon, type Zelle } from '../../../../shared/raster.ts';
-import { beiNachricht, store } from '../../lib/store.svelte.ts';
+import { beiNachricht, darfAendern as darfVon, store } from '../../lib/store.svelte.ts';
 import { lies, oeffne, schreibe, type ToastKnopf } from '../../lib/ui.svelte.ts';
 
 export const ARTEN: RasterArt[] = ['grande', 'piccolo'];
@@ -56,9 +56,9 @@ export function schalteSichtbar(art: RasterArt): void {
 }
 
 /** Darf ich das Raster jetzt verschieben/ändern? Nicht fixiert: Ersteller oder Leitung; fixiert: niemand (Leitung löst zuerst). */
-export const darfAendern = (r: Raster): boolean => !r.fixiert && (store.istLeitung || r.von === store.ich);
+export const darfAendern = (r: Raster): boolean => !r.fixiert && darfVon(r.von);
 /** Fixieren (offen) bzw. lösen und löschen (fixiert). */
-export const darfFixieren = (r: Raster): boolean => (r.fixiert ? store.istLeitung : store.istLeitung || r.von === store.ich);
+export const darfFixieren = (r: Raster): boolean => (r.fixiert ? store.istLeitung : darfVon(r.von));
 
 /** Fixierte Raster: nur sie gelten für die Ansprache (eine Vorschau kann sich noch bewegen). */
 export const fixierte = (): Raster[] => ARTEN.map((a) => rz.raster.get(a)).filter((r): r is Raster => !!r?.fixiert);

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { PROTOKOLL_VERSION, staleNachFuer } from '../../../shared/protocol.ts';
+  import { ROLLE_NAME } from '../../../shared/regeln/rollen.ts';
   import { KOORD_FORMATE } from '../lib/coords.ts';
   import { BEDIENGROESSEN } from '../lib/groesse.svelte.ts';
   import { aktualisiereHintergrund, aktualisiereWachhalten, setzeSendetPos } from '../lib/position.svelte.ts';
@@ -51,6 +52,7 @@
     <p class="leise">Daumen-Ränder: Melden links, Karte rechts. Wird pro Gerät gemerkt.</p>
   </div>
 
+  {#if !store.istBeobachter}
   <label class="schalter">
     <span>
       <strong>Position senden</strong>
@@ -64,6 +66,7 @@
       onchange={(e) => setzeSendetPos(e.currentTarget.checked)}
     />
   </label>
+  {/if}
 
   <div>
     <div class="titel">Sendeintervall</div>
@@ -139,7 +142,7 @@
   <div class="lage">
     <div class="leise">Lage</div>
     <strong>{store.lage?.name ?? '–'}</strong>
-    {#if store.ichSelbst}<div class="leise">{store.ichSelbst.rufname} · {store.istLeitung ? 'Leitung' : 'Teilnehmer'}</div>{/if}
+    {#if store.ichSelbst}<div class="leise">{store.ichSelbst.rufname} · {ROLLE_NAME[store.ichSelbst.rolle]}</div>{/if}
   </div>
 
   {#if verlassenFragen}

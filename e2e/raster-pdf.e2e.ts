@@ -4,11 +4,10 @@ import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { WebSocket } from 'ws';
 import { rasterUm, RASTER_VORGABE, zuLv95 } from '../shared/raster.ts';
-import { dokuBild } from './hilfen.ts';
+import { dokuBild, neueMission } from './hilfen.ts';
 
 const PORT = Number(process.env.PW_PORT ?? 8797);
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
-const SIDC = '10031000001211000000';
 const K = Math.cos((ADLER.latitude * Math.PI) / 180) * 111_320;
 /** Meter (Ost, Nord) ab ADLER → [lon, lat] */
 const ll = (ost: number, nord: number): [number, number] => [ADLER.longitude + ost / K, ADLER.latitude + nord / 111_320];
@@ -54,12 +53,10 @@ async function bild(p: Page, jpeg: Buffer, name: string) {
 test('Piccolo «Als PDF»: Datei mit Luftbild, SpotMap und Landeskarte', async ({ browser }) => {
   test.setTimeout(150_000);
   const start = await browser.newContext();
-  const codes = await (await start.request.post('/api/lage', { data: { name: 'Übung Aare', erstellPasswort: 'e2e' } })).json();
+  const { token } = await neueMission(start.request, 'Übung Aare');
   await start.close();
 
   const ctx = await browser.newContext({ geolocation: ADLER });
-  const r = await ctx.request.post('/api/beitreten', { data: { code: codes.leitungCode, rufname: 'Adler', einheit: 'Zug 1', funktion: '', sidc: SIDC } });
-  const { token } = await r.json();
   const raster = { art: 'piccolo', ...rasterUm(zuLv95({ lat: ADLER.latitude, lon: ADLER.longitude }), RASTER_VORGABE.piccolo) };
   await sende(token, [
     [{ typ: 'raster.setzen', raster }, 'raster'],

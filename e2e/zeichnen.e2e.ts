@@ -1,23 +1,22 @@
 // Spec v2 Punkt 4: Zeichnen am Desktop (voller Umfang) und mobil (reduziert), gegen den echten Server.
 import { expect, test, type APIRequestContext, type Browser, type BrowserContextOptions, type Page } from '@playwright/test';
-import { bedienung, DESKTOP, dokuBild } from './hilfen.ts';
+import { bedienung, beitreten, DESKTOP, dokuBild, neueMission } from './hilfen.ts';
+import type { Beigetreten, LageErstellt } from '../shared/protocol.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const BRAVO = { latitude: 46.9476, longitude: 7.4462 };
-const SIDC = '10031000001211000000';
 
 test.describe.configure({ mode: 'serial' });
 
 type Sitzung = { page: Page; token: string; id: string };
 let leitung: Sitzung;
 let bravo: Sitzung;
-let codes: { teilnehmerCode: string; leitungCode: string };
+let codes: LageErstellt;
 
-async function sitzung(browser: Browser, code: string, rufname: string, geolocation: typeof ADLER, kontext: BrowserContextOptions = {}): Promise<Sitzung> {
+async function sitzung(browser: Browser, code: string | Beigetreten, rufname: string, geolocation: typeof ADLER, kontext: BrowserContextOptions = {}): Promise<Sitzung> {
   const ctx = await browser.newContext({ geolocation, ...kontext });
-  const r = await ctx.request.post('/api/beitreten', { data: { code, rufname, einheit: 'Zug 1', funktion: '', sidc: SIDC } });
-  expect(r.status()).toBe(201);
-  const { token, teilnehmerId } = await r.json();
+  const r = await beitreten(ctx.request, code, { rufname });
+  const { token, teilnehmerId } = r;
   await ctx.addInitScript((t) => localStorage.setItem('lagebild.token', t), token);
   await ctx.addInitScript(bedienung, 'klassisch');
   const page = await ctx.newPage();
@@ -54,10 +53,9 @@ const at = (dx: number, dy: number) => [c.x + dx, c.y + dy] as const;
 
 test.beforeAll(async ({ browser }) => {
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name: 'Zeichnen', erstellPasswort: 'e2e', phase: 'lv' } });
-  codes = await r.json();
+  codes = await neueMission(ctx.request, 'Zeichnen', 'lv');
   await ctx.close();
-  leitung = await sitzung(browser, codes.leitungCode, 'Adler', ADLER, DESKTOP);
+  leitung = await sitzung(browser, codes, 'Adler', ADLER, DESKTOP);
   bravo = await sitzung(browser, codes.teilnehmerCode, 'Bravo', BRAVO, DESKTOP);
   c = await mitte(leitung.page);
   await mitte(bravo.page);

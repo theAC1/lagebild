@@ -69,6 +69,7 @@
     <span class="leise">{FAMILIE_LABEL[t.familie]}{t.quelle === 'gezeichnet' ? ' · gezeichnet' : ''}</span>
   </div>
 
+  {#if !store.istBeobachter}
   <div class="chips" role="group" aria-label="Hervorhebung">
     <button aria-pressed={t.ziel} onclick={() => aendere({ id: t.id, ziel: !t.ziel })}>Zielobjekt</button>
     <button aria-pressed={umbenennen} onclick={() => (umbenennen = !umbenennen)}>Umbenennen</button>
@@ -94,7 +95,8 @@
     </div>
   {/if}
 
-  {#if !linie}
+  {/if}
+  {#if !linie && !store.istBeobachter}
     <p class="gruppe-titel">Stossrichtung</p>
     <div class="chips kompass" role="group" aria-label="Stossrichtung">
       <button aria-pressed={t.stoss === null} onclick={() => aendere({ id: t.id, stoss: null, fassaden: [] })}>Keine</button>
@@ -133,9 +135,11 @@
   {:else}
     <div class="aktionen">
       <button onclick={zentriere}>Zentrieren</button>
-      {#if linie}<button onclick={verlaengern}>Verlängern</button>{/if}
-      {#if t.quelle === 'gezeichnet' && t.geometrie.type === 'Polygon'}<button onclick={punkte}>Punkte bearbeiten</button>{/if}
-      <button class="gefahr" onclick={() => (loeschenFragen = true)}>Löschen</button>
+      {#if !store.istBeobachter}
+        {#if linie}<button onclick={verlaengern}>Verlängern</button>{/if}
+        {#if t.quelle === 'gezeichnet' && t.geometrie.type === 'Polygon'}<button onclick={punkte}>Punkte bearbeiten</button>{/if}
+        <button class="gefahr" onclick={() => (loeschenFragen = true)}>Löschen</button>
+      {/if}
     </div>
   {/if}
 {/if}

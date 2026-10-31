@@ -19,7 +19,7 @@ const roherSocket = () => new WebSocket(s.url.replace('http', 'ws') + '/ws');
 /** Lage mit Leitung und zwei Teilnehmenden (A in Zug 1, B in Zug 2), alle verbunden. */
 async function szenario() {
   const l = await s.lage();
-  const ltgB = await s.beitreten(l.leitungCode, 'Leitung', 'Stab');
+  const ltgB = l;
   const aB = await s.beitreten(l.teilnehmerCode, 'Adler', 'Zug 1');
   const bB = await s.beitreten(l.teilnehmerCode, 'Bär', 'Zug 2');
   const ltg = await verbinde(s.url, ltgB.token);
@@ -30,10 +30,16 @@ async function szenario() {
 
 describe('Anmeldung', () => {
   it('hallo liefert Snapshot mit online-Flag; ungültiges Token und fehlendes hallo beenden die Verbindung', async () => {
-    const { ltg, a, aB } = await szenario();
+    const { ltg, a, aB, bB } = await szenario();
     expect(a.snapshot.ich).toBe(aB.teilnehmerId);
     expect(a.snapshot.teilnehmer.find((t) => t.id === aB.teilnehmerId)?.online).toBe(true);
     expect(ltg.snapshot.teilnehmer).toHaveLength(3);
+    // hallo trägt den Web-Stand des Geräts; die Leitung sieht ihn
+    const mitStand = roherSocket();
+    await new Promise((ok) => mitStand.once('open', ok));
+    mitStand.send(JSON.stringify({ typ: 'hallo', token: bB.token, stand: 4711 }));
+    expect((await ltg.warte('teilnehmer', (m) => m.teilnehmer.id === bB.teilnehmerId && m.teilnehmer.stand !== undefined)).teilnehmer.stand).toBe(4711);
+    mitStand.close();
 
     const falsch = roherSocket();
     const msgs: string[] = [];
@@ -142,6 +148,23 @@ describe('Verteilen und Speichern', () => {
     neu.zu();
   });
 
+  it('Rollen live: neue Einheit gilt sofort für Chat; Übergabe nur an Verbundene, danach hat das Ziel die Leitungsrechte', async () => {
+    const { ltg, a, b, bB } = await szenario();
+    ltg.senden({ typ: 'teilnehmer.aendern', id: bB.teilnehmerId, einheit: 'Zug 1' });
+    await b.warte('teilnehmer', (m) => m.teilnehmer.einheit === 'Zug 1');
+    a.senden({ typ: 'chat', an: { art: 'einheit', einheit: 'Zug 1' }, text: 'Zug 1 sammeln' });
+    expect((await b.warte('chat')).chat.text).toBe('Zug 1 sammeln'); // ohne neu zu verbinden
+    b.zu();
+    await ltg.warte('teilnehmer', (m) => m.teilnehmer.id === bB.teilnehmerId && !m.teilnehmer.online);
+    ltg.senden({ typ: 'leitung.uebergeben', id: bB.teilnehmerId });
+    expect((await ltg.warte('fehler')).meldung).toBe('Bär ist nicht verbunden');
+    const b2 = await verbinde(s.url, bB.token);
+    ltg.senden({ typ: 'leitung.uebergeben', id: bB.teilnehmerId });
+    await b2.warte('teilnehmer', (m) => m.teilnehmer.id === bB.teilnehmerId && m.teilnehmer.rolle === 'leitung');
+    b2.senden({ typ: 'lage.codeErneuern' });
+    await b2.warte('code');
+  });
+
   it('Status: Teilnehmer-Delta mit online-Flag und Meldung an alle; Trennen setzt online:false', async () => {
     const { ltg, a, b, aB, bB } = await szenario();
     a.senden({ typ: 'status', status: 'halt', text: 'Pause' });
@@ -176,7 +199,7 @@ describe('Verteilen und Speichern', () => {
     expect((await a.warte('lage')).lage.phasen.map((p) => p.phase)).toEqual(['lv', 'an']);
     a.senden({ typ: 'chat', an: { art: 'alle' }, text: 'x' });
     expect((await a.warte('fehler')).meldung).toBe('Nachbearbeitung: nur lesen');
-    const r = await s.api('/api/beitreten', { method: 'POST', body: JSON.stringify({ code: l.teilnehmerCode, rufname: 'X', einheit: 'Y', funktion: '', sidc: SIDC }) });
+    const r = await s.api('/api/beitreten', { method: 'POST', body: await s.beitrittsBody(l.teilnehmerCode) });
     expect(r.status).toBe(410);
     expect((await s.api('/api/foto', { method: 'POST', token: aB.token, body: JPEG })).status).toBe(410);
     a.zu();
@@ -237,18 +260,20 @@ describe('Verteilen und Speichern', () => {
     await a.warte('fehler');
   });
 
-  it('Teilnehmer-Code erneuern: nur Leitung, Klartext nur an sie; alter Code ungültig, bestehende Tokens bleiben', async () => {
+  it('Codes erneuern (je Rolle): nur Leitung, Klartext nur an sie; alter Code ungültig, neuer gibt die Rolle, bestehende Tokens bleiben', async () => {
     const { l, ltg, a, aB } = await szenario();
     a.senden({ typ: 'lage.codeErneuern' });
     expect((await a.warte('fehler')).meldung).toMatch(/Leitung/);
-    ltg.senden({ typ: 'lage.codeErneuern' });
-    const { teilnehmerCode } = await ltg.warte('code');
-    expect(teilnehmerCode).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
+    const alte = { teilnehmer: l.teilnehmerCode, gruppenfuehrer: l.gruppenfuehrerCode, beobachter: l.beobachterCode };
+    for (const art of ['teilnehmer', 'gruppenfuehrer', 'beobachter'] as const) {
+      ltg.senden({ typ: 'lage.codeErneuern', ...(art !== 'teilnehmer' && { art }) }); // ohne art: Teilnehmer (ältere Web-Stände)
+      const m = await ltg.warte('code');
+      expect(m, art).toMatchObject({ art, code: art === 'gruppenfuehrer' ? expect.stringMatching(/^[A-HJKMNP-Z2-9]{10}$/) : expect.stringMatching(/^[A-HJKMNP-Z2-9]{8}$/) });
+      expect((await s.api('/api/beitreten', { method: 'POST', body: await s.beitrittsBody(alte[art]) })).status, art).toBe(403);
+      expect((await s.beitreten(m.code, 'Neu')).rolle, art).toBe(art);
+    }
     await pause(100);
     expect(a.empfangen.some((m) => m.typ === 'code')).toBe(false); // Klartext nur an die Leitung
-    const alt = await s.api('/api/beitreten', { method: 'POST', body: JSON.stringify({ code: l.teilnehmerCode, rufname: 'X', einheit: 'Y', funktion: '', sidc: SIDC }) });
-    expect(alt.status).toBe(403);
-    expect((await s.beitreten(teilnehmerCode, 'Neu')).rolle).toBe('teilnehmer');
     expect((await s.api('/api/spuren', { token: aB.token })).status).toBe(200);
   });
 });
@@ -373,6 +398,6 @@ describe('Export und Löschen', () => {
     await a.warte('beendet');
     expect(existsSync(fotoDir)).toBe(false);
     expect((await s.api('/api/spuren', { token: aB.token })).status).toBe(401);
-    expect((await s.api('/api/beitreten', { method: 'POST', body: JSON.stringify({ code: l.teilnehmerCode, rufname: 'X', einheit: 'Y', funktion: '', sidc: SIDC }) })).status).toBe(403);
+    expect((await s.api('/api/beitreten', { method: 'POST', body: await s.beitrittsBody(l.teilnehmerCode) })).status).toBe(403);
   });
 });

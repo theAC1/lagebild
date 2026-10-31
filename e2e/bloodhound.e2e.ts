@@ -1,7 +1,8 @@
 // Bloodhound: persönliches Bloodhound per Rechtsklick-Radial (Desktop) und Auftrag der Leitung bis «erreicht».
 import { expect, test, type Browser, type BrowserContext, type BrowserContextOptions, type Page } from '@playwright/test';
 import { WebSocket } from 'ws';
-import { bedienung, DESKTOP, dokuBild } from './hilfen.ts';
+import { bedienung, beitreten, DESKTOP, dokuBild, neueMission } from './hilfen.ts';
+import type { Beigetreten } from '../shared/protocol.ts';
 
 const PORT = Number(process.env.PW_PORT ?? 8797);
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
@@ -17,11 +18,10 @@ let bravoCtx: BrowserContext;
 let charlie: Page; // Unbeteiligte: sieht die Linie, bekommt keine Meldung
 const charlieMsgs: { typ: string; auftrag?: { ende: string | null } }[] = [];
 
-async function seite(browser: Browser, code: string, rufname: string, geolocation: typeof ADLER, kontext: BrowserContextOptions = {}) {
+async function seite(browser: Browser, code: string | Beigetreten, rufname: string, geolocation: typeof ADLER, kontext: BrowserContextOptions = {}) {
   const ctx = await browser.newContext({ geolocation, ...kontext });
-  const r = await ctx.request.post('/api/beitreten', { data: { code, rufname, einheit: 'Zug 1', funktion: '', sidc: SIDC } });
-  expect(r.status()).toBe(201);
-  const { token } = await r.json();
+  const r = await beitreten(ctx.request, code, { rufname });
+  const { token } = r;
   await ctx.addInitScript((t) => localStorage.setItem('lagebild.token', t), token);
   await ctx.addInitScript(bedienung, 'klassisch');
   const page = await ctx.newPage();
@@ -56,10 +56,9 @@ const bravoSymbol = (p: Page) => p.locator('.bft', { has: p.locator('.bft-label'
 
 test.beforeAll(async ({ browser }) => {
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name: 'Bloodhound', erstellPasswort: 'e2e', phase: 'lv' } });
-  const lage = (await r.json()) as { teilnehmerCode: string; leitungCode: string };
+  const lage = await neueMission(ctx.request, 'Bloodhound', 'lv');
   await ctx.close();
-  const l = await seite(browser, lage.leitungCode, 'Adler', ADLER, DESKTOP);
+  const l = await seite(browser, lage, 'Adler', ADLER, DESKTOP);
   leitung = l.page;
   const b = await seite(browser, lage.teilnehmerCode, 'Bravo', BRAVO);
   bravo = b.page;

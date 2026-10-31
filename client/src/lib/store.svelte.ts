@@ -23,6 +23,7 @@ import {
   type Zeichnung,
 } from '../../../shared/protocol.ts';
 import { PHASE_NAME } from '../../../shared/regeln/phase.ts';
+import * as rollen from '../../../shared/regeln/rollen.ts';
 import { apiUrl, wsUrl } from './umgebung.ts';
 import { raeumeAuf } from './speicher.ts';
 import { lies, schliesseAlle, schreibe, toast, ui } from './ui.svelte.ts';
@@ -113,6 +114,8 @@ class LageStore {
 
   ichSelbst = $derived(this.ich ? (this.teilnehmer.get(this.ich) ?? null) : null);
   istLeitung = $derived(this.ichSelbst?.rolle === 'leitung');
+  /** Beobachter (Spec v7): sieht alles, sendet nichts. */
+  istBeobachter = $derived(this.ichSelbst?.rolle === 'beobachter');
   /** Phase der Lage (Spec v6); vor dem Snapshot LV, damit nichts fälschlich gesperrt wirkt. */
   phase: Phase = $derived(this.lage ? phaseVon(this.lage) : 'lv');
   /** Eigener, nicht aufgehobener Alarm → Position wird trotz Emission Control gesendet. */
@@ -140,6 +143,12 @@ export const frische = (t: Teilnehmer): Frische => frischeAus(alterMs(t), t.onli
 
 /** Verbunden und sendet, aber die Position ist abgelaufen (CoT «h-e» statt «m-g»). */
 export const keinGps = (t: Teilnehmer) => t.online && t.sendetPos && t.pos !== null && frische(t) === 'stale';
+
+const einheitVon = (id: string): string | undefined => store.teilnehmer.get(id)?.einheit;
+/** Darf ich das Objekt von `von` ändern oder löschen? Dieselbe Regel wie im Reducer (shared/regeln/rollen.ts). */
+export const darfAendern = (von: string): boolean => !!store.ichSelbst && rollen.darfAendern(store.ichSelbst, von, einheitVon);
+/** Darf ich `an` einen Bloodhound-Auftrag erteilen oder dessen Auftrag aufheben (Leitung, Gruppenführer der Einheit)? */
+export const darfAuftrag = (an: string): boolean => !!store.ichSelbst && rollen.darfAuftrag(store.ichSelbst, an, einheitVon);
 
 export function statusDef(key: string) {
   return store.lage?.statusSet.find((s) => s.key === key) ?? null;
@@ -300,7 +309,7 @@ export function verbinde(): void {
   ws = s;
   zuletztGehoert = Date.now();
   s.onopen = () => {
-    if (store.token) s.send(JSON.stringify({ typ: 'hallo', token: store.token } satisfies ClientMsg));
+    if (store.token) s.send(JSON.stringify({ typ: 'hallo', token: store.token, stand: __WEB_CODE__ } satisfies ClientMsg));
   };
   s.onmessage = (e) => {
     zuletztGehoert = Date.now();
@@ -398,7 +407,7 @@ export function meinePosZumSenden(): Position | null {
 /** Wird jede Sekunde und bei jedem GPS-Fix aufgerufen: sendet nach Intervall, Bewegung oder Ereignis. */
 export function pruefeSenden(): void {
   const pos = meinePosZumSenden();
-  if (!pos || !store.ichSelbst || store.phase !== 'lv') return; // Positionen nur in der Lageverfolgung
+  if (!pos || !store.ichSelbst || store.phase !== 'lv' || store.istBeobachter) return; // Positionen nur in der Lageverfolgung, nie als Beobachter
   if (!store.ichSelbst.sendetPos && !store.meinAlarmAktiv) return; // Emission Control (ausser bei eigenem Alarm)
   // GPS-Fehler nach dem letzten Fix: den alten Fix nicht als frisch weitersenden, sonst läuft er bei den
   // anderen nie ab und «kein GPS» erscheint nie. Ein Alarm nimmt die letzte Position trotzdem mit.
@@ -488,6 +497,9 @@ export async function postJson<T>(pfad: string, body: unknown): Promise<T> {
   const r = await api(pfad, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   return r.json();
 }
+
+/** Eigene Angaben ändern, wirkt sofort für alle (Spec v7 «Meine Angaben live»). false ohne Verbindung. */
+export const ichAendern = (a: Omit<Extract<ClientMsg, { typ: 'ich.aendern' }>, 'typ'>): boolean => send({ typ: 'ich.aendern', ...a });
 
 export function anmelden(b: Beigetreten): void {
   store.token = b.token;

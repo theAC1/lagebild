@@ -1,3 +1,4 @@
+import { OHNE_BEOBACHTER } from '../../../../shared/regeln/rollen.ts';
 import type { Feature } from '../registry.ts';
 import { ikon } from '../../lib/ui.svelte.ts';
 import AlarmLayer from './AlarmLayer.svelte';
@@ -18,6 +19,7 @@ const feature: Feature = {
   Detail,
   detailArt: 'alarm',
   phasen: ['lv'],
+  rollen: OHNE_BEOBACHTER,
   // kein badge: der Knopf steht nicht in der Werkzeugleiste, offene Alarme zeigt das Banner
 };
 

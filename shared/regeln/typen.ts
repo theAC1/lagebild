@@ -21,7 +21,7 @@ export type Zustand = {
   idVergeben(art: Art, id: string): boolean;
   /** Nach `reihenfolge`; enthält immer die Standard-Ebene. */
   ebenen(): Ebene[];
-  /** Aktive Teilnehmende; mit `auchEntfernte` alle. */
+  /** Aktive Teilnehmende; mit `auchEntfernte` alle. `online` stimmt (der Server setzt es aus den Verbindungen). */
   teilnehmerListe(auchEntfernte?: boolean): Teilnehmer[];
   teilnehmerAktiv(id: string): boolean;
   /** Foto liegt in dieser Lage. */

@@ -2,26 +2,25 @@
 // Marker per Rasterposition. Bedienung «Daumen-Ränder» (Vorgabe), beide Handys quer.
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { ansprache, zelleVon, zellMitte, type RasterGeo } from '../shared/raster.ts';
-import { dokuBild, leereStelle } from './hilfen.ts';
+import { beitreten, dokuBild, leereStelle, neueMission } from './hilfen.ts';
+import type { Beigetreten, LageErstellt } from '../shared/protocol.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const BRAVO = { latitude: 46.9472, longitude: 7.4452 };
-const SIDC = '10031000001211000000';
 const TAG = new Date('2026-10-29T12:00:00+01:00'); // heller Tagmodus wie auf Papier
 
 test.describe.configure({ mode: 'serial' });
 
 type Sitzung = { page: Page; token: string };
-let codes: { teilnehmerCode: string; leitungCode: string };
+let codes: LageErstellt;
 let leitung: Sitzung;
 let bravo: Sitzung;
 
-async function sitzung(browser: Browser, code: string, rufname: string, geolocation: typeof ADLER): Promise<Sitzung> {
+async function sitzung(browser: Browser, code: string | Beigetreten, rufname: string, geolocation: typeof ADLER): Promise<Sitzung> {
   const ctx = await browser.newContext({ geolocation });
   await ctx.clock.install({ time: TAG });
-  const r = await ctx.request.post('/api/beitreten', { data: { code, rufname, einheit: 'Zug 1', funktion: '', sidc: SIDC } });
-  expect(r.status()).toBe(201);
-  const { token } = await r.json();
+  const r = await beitreten(ctx.request, code, { rufname });
+  const { token } = r;
   await ctx.addInitScript((t) => {
     localStorage.setItem('lagebild.token', t);
     if (!localStorage.getItem('lagebild.einstellungen')) localStorage.setItem('lagebild.einstellungen', JSON.stringify({ koordLeiste: true }));
@@ -80,10 +79,9 @@ async function ziehe(p: Page, von: { x: number; y: number }, dx: number, dy: num
 
 test.beforeAll(async ({ browser }) => {
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name: 'Raster', erstellPasswort: 'e2e', phase: 'lv' } });
-  codes = await r.json();
+  codes = await neueMission(ctx.request, 'Raster', 'lv');
   await ctx.close();
-  leitung = await sitzung(browser, codes.leitungCode, 'Adler', ADLER);
+  leitung = await sitzung(browser, codes, 'Adler', ADLER);
   bravo = await sitzung(browser, codes.teilnehmerCode, 'Bravo', BRAVO);
   for (const s of [leitung, bravo]) {
     await knopf(s.page, 'Eigener Position folgen').click();

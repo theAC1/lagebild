@@ -1,10 +1,10 @@
 <script lang="ts">
-  // Leitung: Bloodhound-Aufträge erteilen und überwachen (Tab «Aufträge» im Leitungs-Panel).
+  // Leitung und Gruppenführer (eigene Einheit): Bloodhound-Aufträge erteilen und überwachen (Tab «Aufträge» im Leitungs-Panel).
   import { untrack } from 'svelte';
   import type { BloodhoundZiel } from '../../../../shared/protocol.ts';
   import { formatDistanz, formatKoord } from '../../lib/coords.ts';
   import { waehlePunkt } from '../../lib/map.ts';
-  import { OHNE_QUITTUNG, send, sendeBestaetigt, store } from '../../lib/store.svelte.ts';
+  import { darfAuftrag, OHNE_QUITTUNG, send, sendeBestaetigt, store } from '../../lib/store.svelte.ts';
   import { toast } from '../../lib/ui.svelte.ts';
   import { formatGrad } from '../rangebearing/logik.ts';
   import { formatRestzeit, STUFE_FARBE } from './logik.ts';
@@ -65,7 +65,7 @@
     Empfänger
     <select bind:value={an}>
       <option value="">– wählen –</option>
-      {#each personen.filter((t) => t.id !== store.ich) as t (t.id)}<option value={t.id}>{t.rufname} ({t.einheit})</option>{/each}
+      {#each personen.filter((t) => t.id !== store.ich && t.rolle !== 'beobachter' && darfAuftrag(t.id)) as t (t.id)}<option value={t.id}>{t.rufname} ({t.einheit})</option>{/each}
     </select>
   </label>
   <label class="feld">
@@ -111,7 +111,7 @@
           <span class="leise">{pos ? 'Ziel ohne Position' : 'Position unbekannt'}</span>
         {/if}
       </div>
-      <button class="gefahr" onclick={() => aufheben(a.id)}>Aufheben</button>
+      {#if darfAuftrag(a.an)}<button class="gefahr" onclick={() => aufheben(a.id)}>Aufheben</button>{/if}
     </li>
   {/each}
 </ul>

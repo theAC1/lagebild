@@ -18,8 +18,6 @@ export const aktive = (alarme: Iterable<Alarm>): Alarm[] =>
 export const offeneFuer = (alarme: Iterable<Alarm>, ich: string | null): Alarm[] =>
   aktive(alarme).filter((a) => a.von !== ich && !(ich && a.quittiertVon.includes(ich)));
 
-export const kannAufheben = (a: Alarm, ich: string | null, istLeitung: boolean) => istLeitung || a.von === ich;
-
 /** Der Ring folgt der aktuellen Position des Auslösers; Fallback ist der Ort beim Auslösen. */
 export function alarmOrt(a: Alarm, aktuell: Punkt | null | undefined): Punkt | null {
   if (aktuell) return { lat: aktuell.lat, lon: aktuell.lon };

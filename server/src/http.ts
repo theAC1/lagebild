@@ -5,11 +5,29 @@ import { readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import type { z } from 'zod';
-import { Beitreten, LageErstellen, MAX_PROTOKOLL_SEITE, phaseVon, STANDARD_STATUS, type Beigetreten, type Lage, type LageErstellt, type ProtokollEintrag, type ProtokollSeite, type Teilnehmer } from '../../shared/protocol.ts';
-import { meldungSichtbar, sichtbar, type Art, type Eintraege } from '../../shared/regeln/index.ts';
+import {
+  beitrittsText,
+  Beitreten,
+  eroeffnungsText,
+  kurzKennung,
+  LageErstellen,
+  MAX_PROTOKOLL_SEITE,
+  phaseVon,
+  STANDARD_STATUS,
+  type Beigetreten,
+  type Challenge,
+  type GeraetNachweis,
+  type Lage,
+  type LageErstellt,
+  type ProtokollEintrag,
+  type ProtokollSeite,
+  type Rolle,
+  type Teilnehmer,
+} from '../../shared/protocol.ts';
+import { meldungSichtbar, sichtbar, wiederbeitritt, type Art, type Eintraege } from '../../shared/regeln/index.ts';
 import { oeffneDb, type Db } from './db.ts';
 import { geojson, gpx, type ExportDaten } from '../../shared/export.ts';
-import { clientIp, corsKopf, gleich, log, neuerCode, neuesToken, rateLimiter, sha256 } from './sicherheit.ts';
+import { challenges, clientIp, corsKopf, geraetId, gleich, log, neuerCode, neuesToken, rateLimiter, sha256 } from './sicherheit.ts';
 import { starteWs } from './ws.ts';
 
 export type Optionen = {
@@ -32,6 +50,24 @@ const MAX_FOTOS_JE_LAGE = 300;
 const MAX_UPLOADS_GLEICHZEITIG = 4;
 /** Aktive Teilnehmende je Lage: der Teilnehmer-Code ist breit verteilt, ohne Grenze könnte er die Lage mit Beitritten fluten. */
 export const MAX_TEILNEHMER_JE_LAGE = 1000;
+const NACHWEIS_UNGUELTIG = 'Gerätenachweis ungültig – bitte erneut versuchen';
+
+type Person = Pick<Teilnehmer, 'rufname' | 'einheit' | 'funktion' | 'sidc'>;
+const neuerTeilnehmer = (lage: Lage, p: Person, rolle: Rolle, geraet: string): Teilnehmer => ({
+  id: randomUUID(),
+  rufname: p.rufname,
+  einheit: p.einheit,
+  funktion: p.funktion,
+  sidc: p.sidc,
+  rolle,
+  status: lage.statusSet[0].key,
+  statusText: '',
+  pos: null,
+  sendetPos: true,
+  online: false,
+  zuletzt: Date.now(),
+  geraet: kurzKennung(geraet),
+});
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -125,6 +161,9 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
   const vertraut = new Set(o.vertrauteProxies ?? []);
   const ip = (req: IncomingMessage): string => clientIp(req, vertraut);
   const limitErstellen = rateLimiter(10, 60_000);
+  // je Beitritt eine Challenge; 60/min reicht für 30 Geräte hinter einem NAT samt Fehlversuchen
+  const limitChallenge = rateLimiter(60, 60_000);
+  const offeneChallenges = challenges();
   // zählt nur falsche Codes: 30 Geräte hinter einem NAT sollen gleichzeitig beitreten können
   const limitBeitreten = rateLimiter(10, 10 * 60_000);
   const limitFoto = rateLimiter(10, 60_000);
@@ -190,50 +229,57 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
     return { ereignisse: liste.slice(0, n), weiter: liste[n - 1].t };
   }
 
+  /** Challenge einlösen und Signatur über `text` prüfen: Geräte-ID, sonst undefined. */
+  const geraetAus = (g: GeraetNachweis, text: string): string | undefined => (offeneChallenges.einloesen(g.challenge) ? geraetId(g, text) : undefined);
+
   async function api(req: IncomingMessage, res: ServerResponse, pfad: string, url: URL): Promise<void> {
     const route = `${req.method} ${pfad}`;
+    if (route === 'POST /api/challenge') {
+      if (!limitChallenge(ip(req))) throw new HttpFehler(429, 'Zu viele Versuche');
+      const challenge = offeneChallenges.neu();
+      if (!challenge) throw new HttpFehler(503, 'Server ausgelastet – bitte erneut versuchen');
+      return antwort(res, 201, { challenge } satisfies Challenge);
+    }
     if (route === 'POST /api/lage') {
       if (!limitErstellen(ip(req))) throw new HttpFehler(429, 'Zu viele Versuche');
       const e = await jsonBody(req, LageErstellen);
       if (!gleich(e.erstellPasswort, o.erstellPasswort)) throw new HttpFehler(403, 'Erstell-Passwort falsch');
+      const geraet = geraetAus(e.geraet, eroeffnungsText(e.geraet.challenge, e.name));
+      if (!geraet) throw new HttpFehler(403, NACHWEIS_UNGUELTIG);
       const jetzt = Date.now();
       const lage: Lage = { id: randomUUID(), name: e.name, statusSet: STANDARD_STATUS, erstelltAm: jetzt, phasen: [{ phase: e.phase ?? 'lv', t: jetzt }] };
-      const r: LageErstellt = { lageId: lage.id, teilnehmerCode: neuerCode(8), leitungCode: neuerCode(10) };
-      db.lageErstellen(lage, sha256(r.teilnehmerCode), sha256(r.leitungCode));
+      const codes = { teilnehmerCode: neuerCode(8), gruppenfuehrerCode: neuerCode(10), beobachterCode: neuerCode(8) };
+      db.lageErstellen(lage, { teilnehmer: sha256(codes.teilnehmerCode), gruppenfuehrer: sha256(codes.gruppenfuehrerCode), beobachter: sha256(codes.beobachterCode) });
       db.ebenenSicherstellen(lage.id);
-      log('info', 'lage erstellt', { lageId: lage.id });
+      // das eröffnende Gerät ist sofort Leitung (Spec v7)
+      const t = neuerTeilnehmer(lage, e, 'leitung', geraet);
+      const token = neuesToken();
+      db.teilnehmerErstellen(lage.id, t, sha256(token), geraet);
+      log('info', 'lage erstellt', { lageId: lage.id, teilnehmerId: t.id });
+      const r: LageErstellt = { token, teilnehmerId: t.id, lageId: lage.id, rolle: t.rolle, ...codes };
       return antwort(res, 201, r);
     }
     if (route === 'POST /api/beitreten') {
       const schluessel = ip(req);
       if (!limitBeitreten.frei(schluessel)) throw new HttpFehler(429, 'Zu viele Versuche');
       const e = await jsonBody(req, Beitreten);
-      const gefunden = db.lageNachCodeHash(sha256(e.code));
-      if (!gefunden) {
+      const geraet = geraetAus(e.geraet, beitrittsText(e.geraet.challenge, e.code));
+      const gefunden = geraet && db.lageNachCodeHash(sha256(e.code));
+      if (!geraet || !gefunden) {
         limitBeitreten(schluessel);
-        throw new HttpFehler(403, 'Code ungültig');
+        throw new HttpFehler(403, geraet ? 'Code ungültig' : NACHWEIS_UNGUELTIG);
       }
-      if (phaseVon(gefunden.lage) === 'an') throw new HttpFehler(410, 'Lage ist in der Nachbearbeitung');
-      if (db.teilnehmerListe(gefunden.lage.id).length >= MAX_TEILNEHMER_JE_LAGE) throw new HttpFehler(507, 'Teilnehmer-Kontingent der Lage erschöpft');
-      const { lage, rolle } = gefunden;
-      const t: Teilnehmer = {
-        id: randomUUID(),
-        rufname: e.rufname,
-        einheit: e.einheit,
-        funktion: e.funktion,
-        sidc: e.sidc,
-        rolle,
-        status: lage.statusSet[0].key,
-        statusText: '',
-        pos: null,
-        sendetPos: true,
-        online: false,
-        zuletzt: Date.now(),
-      };
+      const { lage, rolle: codeRolle } = gefunden;
+      if (phaseVon(lage) === 'an') throw new HttpFehler(410, 'Lage ist in der Nachbearbeitung');
+      // ein Gerät kommt je Lage nur einmal vor: derselbe Eintrag kommt zurück, mit neuem Token
+      const bisher = db.teilnehmerNachGeraet(lage.id, geraet);
+      if ((!bisher || bisher.entfernt) && db.teilnehmerListe(lage.id).length >= MAX_TEILNEHMER_JE_LAGE) throw new HttpFehler(507, 'Teilnehmer-Kontingent der Lage erschöpft');
       const token = neuesToken();
-      db.teilnehmerErstellen(lage.id, t, sha256(token));
-      log('info', 'beigetreten', { lageId: lage.id, teilnehmerId: t.id, rolle });
-      const r: Beigetreten = { token, teilnehmerId: t.id, lageId: lage.id, rolle };
+      const t = bisher ? wiederbeitritt(bisher.teilnehmer, bisher.entfernt, e, codeRolle) : neuerTeilnehmer(lage, e, codeRolle, geraet);
+      if (bisher) db.teilnehmerWiederbeitritt(t, sha256(token));
+      else db.teilnehmerErstellen(lage.id, t, sha256(token), geraet);
+      log('info', 'beigetreten', { lageId: lage.id, teilnehmerId: t.id, rolle: t.rolle, wieder: Boolean(bisher) });
+      const r: Beigetreten = { token, teilnehmerId: t.id, lageId: lage.id, rolle: t.rolle };
       return antwort(res, 201, r);
     }
     if (route === 'POST /api/foto') {
@@ -242,6 +288,7 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
       // Fotos gehören zu Sichtungen, und die gibt es nur in LV
       if (phaseVon(lage) === 'ap') throw new HttpFehler(409, 'Fotos erst in der Lageverfolgung');
       // alles vor dem Lesen des Bodys prüfen: der wird ganz im RAM gepuffert
+      if (teilnehmer.rolle === 'beobachter') throw new HttpFehler(403, 'Beobachter: nur lesen');
       if (!limitFoto(teilnehmer.id)) throw new HttpFehler(429, 'Zu viele Fotos – bitte kurz warten');
       if (db.fotoAnzahl(lage.id) >= MAX_FOTOS_JE_LAGE) throw new HttpFehler(507, 'Foto-Kontingent der Lage erschöpft');
       if (uploads >= MAX_UPLOADS_GLEICHZEITIG) throw new HttpFehler(503, 'Server ausgelastet – bitte erneut versuchen');

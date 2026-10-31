@@ -1,5 +1,32 @@
 // Gemeinsame Hilfen der E2E-Tests (keine Testdatei: testMatch ist *.e2e.ts).
-import { test, type Page } from '@playwright/test';
+import { generateKeyPairSync, sign } from 'node:crypto';
+import { test, type APIRequestContext, type Page } from '@playwright/test';
+import { beitrittsText, eroeffnungsText, type Beigetreten, type GeraetNachweis, type LageErstellt } from '../shared/protocol.ts';
+
+type Person = { rufname?: string; einheit?: string; funktion?: string; sidc?: string };
+const person = (p: Person) => ({ rufname: 'Adler', einheit: 'Zug 1', funktion: '', sidc: '10031000001211000000', ...p });
+
+/** Gerätenachweis (Spec v7) eines neuen Testgeräts: Challenge holen, mit frischem Ed25519-Schlüssel signieren. */
+async function nachweis(req: APIRequestContext, text: (challenge: string) => string): Promise<GeraetNachweis> {
+  const { challenge } = await (await req.post('/api/challenge')).json();
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  return { pub: publicKey.export({ format: 'jwk' }).x!, challenge, signatur: sign(null, Buffer.from(text(challenge)), privateKey).toString('base64url') };
+}
+
+/** Eröffnet eine Mission per REST; das eröffnende Testgerät ist Leitung (Vorgabe Rufname «Adler», Zug 1). */
+export async function neueMission(req: APIRequestContext, name: string, phase?: 'ap' | 'lv', p: Person = {}): Promise<LageErstellt> {
+  const r = await req.post('/api/lage', { data: { name, erstellPasswort: 'e2e', ...(phase && { phase }), ...person(p), geraet: await nachweis(req, (c) => eroeffnungsText(c, name)) } });
+  if (r.status() !== 201) throw new Error(`Mission eröffnen: ${r.status()}`);
+  return r.json();
+}
+
+/** Tritt per REST mit einem neuen Testgerät bei. Ist `code` schon ein Beitritt (die Leitung aus neueMission), gilt dieser. */
+export async function beitreten(req: APIRequestContext, code: string | Beigetreten, p: Person = {}): Promise<Beigetreten> {
+  if (typeof code !== 'string') return code;
+  const r = await req.post('/api/beitreten', { data: { code, ...person(p), geraet: await nachweis(req, (c) => beitrittsText(c, code.toUpperCase())) } });
+  if (r.status() !== 201) throw new Error(`Beitreten: ${r.status()}`);
+  return r.json();
+}
 
 /** Vorgabe der Tests (Projekt «quer» in playwright.config.ts): Android-Handy FHD+ 2340×1080 bei DPR 2.75, quer. */
 export const QUER = { width: 851, height: 393 };

@@ -1,6 +1,6 @@
 // Alle Features der App. Jedes Feature lebt in features/<id>/ und exportiert default ein `Feature`.
 import type { Component } from 'svelte';
-import type { Phase } from '../../../shared/protocol.ts';
+import type { Phase, Rolle } from '../../../shared/protocol.ts';
 import marker from './marker/index.ts';
 import status from './status/index.ts';
 import chat from './chat/index.ts';
@@ -36,8 +36,8 @@ export interface Feature {
   /** Detail-Sheet für `ui.auswahl = { art: detailArt, id }`. */
   Detail?: Component<{ id: string }>;
   detailArt?: string;
-  /** Knopf/Panel nur für die Leitung */
-  nurLeitung?: boolean;
+  /** Knopf und Panel nur für diese Rollen (Spec v7); ohne Angabe für alle. Kartenlayer und Details bleiben. */
+  rollen?: Rolle[];
   /** Zähler am Werkzeugknopf (z.B. ungelesene Nachrichten); wird reaktiv gelesen. */
   badge?: () => number;
   /**
@@ -52,6 +52,9 @@ export interface Feature {
 }
 
 export const inPhase = (f: Pick<Feature, 'phasen'>, phase: Phase): boolean => !f.phasen || f.phasen.includes(phase);
+/** Knopf und Panel des Features zeigen? */
+export const zeigen = (f: Pick<Feature, 'phasen' | 'rollen'>, phase: Phase, rolle: Rolle | undefined): boolean =>
+  inPhase(f, phase) && (!f.rollen || (rolle !== undefined && f.rollen.includes(rolle)));
 
 // Wiedergabe zuerst: in AN der erste Knopf der Werkzeugleiste (Klassisch), auch wenn die Leiste scrollt
 export const features: Feature[] = [wiedergabe, marker, status, chat, sichtung, alarm, rangebearing, spuren, zeichnen, raster, taufe, leitung, meldungen, offline, bloodhound];

@@ -1,6 +1,7 @@
 // Teilnehmer, Position, Status, Marker, Chat, Sichtung, Alarm und Lage-Verwaltung (bisher in server/src/ws.ts).
 import type { Alarm, Chat, Position, Teilnehmer } from '../protocol.ts';
 import { beendeAuftraege, offen } from './bloodhound.ts';
+import { darfAendern, einheiten } from './rollen.ts';
 import { lauf, nein, type Befehl, type Ereignis, type Ergebnis, type Lauf, type Zustand } from './typen.ts';
 
 export const MAX_MARKER_JE_LAGE = 2000;
@@ -26,6 +27,8 @@ function position(l: Lauf, t: Teilnehmer, jetzt: number, pos: Position): void {
 export function wendeLage(z: Zustand, e: Ereignis & { msg: LageBefehl }): Ergebnis {
   const { autor: t, msg: m, jetzt } = e;
   const leitung = t.rolle === 'leitung';
+  const einheit = einheiten(z);
+  const darf = (von: string): boolean => darfAendern(t, von, einheit);
   const lage = z.lage;
   const l = lauf(e);
   /** Eigenen Teilnehmer ändern und an alle (online setzt der Verteiler). */
@@ -56,7 +59,7 @@ export function wendeLage(z: Zustand, e: Ereignis & { msg: LageBefehl }): Ergebn
     }
     case 'marker.setzen': {
       const alt = m.marker.id ? z.eintrag('marker', m.marker.id) : undefined;
-      if (alt && alt.von !== t.id && !leitung) return nein('Keine Berechtigung für diesen Marker');
+      if (alt && !darf(alt.von)) return nein('Keine Berechtigung für diesen Marker');
       const id = m.marker.id ?? e.neueId();
       if (!alt && z.idVergeben('marker', id)) return nein('Marker-ID bereits vergeben');
       if (!alt && z.anzahl('marker') >= MAX_MARKER_JE_LAGE) return nein('Zu viele Marker in dieser Lage');
@@ -67,7 +70,7 @@ export function wendeLage(z: Zustand, e: Ereignis & { msg: LageBefehl }): Ergebn
     case 'marker.loeschen': {
       const alt = z.eintrag('marker', m.id);
       if (!alt) return nein('Marker nicht gefunden');
-      if (alt.von !== t.id && !leitung) return nein('Keine Berechtigung für diesen Marker');
+      if (!darf(alt.von)) return nein('Keine Berechtigung für diesen Marker');
       l.tu({ was: 'loeschen', art: 'marker', id: m.id });
       const auftraege = z.eintraege('bloodhound').filter((a) => offen(a) && a.ziel.art === 'marker' && a.ziel.id === m.id);
       beendeAuftraege(l, jetzt, auftraege, 'Marker gelöscht');
@@ -112,7 +115,7 @@ export function wendeLage(z: Zustand, e: Ereignis & { msg: LageBefehl }): Ergebn
     case 'alarm.aufheben': {
       const alarm = z.eintrag('alarm', m.id);
       if (!alarm || alarm.aufgehobenAm !== null) return nein('Alarm nicht aktiv');
-      if (alarm.von !== t.id && !leitung) return nein('Nur Auslöser oder Leitung können den Alarm aufheben');
+      if (!darf(alarm.von)) return nein('Nur Auslöser, Gruppenführer der Einheit oder Leitung können den Alarm aufheben');
       const neu = { ...alarm, aufgehobenAm: jetzt };
       l.tu({ was: 'speichern', art: 'alarm', obj: neu, t: neu.t }, { typ: 'alarm', alarm: neu });
       l.meldung(`Alarm aufgehoben: ${alarmName(alarm)}`);

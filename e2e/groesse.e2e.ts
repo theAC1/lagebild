@@ -1,9 +1,8 @@
 // Einstellung «Bediengrösse» auf dem Handy (Touch): Trefferflächen, keine Überlappung, Karte bleibt gross, gemerkt.
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { DESKTOP, dokuBild, HOCH, langdruck, leereStelle, QUER, QUER_GROSS } from './hilfen.ts';
+import { beitreten, DESKTOP, dokuBild, HOCH, langdruck, leereStelle, neueMission, QUER, QUER_GROSS } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
-const SIDC = '10031000001211000000';
 const NIEDRIG = QUER_GROSS;
 const KARTEN = ['Karte und Ebenen wählen', 'Eigener Position folgen', 'Karte nach Norden ausrichten'];
 type Box = { x: number; y: number; width: number; height: number };
@@ -14,8 +13,7 @@ let code: string;
 
 test.beforeAll(async ({ browser }) => {
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name: 'Übung Grösse', erstellPasswort: 'e2e', phase: 'lv' } });
-  code = (await r.json()).teilnehmerCode;
+  code = (await neueMission(ctx.request, 'Übung Grösse', 'lv')).teilnehmerCode;
   await ctx.close();
 });
 
@@ -23,8 +21,8 @@ test.beforeAll(async ({ browser }) => {
 async function handy(browser: Browser, viewport: typeof HOCH, groesse: string, rufname: string): Promise<Page> {
   const ctx = await browser.newContext({ viewport, hasTouch: true, isMobile: true, geolocation: ADLER });
   await ctx.clock.install({ time: new Date('2026-10-29T22:00:00+01:00') }); // Nacht-Thema wie die übrigen Bilder
-  const r = await ctx.request.post('/api/beitreten', { data: { code, rufname, einheit: 'Zug 1', funktion: '', sidc: SIDC } });
-  const { token } = await r.json();
+  const r = await beitreten(ctx.request, code, { rufname });
+  const { token } = r;
   await ctx.addInitScript(
     ([t, g]) => {
       localStorage.setItem('lagebild.token', t);
@@ -183,8 +181,8 @@ test('Touch quer: Sehr klein (31.10.) – Knöpfe auf 70 %, alle fünf Stufen w�
 
 test('Desktop (Maus): Normal bleibt beim heutigen Stand, Gross skaliert', async ({ browser }) => {
   const ctx = await browser.newContext({ ...DESKTOP, viewport: { width: 1280, height: 800 }, geolocation: ADLER });
-  const r = await ctx.request.post('/api/beitreten', { data: { code, rufname: 'Desk', einheit: 'Zug 1', funktion: '', sidc: SIDC } });
-  const { token } = await r.json();
+  const r = await beitreten(ctx.request, code, { rufname: 'Desk' });
+  const { token } = r;
   await ctx.addInitScript((t) => localStorage.setItem('lagebild.token', t), token);
   const p = await ctx.newPage();
   await p.goto('/');

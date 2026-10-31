@@ -5,7 +5,7 @@
   // rechts. In AN (ohne Status, Melden, Alarm) sitzt «Wiedergabe» an der Stelle von Status. «Melden» öffnet daneben die Wahl Sichtung/Marker (Rückmeldung 30.10.: der Unterschied war nicht klar).
   // Was ein Hauptknopf tut, bestimmt das Feature (Feature.haupt); wo er sitzt, steht hier.
   import { MediaQuery } from 'svelte/reactivity';
-  import { features, inPhase, type Feature } from '../features/registry.ts';
+  import { features, zeigen, type Feature } from '../features/registry.ts';
   import { folgeMir, getMap, onMapReady } from '../lib/map.ts';
   import { store } from '../lib/store.svelte.ts';
   import { ikon, istOffen, oeffne, schliesse, ui } from '../lib/ui.svelte.ts';
@@ -19,7 +19,7 @@
   const IKON_EINST = ikon('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9L7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>');
 
   const quer = new MediaQuery('(orientation: landscape)', false);
-  const sichtbar = $derived(features.filter((f) => (!f.nurLeitung || store.istLeitung) && inPhase(f, store.phase)));
+  const sichtbar = $derived(features.filter((f) => zeigen(f, store.phase, store.ichSelbst?.rolle)));
   const haupt = $derived(new Map(sichtbar.filter((f) => f.haupt).map((f) => [f.id, f])));
   const mehr = $derived([
     ...sichtbar.filter((f) => f.Panel && !f.haupt).map((f) => ({ id: f.id, label: f.label, icon: f.icon })),

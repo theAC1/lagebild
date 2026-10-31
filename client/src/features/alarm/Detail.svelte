@@ -1,10 +1,10 @@
 <script lang="ts">
   import { azimut, distanz, formatDistanz, formatKoord, formatRichtung } from '../../lib/coords.ts';
   import { zentriere } from '../../lib/map.ts';
-  import { formatAlter, serverJetzt, store } from '../../lib/store.svelte.ts';
+  import { darfAendern, formatAlter, serverJetzt, store } from '../../lib/store.svelte.ts';
   import { schliesse } from '../../lib/ui.svelte.ts';
   import { hebeAuf, ortVon, quittiere, rufname } from './aktionen.ts';
-  import { ARTEN, kannAufheben } from './logik.ts';
+  import { ARTEN } from './logik.ts';
 
   let { id }: { id: string } = $props();
 
@@ -40,7 +40,7 @@
     {#if a.aufgehobenAm === null && a.von !== store.ich && !ichQuittiert}
       <button class="primaer" onclick={() => quittiere(a.id)}>Quittieren</button>
     {/if}
-    {#if a.aufgehobenAm === null && kannAufheben(a, store.ich, store.istLeitung)}
+    {#if a.aufgehobenAm === null && darfAendern(a.von)}
       {#if !sicher}
         <button class="gefahr" onclick={() => (sicher = true)}>Aufheben …</button>
       {:else}

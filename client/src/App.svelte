@@ -17,7 +17,7 @@
   import { onMount, untrack } from 'svelte';
   import PhaseRahmen from './components/PhaseRahmen.svelte';
   import PhaseSchild from './components/PhaseSchild.svelte';
-  import { features, inPhase } from './features/registry.ts';
+  import { features, zeigen } from './features/registry.ts';
   import { wendeGroesseAn } from './lib/groesse.svelte.ts';
   import { folgeMir, onMapReady } from './lib/map.ts';
   import './lib/radialKern.ts';
@@ -36,7 +36,7 @@
 
   let basisOffen = $state(false);
 
-  const sichtbar = $derived(features.filter((f) => (!f.nurLeitung || store.istLeitung) && inPhase(f, store.phase)));
+  const sichtbar = $derived(features.filter((f) => zeigen(f, store.phase, store.ichSelbst?.rolle)));
   const featureVon = (id: string) => features.find((f) => f.id === id);
   const detailVon = (art: string) => features.find((f) => f.detailArt === art);
   function titelVon(p: PanelZustand): string {

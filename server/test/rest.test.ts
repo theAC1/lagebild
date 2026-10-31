@@ -2,46 +2,49 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Beigetreten } from '../../shared/protocol.ts';
+import { createPrivateKey, createPublicKey } from 'node:crypto';
+import { beitrittsText, eroeffnungsText, type Beigetreten, type GeraetNachweis, type LageErstellt } from '../../shared/protocol.ts';
 import { bildFormat, MAX_TEILNEHMER_JE_LAGE } from '../src/http.ts';
-import { PASSWORT, SIDC, testServer, verbinde } from './helfer.ts';
+import { geraet, PASSWORT, SIDC, testServer, verbinde } from './helfer.ts';
 
 let s: Awaited<ReturnType<typeof testServer>>;
 beforeAll(async () => (s = await testServer()));
 afterAll(() => s.ende());
 
-const beitritt = (code: string) => JSON.stringify({ code, rufname: 'X', einheit: 'Y', funktion: '', sidc: SIDC });
+const post = (pfad: string, body: string, ip?: string) => s.api(pfad, { method: 'POST', body, ip });
 
 describe('Lage erstellen', () => {
-  it('Codes ohne verwechselbare Zeichen; Startphase ohne Angabe LV (ältere Web-Stände), neuer Client wählt AP', async () => {
+  it('Codes ohne verwechselbare Zeichen; Ersteller ist Leitung; Startphase ohne Angabe LV (ältere Web-Stände), neuer Client wählt AP', async () => {
     const r = await s.lage();
     expect(r.teilnehmerCode).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
-    expect(r.leitungCode).toMatch(/^[A-HJKMNP-Z2-9]{10}$/);
-    const phase = async (extra: object) => {
-      const res = await s.api('/api/lage', { method: 'POST', body: JSON.stringify({ name: 'P', erstellPasswort: PASSWORT, ...extra }) });
-      const { leitungCode } = await res.json();
-      const ltg = await verbinde(s.url, (await s.beitreten(leitungCode, 'Ltg')).token);
+    expect(r.gruppenfuehrerCode).toMatch(/^[A-HJKMNP-Z2-9]{10}$/);
+    expect(r.beobachterCode).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
+    const eroeffnen = async (extra: object) => {
+      const l: LageErstellt = await (await post('/api/lage', await s.lageBody('P', extra))).json();
+      const ltg = await verbinde(s.url, l.token);
       ltg.zu();
-      return ltg.snapshot.lage.phasen.map((p) => p.phase);
+      return { phasen: ltg.snapshot.lage.phasen.map((p) => p.phase), ich: ltg.snapshot.teilnehmer.find((t) => t.id === l.teilnehmerId) };
     };
-    expect(await phase({})).toEqual(['lv']);
-    expect(await phase({ phase: 'ap' })).toEqual(['ap']);
+    expect(await eroeffnen({})).toMatchObject({ phasen: ['lv'], ich: { rolle: 'leitung', rufname: 'Leitung', einheit: 'Stab' } });
+    expect((await eroeffnen({ phase: 'ap' })).phasen).toEqual(['ap']);
   });
 
   it('falsches Passwort 403, ungültige Eingaben 400; Rate-Limit je IP, CF-Connecting-IP zählt nur vom vertrauten Proxy', async () => {
-    expect((await s.api('/api/lage', { method: 'POST', body: JSON.stringify({ name: 'X', erstellPasswort: 'nein' }) })).status).toBe(403);
-    expect((await s.api('/api/lage', { method: 'POST', body: JSON.stringify({ name: '', erstellPasswort: PASSWORT }) })).status).toBe(400);
-    expect((await s.api('/api/lage', { method: 'POST', body: '{' })).status).toBe(400);
-    const body = JSON.stringify({ name: 'X', erstellPasswort: 'falsch' });
+    expect((await post('/api/lage', await s.lageBody('X', { erstellPasswort: 'nein' }))).status).toBe(403);
+    expect((await post('/api/lage', await s.lageBody('X', { name: '' }))).status).toBe(400);
+    expect((await post('/api/lage', JSON.stringify({ name: 'X', erstellPasswort: PASSWORT }))).status).toBe(400); // ohne Gerätenachweis
+    expect((await post('/api/lage', '{')).status).toBe(400);
+    const body = await s.lageBody('X', { erstellPasswort: 'falsch' });
     const status: number[] = [];
-    for (let i = 0; i < 11; i++) status.push((await s.api('/api/lage', { method: 'POST', body, ip: '192.0.2.9' })).status);
+    for (let i = 0; i < 11; i++) status.push((await post('/api/lage', body, '192.0.2.9')).status);
     expect(status.slice(0, 10).every((x) => x === 403)).toBe(true);
     expect(status.at(-1)).toBe(429);
     // 127.0.0.1 ist hier kein cloudflared: wechselnde CF-Connecting-IP umgeht das Limit nicht
     const direkt = await testServer([]);
     try {
       const st: number[] = [];
-      for (let i = 0; i < 12; i++) st.push((await direkt.api('/api/lage', { method: 'POST', body, ip: `198.51.100.${i}` })).status);
+      const b = await direkt.lageBody('X', { erstellPasswort: 'falsch' });
+      for (let i = 0; i < 12; i++) st.push((await direkt.api('/api/lage', { method: 'POST', body: b, ip: `198.51.100.${i}` })).status);
       expect(st.slice(0, 10).every((x) => x === 403)).toBe(true);
       expect(st.slice(10)).toEqual([429, 429]);
     } finally {
@@ -50,48 +53,89 @@ describe('Lage erstellen', () => {
   });
 });
 
+describe('Gerätenachweis', () => {
+  it('Signatur über anderen Code oder Namen, fremder Schlüssel, wiederverwendete Challenge → 403; Challenges je IP begrenzt', async () => {
+    const l = await s.lage();
+    const g = geraet();
+    const mit = (nachweis: GeraetNachweis) => JSON.stringify({ code: l.teilnehmerCode, rufname: 'X', einheit: 'Y', funktion: '', sidc: SIDC, geraet: nachweis });
+    expect((await post('/api/beitreten', mit(await s.nachweis(g, (c) => beitrittsText(c, 'ANDERS23'))))).status).toBe(403);
+    const fremderSchluessel = { ...(await s.nachweis(g, (c) => beitrittsText(c, l.teilnehmerCode))), pub: geraet().publicKey.export({ format: 'jwk' }).x! };
+    expect((await post('/api/beitreten', mit(fremderSchluessel))).status).toBe(403);
+    const gut = mit(await s.nachweis(g, (c) => beitrittsText(c, l.teilnehmerCode)));
+    expect((await post('/api/beitreten', gut)).status).toBe(201);
+    expect((await post('/api/beitreten', gut)).status).toBe(403); // Challenge verbraucht
+    const andererName = JSON.parse(await s.lageBody('Übung'));
+    andererName.geraet = await s.nachweis(g, (c) => eroeffnungsText(c, 'Andere Übung'));
+    expect((await post('/api/lage', JSON.stringify(andererName))).status).toBe(403);
+    const st: number[] = [];
+    for (let i = 0; i < 61; i++) st.push((await post('/api/challenge', '', '192.0.2.70')).status);
+    expect(st.slice(0, 60).every((x) => x === 201)).toBe(true);
+    expect(st.at(-1)).toBe(429);
+  });
+});
+
 describe('Beitreten', () => {
-  it('Code bestimmt die Rolle, Kleinschreibung geht, falscher Code 403; gleicher Rufname ergibt neuen Teilnehmer', async () => {
+  it('Code bestimmt die Rolle, Kleinschreibung geht, falscher Code 403; anderes Gerät mit gleichem Rufnamen ist ein neuer Teilnehmer', async () => {
     const l = await s.lage();
     const a = await s.beitreten(l.teilnehmerCode.toLowerCase(), 'Adler');
     expect(a.rolle).toBe('teilnehmer');
     const b = await s.beitreten(l.teilnehmerCode, 'Adler');
     expect(b.teilnehmerId).not.toBe(a.teilnehmerId);
     expect(b.token).not.toBe(a.token);
-    const ltg = await s.beitreten(l.leitungCode, 'Leitung');
-    expect(ltg.rolle).toBe('leitung');
-    expect(ltg.token.length).toBeGreaterThanOrEqual(40);
-    expect((await s.api('/api/beitreten', { method: 'POST', body: beitritt('ZZZZZZZZ') })).status).toBe(403);
+    expect(b.token.length).toBeGreaterThanOrEqual(40);
+    expect((await s.beitreten(l.gruppenfuehrerCode, 'Grfhr')).rolle).toBe('gruppenfuehrer');
+    expect((await s.beitreten(l.beobachterCode, 'Beob')).rolle).toBe('beobachter');
+    expect((await post('/api/beitreten', await s.beitrittsBody('ZZZZZZZZ'))).status).toBe(403);
   });
 
-  it('Rate-Limit je IP zählt nur falsche Codes (30 Geräte hinter einem NAT); gesperrte IP kommt auch mit richtigem Code nicht durch', async () => {
+  it('gleiches Gerät: derselbe Eintrag mit neuem Token (altes ungültig), Kennung vom Server abgeleitet; auch nach dem Entfernen', async () => {
+    const l = await s.lage();
+    // fester Schlüssel: Kennung unabhängig nachgerechnet (base32(SHA-256(pub))[0..8])
+    const seed = Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), Buffer.alloc(32, 7)]);
+    const privateKey = createPrivateKey({ key: seed, format: 'der', type: 'pkcs8' });
+    const g = { privateKey, publicKey: createPublicKey(privateKey) };
+    const erst = await s.beitreten(l.teilnehmerCode, 'Adler', 'Zug 1', g);
+    const wieder = await s.beitreten(l.teilnehmerCode, 'Adler 2', 'Zug 1', g);
+    expect(wieder.teilnehmerId).toBe(erst.teilnehmerId);
+    expect(wieder.token).not.toBe(erst.token);
+    expect((await s.api('/api/spuren', { token: erst.token })).status).toBe(401);
+    const ltg = await verbinde(s.url, l.token);
+    expect(ltg.snapshot.teilnehmer.map((t) => [t.rufname, t.geraet])).toEqual([['Leitung', expect.stringMatching(/^[A-Z2-7]{4}-[A-Z2-7]{4}$/)], ['Adler 2', '72AS-YEXT']]);
+    ltg.senden({ typ: 'teilnehmer.entfernen', id: erst.teilnehmerId });
+    await ltg.warte('teilnehmer.weg');
+    const zurueck = await s.beitreten(l.teilnehmerCode, 'Adler 3', 'Zug 3', g);
+    expect(zurueck.teilnehmerId).toBe(erst.teilnehmerId);
+    expect((await verbinde(s.url, zurueck.token)).snapshot.teilnehmer.find((t) => t.id === erst.teilnehmerId)).toMatchObject({ rufname: 'Adler 3', einheit: 'Zug 3' });
+    ltg.zu();
+  });
+
+  it('Rate-Limit je IP zählt nur Fehlversuche (30 Geräte hinter einem NAT); gesperrte IP kommt auch mit richtigem Code nicht durch', async () => {
     const l = await s.lage();
     const status: number[] = [];
-    for (let i = 0; i < 12; i++) status.push((await s.api('/api/beitreten', { method: 'POST', body: beitritt('ZZZZZZZZ'), ip: '192.0.2.7' })).status);
+    for (let i = 0; i < 12; i++) status.push((await post('/api/beitreten', await s.beitrittsBody('ZZZZZZZZ'), '192.0.2.7')).status);
     expect(status.slice(0, 10).every((x) => x === 403)).toBe(true);
     expect(status.slice(10)).toEqual([429, 429]);
-    expect((await s.api('/api/beitreten', { method: 'POST', body: beitritt('ZZZZZZZZ'), ip: '192.0.2.8' })).status).toBe(403); // andere IP
-    for (let i = 0; i < 30; i++) expect((await s.api('/api/beitreten', { method: 'POST', body: beitritt(l.teilnehmerCode), ip: '192.0.2.50' })).status).toBe(201);
-    expect((await s.api('/api/beitreten', { method: 'POST', body: beitritt(l.teilnehmerCode), ip: '192.0.2.7' })).status).toBe(429);
+    expect((await post('/api/beitreten', await s.beitrittsBody('ZZZZZZZZ'), '192.0.2.8')).status).toBe(403); // andere IP
+    for (let i = 0; i < 30; i++) expect((await post('/api/beitreten', await s.beitrittsBody(l.teilnehmerCode), '192.0.2.50')).status).toBe(201);
+    expect((await post('/api/beitreten', await s.beitrittsBody(l.teilnehmerCode), '192.0.2.7')).status).toBe(429);
   });
 
   it('Teilnehmer-Kontingent je Lage; entfernte Teilnehmer machen Platz; andere Lagen unberührt', async () => {
     const l = await s.lage();
-    const ltg = await s.beitreten(l.leitungCode, 'Leitung');
-    const body = beitritt(l.teilnehmerCode);
+    const neu = async () => post('/api/beitreten', await s.beitrittsBody(l.teilnehmerCode), '192.0.2.60');
     const ids: string[] = [];
     for (let i = 1; i < MAX_TEILNEHMER_JE_LAGE; i++) {
-      const r = await s.api('/api/beitreten', { method: 'POST', body, ip: '192.0.2.60' });
+      const r = await neu();
       expect(r.status).toBe(201);
       ids.push(((await r.json()) as Beigetreten).teilnehmerId);
     }
-    expect((await s.api('/api/beitreten', { method: 'POST', body, ip: '192.0.2.60' })).status).toBe(507);
+    expect((await neu()).status).toBe(507);
     expect((await s.beitreten((await s.lage()).teilnehmerCode, 'Z')).rolle).toBe('teilnehmer');
-    const c = await verbinde(s.url, ltg.token);
+    const c = await verbinde(s.url, l.token);
     c.senden({ typ: 'teilnehmer.entfernen', id: ids[0] });
     await c.warte('teilnehmer.weg');
     c.zu();
-    expect((await s.api('/api/beitreten', { method: 'POST', body, ip: '192.0.2.60' })).status).toBe(201);
+    expect((await neu()).status).toBe(201);
   });
 });
 
@@ -106,9 +150,11 @@ describe('Zugriff', () => {
     expect((await s.api('/api/lage', { method: 'DELETE', token: tn.token })).status).toBe(403);
   });
 
-  it('Foto-Upload: Rate-Limit je Teilnehmer vor dem Lesen des Bodys; in AP 409; Format nur nach Magic Bytes', async () => {
-    const tn = await s.beitreten((await s.lage()).teilnehmerCode, 'Foto');
+  it('Foto-Upload: Rate-Limit je Teilnehmer vor dem Lesen des Bodys; in AP 409; Beobachter 403; Format nur nach Magic Bytes', async () => {
+    const l = await s.lage();
+    const tn = await s.beitreten(l.teilnehmerCode, 'Foto');
     const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(100)]);
+    expect((await s.api('/api/foto', { method: 'POST', token: (await s.beitreten(l.beobachterCode, 'Auge')).token, body: jpeg })).status).toBe(403);
     const status: number[] = [];
     for (let i = 0; i < 12; i++) status.push((await s.api('/api/foto', { method: 'POST', token: tn.token, body: jpeg })).status);
     expect(status.slice(0, 10).every((x) => x === 201)).toBe(true);

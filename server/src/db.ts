@@ -1,7 +1,7 @@
 // SQLite-Zugriff (node:sqlite). Entitäten werden als JSON gespeichert; der Vertrag ist die Struktur.
 import { DatabaseSync } from 'node:sqlite';
 import { STANDARD_EBENE_NAME, standardEbeneId } from '../../shared/protocol.ts';
-import type { Ebene, Lage, Position, ProtokollEintrag, Rolle, ServerMsg, Spuren, Teilnehmer } from '../../shared/protocol.ts';
+import type { CodeRolle, Ebene, Lage, Position, ProtokollEintrag, ServerMsg, Spuren, Teilnehmer } from '../../shared/protocol.ts';
 import type { Art, Eintraege } from '../../shared/regeln/typen.ts';
 
 const SCHEMA = `
@@ -38,23 +38,48 @@ export function mitPhasen(l: Lage & { beendetAm?: number | null }): Lage {
 }
 const lageAus = (z: Zeile | undefined): Lage | undefined => (z ? mitPhasen(json<Lage>(z)!) : undefined);
 
+/** Code-Spalten je Rolle. `ltg_code_hash` war bis Spec v7 der Leitungs-Code und gilt seither als Gruppenführer-Code. */
+const CODE_SPALTE: Record<CodeRolle, string> = { teilnehmer: 'tn_code_hash', gruppenfuehrer: 'ltg_code_hash', beobachter: 'beob_code_hash' };
+
+/**
+ * Spec v7 für bestehende Datenbanken: Beobachter-Code (Altbestand ohne, erst nach «Erneuern»), Geräte-ID je Teilnehmer
+ * (eindeutig je Lage, Altbestand NULL) und genau eine Leitung je Lage – die zuerst beigetretene aktive bleibt, weitere
+ * werden Gruppenführer. Idempotent, läuft bei jedem Start.
+ */
+function nachruesten(db: DatabaseSync): void {
+  const hat = (tabelle: string, spalte: string) => db.prepare(`PRAGMA table_info(${tabelle})`).all().some((z) => z.name === spalte);
+  if (!hat('lage', 'beob_code_hash')) db.exec('ALTER TABLE lage ADD COLUMN beob_code_hash TEXT');
+  if (!hat('teilnehmer', 'geraet_id')) db.exec('ALTER TABLE teilnehmer ADD COLUMN geraet_id TEXT');
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS lage_beob ON lage(beob_code_hash);
+    CREATE UNIQUE INDEX IF NOT EXISTS teilnehmer_geraet ON teilnehmer(lage_id, geraet_id);
+    UPDATE teilnehmer SET daten = json_set(daten, '$.rolle', 'gruppenfuehrer')
+    WHERE json_extract(daten, '$.rolle') = 'leitung' AND rowid NOT IN (
+      SELECT MIN(rowid) FROM teilnehmer WHERE entfernt = 0 AND json_extract(daten, '$.rolle') = 'leitung' GROUP BY lage_id);
+  `);
+}
+
 export function oeffneDb(pfad: string) {
   const db = new DatabaseSync(pfad);
   db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;');
   db.exec(SCHEMA);
+  nachruesten(db);
 
   const q = {
-    lageNeu: db.prepare('INSERT INTO lage (id, daten, tn_code_hash, ltg_code_hash) VALUES (?, ?, ?, ?)'),
+    lageNeu: db.prepare('INSERT INTO lage (id, daten, tn_code_hash, ltg_code_hash, beob_code_hash) VALUES (?, ?, ?, ?, ?)'),
     lage: db.prepare('SELECT daten FROM lage WHERE id = ?'),
-    lageCode: db.prepare('SELECT daten, tn_code_hash = ? AS tn FROM lage WHERE tn_code_hash = ? OR ltg_code_hash = ?'),
+    lageCode: db.prepare(
+      'SELECT daten, tn_code_hash = ? AS tn, ltg_code_hash = ? AS gf FROM lage WHERE tn_code_hash = ? OR ltg_code_hash = ? OR beob_code_hash = ?',
+    ),
     lageUpd: db.prepare('UPDATE lage SET daten = ? WHERE id = ?'),
-    lageTnCode: db.prepare('UPDATE lage SET tn_code_hash = ? WHERE id = ?'),
-    tnNeu: db.prepare('INSERT INTO teilnehmer (id, lage_id, token_hash, daten) VALUES (?, ?, ?, ?)'),
+    tnNeu: db.prepare('INSERT INTO teilnehmer (id, lage_id, token_hash, daten, geraet_id) VALUES (?, ?, ?, ?, ?)'),
+    tnGeraet: db.prepare('SELECT daten, entfernt FROM teilnehmer WHERE lage_id = ? AND geraet_id = ?'),
+    tnWieder: db.prepare('UPDATE teilnehmer SET daten = ?, token_hash = ?, entfernt = 0 WHERE id = ?'),
     tnToken: db.prepare('SELECT lage_id, daten FROM teilnehmer WHERE token_hash = ? AND entfernt = 0'),
     tnUpd: db.prepare('UPDATE teilnehmer SET daten = ? WHERE id = ?'),
     tnWeg: db.prepare('UPDATE teilnehmer SET entfernt = 1 WHERE id = ? AND lage_id = ?'),
-    tnListe: db.prepare('SELECT daten FROM teilnehmer WHERE lage_id = ? AND entfernt = 0'),
-    tnAlle: db.prepare('SELECT daten FROM teilnehmer WHERE lage_id = ?'),
+    tnListe: db.prepare('SELECT daten FROM teilnehmer WHERE lage_id = ? AND entfernt = 0 ORDER BY rowid'),
+    tnAlle: db.prepare('SELECT daten FROM teilnehmer WHERE lage_id = ? ORDER BY rowid'),
     tnAktiv: db.prepare('SELECT 1 FROM teilnehmer WHERE id = ? AND lage_id = ? AND entfernt = 0'),
     spurNeu: db.prepare('INSERT INTO spur (lage_id, teilnehmer_id, t, daten) VALUES (?, ?, ?, ?)'),
     spuren: db.prepare('SELECT teilnehmer_id, daten FROM spur WHERE lage_id = ? AND t >= ? ORDER BY t'),
@@ -78,20 +103,21 @@ export function oeffneDb(pfad: string) {
   };
 
   return {
-    lageErstellen(lage: Lage, tnCodeHash: string, ltgCodeHash: string): void {
-      q.lageNeu.run(lage.id, JSON.stringify(lage), tnCodeHash, ltgCodeHash);
+    lageErstellen(lage: Lage, codeHash: Record<CodeRolle, string>): void {
+      q.lageNeu.run(lage.id, JSON.stringify(lage), codeHash.teilnehmer, codeHash.gruppenfuehrer, codeHash.beobachter);
     },
     lage: (id: string): Lage | undefined => lageAus(q.lage.get(id)),
-    lageNachCodeHash(hash: string): { lage: Lage; rolle: Rolle } | undefined {
-      const z = q.lageCode.get(hash, hash, hash);
-      return z && { lage: lageAus(z)!, rolle: z.tn ? 'teilnehmer' : 'leitung' };
+    /** Lage und Rolle zum Code. */
+    lageNachCodeHash(hash: string): { lage: Lage; rolle: CodeRolle } | undefined {
+      const z = q.lageCode.get(hash, hash, hash, hash, hash);
+      return z && { lage: lageAus(z)!, rolle: z.tn ? 'teilnehmer' : z.gf ? 'gruppenfuehrer' : 'beobachter' };
     },
     lageSpeichern(lage: Lage): void {
       q.lageUpd.run(JSON.stringify(lage), lage.id);
     },
-    /** Neuer Teilnehmer-Code: der alte wird ungültig, bestehende Tokens bleiben. */
-    teilnehmerCodeSetzen(lageId: string, hash: string): void {
-      q.lageTnCode.run(hash, lageId);
+    /** Neuer Code einer Rolle: der alte wird ungültig, bestehende Tokens bleiben. */
+    codeSetzen(lageId: string, rolle: CodeRolle, hash: string): void {
+      db.prepare(`UPDATE lage SET ${CODE_SPALTE[rolle]} = ? WHERE id = ?`).run(hash, lageId);
     },
     lageLoeschen(id: string): void {
       db.exec('BEGIN');
@@ -105,8 +131,17 @@ export function oeffneDb(pfad: string) {
       }
     },
 
-    teilnehmerErstellen(lageId: string, t: Teilnehmer, tokenHash: string): void {
-      q.tnNeu.run(t.id, lageId, tokenHash, JSON.stringify(t));
+    teilnehmerErstellen(lageId: string, t: Teilnehmer, tokenHash: string, geraetId: string | null = null): void {
+      q.tnNeu.run(t.id, lageId, tokenHash, JSON.stringify(t), geraetId);
+    },
+    /** Eintrag dieses Geräts in der Lage, auch wenn entfernt. */
+    teilnehmerNachGeraet(lageId: string, geraetId: string): { teilnehmer: Teilnehmer; entfernt: boolean } | undefined {
+      const z = q.tnGeraet.get(lageId, geraetId);
+      return z && { teilnehmer: json<Teilnehmer>(z)!, entfernt: Boolean(z.entfernt) };
+    },
+    /** Wiederbeitritt: neues Token (das alte gilt nicht mehr), Eintrag wieder aktiv. */
+    teilnehmerWiederbeitritt(t: Teilnehmer, tokenHash: string): void {
+      q.tnWieder.run(JSON.stringify(t), tokenHash, t.id);
     },
     teilnehmerNachToken(hash: string): { lageId: string; teilnehmer: Teilnehmer } | undefined {
       const z = q.tnToken.get(hash);

@@ -91,7 +91,7 @@
         <!-- während ein anderes Raster angepasst wird: nur die Kopfzeile, damit im Hochformat Karte frei bleibt -->
       {:else if !r}
         <div class="leise klein">{ZWECK[art]}</div>
-        <button class="breit" onclick={() => auflegen(art)}>{RASTER_NAME[art]} auflegen</button>
+        {#if !store.istBeobachter}<button class="breit" onclick={() => auflegen(art)}>{RASTER_NAME[art]} auflegen</button>{/if}
         <p class="leise klein">Legt {RASTER_VORGABE[art].spalten} × {RASTER_VORGABE[art].zeilen} Zellen à {RASTER_VORGABE[art].zellM} m in die Kartenmitte.</p>
       {:else}
         <div class="klein"><span class="mono">{r.spalten} × {r.zeilen} Zellen à {r.zellM} m · {km(r.spalten * r.zellM)} × {km(r.zeilen * r.zellM)}</span> <span class="leise">· von {name(r.von)}</span></div>

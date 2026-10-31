@@ -1,7 +1,7 @@
 # Mutationsnachweis der Unit-Tests
 
 Je Zeile: eine gezielte Änderung am Produktivcode (Bedingung umgedreht, Prüfung entfernt, Grenzwert verschoben), der danach rote Test, Mutation zurückgenommen.
-Stand 2026-10-31: 214 von 214 Mutationen rot (davon 7 aus der Taufe-Überarbeitung 31.10., von Hand). Erzeugt mit einem Runner-Skript (exakte Textersetzung, Testdatei laufen lassen, Datei wiederherstellen).
+Stand 2026-11-01: 251 von 251 Mutationen rot (37 aus Gerätekennung und Rollen, 01.11.); Stand 2026-10-31: 214 von 214 Mutationen rot (davon 7 aus der Taufe-Überarbeitung 31.10., von Hand). Erzeugt mit einem Runner-Skript (exakte Textersetzung, Testdatei laufen lassen, Datei wiederherstellen).
 
 ## client/src/features/alarm/logik.test.ts
 
@@ -441,3 +441,47 @@ Stand 2026-10-31: 214 von 214 Mutationen rot (davon 7 aus der Taufe-Überarbeitu
 | `shared/regeln/bloodhound.ts:49` | `} else if (a.an !== t.id) return nein(` → `} else if (a.an === 'niemand') return ne` | Bloodhound: Ziel und Empfänger | rot |
 | `shared/regeln/bloodhound.ts:35` | `if (!vorhanden) return nein('Ziel nicht gefunden');` → `(entfernt)` | Bloodhound: Ziel und Empfänger | rot |
 
+## Gerätekennung und Rollen (01.11., Spec v7)
+
+37 von 37 Mutationen rot (Runner wie oben; `(wer.rolle !== 'beobachter' && …)` war zuerst grün – im Reducer greift vorher die
+Beobachter-Sperre –, seither prüft der Beobachter-Test `darfAendern` direkt, weil die Oberfläche es nutzt).
+
+| Produktivcode | Mutation | roter Test | Ergebnis |
+|---|---|---|---|
+| `shared/regeln/rollen.ts:17` | `(wer.rolle === 'gruppenfuehrer' && einheitVon(von) === wer.einheit)` → `(wer.rolle === 'gruppenfuehrer')` | rollen: eigenen Einheit | rot |
+| `shared/regeln/rollen.ts:17` | `\|\| (wer.rolle === 'gruppenfuehrer' && einheitVon(von) === wer.einheit)` → `;` | rollen: eigenen Einheit | rot |
+| `shared/regeln/rollen.ts:17` | `(wer.rolle !== 'beobachter' && von === wer.id)` → `(von === wer.id)` | rollen: Beobachter | rot |
+| `shared/regeln/rollen.ts:21` | `wer.rolle === 'leitung' \|\| (wer.rolle === 'gruppenfuehrer' && einheitV` → `wer.rolle === 'leitung' \|\| wer.rolle === 'gruppenfuehrer';` | rollen: eigenen Einheit | rot |
+| `shared/regeln/lage.ts:118` | `if (!darf(alarm.von))` → `if (alarm.von !== t.id && !leitung)` | rollen: eigenen Einheit | rot |
+| `shared/regeln/lage.ts:62` | `if (alt && !darf(alt.von))` → `if (alt && alt.von !== t.id && !leitung)` | rollen: eigenen Einheit | rot |
+| `shared/regeln/zeichnen.ts:44` | `von: x.von && darf(x.von) ? x.von : t.id,` → `von: x.von ? x.von : t.id,` | rechte: fremde Zeichnung | rot |
+| `shared/regeln/raster.ts:19` | `darfAendern(t, r.von, einheiten(z))` → `true` | rollen: eigenen Einheit | rot |
+| `shared/regeln/rollen.ts:41` | `if (e.autor.rolle !== 'beobachter' \|\| e.msg.typ === 'ich.aendern') ret` → `if (e.autor.rolle !== 'beobachter') return undefined;` | rollen: Beobachter | rot |
+| `shared/regeln/rollen.ts:42` | `e.msg.typ === 'pos' ? { aenderungen: [], deltas: [] } : nein` → `nein` | rollen: Beobachter | rot |
+| `shared/regeln/index.ts:36` | `beobachterSperre(e) ??` → `(entfernt)` | rollen: Beobachter | rot |
+| `shared/regeln/bloodhound.ts:36` | `?.rolle === 'beobachter') return nein` → `?.rolle === 'keine') return nein` | rollen: Beobachter | rot |
+| `shared/regeln/rollen.ts:55` | `if (t.rolle === 'gruppenfuehrer' && m.einheit !== undefined && m.einhe` → `if (false)` | rollen: fixiertes Raster | rot |
+| `shared/regeln/rollen.ts:62` | `if (t.rolle !== 'leitung') return nein('Nur für die Leitung'); ⏎   if ` → `if (m.id === t.id)` | rechte: nur die Leitung | rot |
+| `shared/regeln/rollen.ts:63` | `if (m.id === t.id) return nein('Nicht für sich selbst');` → `(entfernt)` | rollen: setzt Rolle | rot |
+| `shared/regeln/rollen.ts:79` | `speichere({ ...t, rolle: 'teilnehmer', zuletzt: jetzt });` → `(entfernt)` | rollen: Übergabe | rot |
+| `shared/regeln/rollen.ts:78` | `if (!ziel.online) return` → `if (false) return` | rollen: Übergabe | rot |
+| `shared/regeln/rollen.ts:77` | `if (ziel.rolle === 'beobachter') return` → `if (false) return` | rollen: Übergabe | rot |
+| `shared/regeln/rollen.ts:36` | `rolle: RANG[alt.rolle] > RANG[code] ? alt.rolle : code };` → `rolle: code };` | rollen: Wiederbeitritt | rot |
+| `shared/regeln/rollen.ts:35` | `if (entfernt) return { ...alt, rufname, funktion, einheit, sidc, rolle` → `(entfernt)` | rollen: Wiederbeitritt | rot |
+| `server/src/http.ts:233` | `(offeneChallenges.einloesen(g.challenge) ? geraetId(g, text) : undefin` → `geraetId(g, text)` | rest: Gerätenachweis | rot |
+| `server/src/sicherheit.ts:52` | `if (!verify(null, Buffer.from(text), schluessel, Buffer.from(g.signatu` → `(entfernt)` | rest: Gerätenachweis | rot |
+| `server/src/http.ts:165` | `rateLimiter(60, 60_000); ⏎   const offeneChallenges` → `rateLimiter(61, 60_000); ⏎   const offeneChallenges` | rest: Gerätenachweis | rot |
+| `server/src/sicherheit.ts:43` | `return bis !== undefined && bis > jetzt;` → `return bis !== undefined;` | sicherheit: Challenges | rot |
+| `server/src/sicherheit.ts:34` | `if (offen.size >= max) return undefined;` → `(entfernt)` | sicherheit: Challenges | rot |
+| `server/src/http.ts:275` | `const bisher = db.teilnehmerNachGeraet(lage.id, geraet);` → `const bisher = undefined as ReturnType<typeof db.teilnehmerNachGeraet>` | rest: gleiches Gerät | rot |
+| `server/src/db.ts:77` | `token_hash = ?, entfernt = 0 WHERE id = ?` → `token_hash = ? WHERE id = ?` | rest: gleiches Gerät | rot |
+| `server/src/http.ts:69` | `geraet: kurzKennung(geraet),` → `geraet: kurzKennung(geraet.split('').reverse().join('')),` | rest: gleiches Gerät | rot |
+| `server/src/db.ts:56` | `json_set(daten, '$.rolle', 'gruppenfuehrer')` → `json_set(daten, '$.rolle', 'leitung')` | phasen: Bestands-DB | rot |
+| `server/src/db.ts:58` | `WHERE entfernt = 0 AND json_extract` → `WHERE json_extract` | phasen: Bestands-DB | rot |
+| `server/src/db.ts:113` | `z.tn ? 'teilnehmer' : z.gf ? 'gruppenfuehrer' : 'beobachter'` → `z.tn ? 'teilnehmer' : 'beobachter'` | rest: Code bestimmt die Rolle | rot |
+| `server/src/ws.ts:169` | `neuerCode(art === 'gruppenfuehrer' ? 10 : 8)` → `neuerCode(8)` | ws: Codes erneuern | rot |
+| `server/src/ws.ts:151` | `for (const v of verbindungen(lageId)) if (v.id === d.teilnehmer.id) Ob` → `(entfernt)` | ws: Rollen live | rot |
+| `server/src/ws.ts:175` | `sichtAusDb(db, lage, letztePos, (id) => istOnline(lage.id, id))` → `sichtAusDb(db, lage, letztePos)` | ws: Rollen live | rot |
+| `server/src/ws.ts:112` | `...(stand !== undefined && { stand })` → `(entfernt)` | ws: hallo liefert | rot |
+| `server/src/http.ts:291` | `if (teilnehmer.rolle === 'beobachter') throw new HttpFehler(403, 'Beob` → `(entfernt)` | rest: Foto-Upload | rot |
+| `client/src/features/leitung/logik.ts:74` | `?? s(j?.leitungCode)` → `(entfernt)` | logik: leseCodes | rot |

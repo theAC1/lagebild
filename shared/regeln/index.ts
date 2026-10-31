@@ -4,6 +4,7 @@ import { BLOODHOUND_TYPEN, wendeBloodhound } from './bloodhound.ts';
 import { LAGE_TYPEN, wendeLage } from './lage.ts';
 import { PHASE_TYPEN, phasenSperre, wendePhase } from './phase.ts';
 import { RASTER_TYPEN, wendeRaster } from './raster.ts';
+import { beobachterSperre, ROLLEN_TYPEN, wendeRollen } from './rollen.ts';
 import { TAUFE_TYPEN, wendeTaufe } from './taufe.ts';
 import type { Befehl, Ereignis, Ergebnis, Zustand } from './typen.ts';
 import { wendeZeichnen, ZEICHNEN_TYPEN } from './zeichnen.ts';
@@ -15,6 +16,7 @@ export { doppelterListenName, MAX_TAUFEN_JE_LAGE, MAX_TAUFEN_ZEICHEN_JE_LAGE, na
 export { MAX_EBENEN_JE_LAGE, MAX_ZEICHNUNGEN_JE_LAGE, MAX_ZEICHNUNGEN_ZEICHEN_JE_LAGE } from './zeichnen.ts';
 export { PHASE_NAME, WECHSEL } from './phase.ts';
 export { empfaengt, meldungSichtbar, sichtbar } from './sichtbar.ts';
+export { darfAendern, darfAuftrag, ROLLE_NAME, wiederbeitritt, type EinheitVon } from './rollen.ts';
 export { anwenden, speicher, type Daten } from './speicher.ts';
 
 type Wender = (z: Zustand, e: Ereignis) => Ergebnis;
@@ -28,6 +30,7 @@ const WENDER = {
   ...je(RASTER_TYPEN, wendeRaster),
   ...je(TAUFE_TYPEN, wendeTaufe),
   ...je(PHASE_TYPEN, wendePhase),
+  ...je(ROLLEN_TYPEN, wendeRollen),
 } satisfies Record<Befehl['typ'], Wender>;
 
-export const wende = (z: Zustand, e: Ereignis): Ergebnis => phasenSperre(z.lage, e.msg.typ) ?? WENDER[e.msg.typ](z, e);
+export const wende = (z: Zustand, e: Ereignis): Ergebnis => beobachterSperre(e) ?? phasenSperre(z.lage, e.msg.typ) ?? WENDER[e.msg.typ](z, e);

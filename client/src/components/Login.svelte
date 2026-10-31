@@ -1,11 +1,13 @@
 <script lang="ts">
-  import type { Beigetreten, LageErstellt } from '../../../shared/protocol.ts';
+  import { beitrittsText, eroeffnungsText, type Beigetreten, type LageErstellt } from '../../../shared/protocol.ts';
   import SymbolPicker from '../lib/SymbolPicker.svelte';
+  import { ausweisen } from '../lib/geraet.ts';
   import { anmelden, postJson } from '../lib/store.svelte.ts';
   import { STANDARD_SIDC } from '../lib/symbol.ts';
-  import { lies, schreibe } from '../lib/ui.svelte.ts';
+  import { lies, schreibe, toast } from '../lib/ui.svelte.ts';
   import { liesAppVersion, type AppVersion } from '../lib/appVersion.ts';
   import { istApp } from '../lib/umgebung.ts';
+  import { codesKey } from '../features/leitung/logik.ts';
 
   const PROFIL_KEY = 'lagebild.profil';
   // ATAK-Rollen als Vorschlag (Bridge: Grfhr/Zfhr→Team Lead, KP→HQ, San→Medic, Funker→RTO, Schfs→Sniper, Beob→FO, Hundeführer→K9)
@@ -28,7 +30,6 @@
 
   let lageName = $state('');
   let passwort = $state('');
-  let erstellt = $state<LageErstellt | null>(null);
 
   // Android-Browser: Link zur App, nur wenn der Server eine APK anbietet
   let apk = $state<AppVersion>();
@@ -41,49 +42,35 @@
   let laeuft = $state(false);
   let fehler = $state<string | null>(null);
 
-  async function beitreten(e: SubmitEvent) {
+  const person = () => ({ rufname: rufname.trim(), einheit: einheit.trim(), funktion: funktion.trim(), sidc });
+
+  /** Beitreten bzw. Eröffnen mit Gerätenachweis (Spec v7); danach direkt in der Mission. */
+  async function absenden(e: SubmitEvent) {
     e.preventDefault();
     laeuft = true;
     fehler = null;
     try {
-      const b = await postJson<Beigetreten>('/api/beitreten', {
-        code: code.trim().toUpperCase(),
-        rufname: rufname.trim(),
-        einheit: einheit.trim(),
-        funktion: funktion.trim(),
-        sidc,
-      });
+      let b: Beigetreten;
+      if (modus === 'beitreten') {
+        const c = code.trim().toUpperCase();
+        b = await postJson<Beigetreten>('/api/beitreten', { code: c, ...person(), geraet: await ausweisen((ch) => beitrittsText(ch, c)) });
+        history.replaceState(null, '', location.pathname); // Code nicht in der Adresszeile lassen
+      } else {
+        const name = lageName.trim();
+        const l = await postJson<LageErstellt>('/api/lage', { name, erstellPasswort: passwort, phase: 'ap', ...person(), geraet: await ausweisen((ch) => eroeffnungsText(ch, name)) });
+        passwort = '';
+        // Für Leitung › Zugang (QR, Link); das Leitungs-Token liegt ohnehin auf diesem Gerät
+        schreibe(codesKey(l.lageId), JSON.stringify({ teilnehmerCode: l.teilnehmerCode, gruppenfuehrerCode: l.gruppenfuehrerCode, beobachterCode: l.beobachterCode }));
+        toast('Mission eröffnet – die Codes stehen unter Leitung › Zugang.', 6000);
+        b = l;
+      }
       schreibe(PROFIL_KEY, JSON.stringify({ rufname, einheit, funktion, sidc }));
-      history.replaceState(null, '', location.pathname); // Code nicht in der Adresszeile lassen
       anmelden(b);
     } catch (err) {
       fehler = (err as Error).message;
     } finally {
       laeuft = false;
     }
-  }
-
-  async function erstellen(e: SubmitEvent) {
-    e.preventDefault();
-    laeuft = true;
-    fehler = null;
-    try {
-      erstellt = await postJson<LageErstellt>('/api/lage', { name: lageName.trim(), erstellPasswort: passwort, phase: 'ap' });
-      passwort = '';
-      // Für Leitung › Zugang (QR, Link). Der Leitungs-Code gibt nicht mehr Rechte als das Leitungs-Token, das ohnehin hier liegt.
-      schreibe(`lagebild.codes.${erstellt.lageId}`, JSON.stringify({ teilnehmerCode: erstellt.teilnehmerCode, leitungCode: erstellt.leitungCode }));
-    } catch (err) {
-      fehler = (err as Error).message;
-    } finally {
-      laeuft = false;
-    }
-  }
-
-  function alsLeitungWeiter() {
-    if (!erstellt) return;
-    code = erstellt.leitungCode;
-    erstellt = null;
-    modus = 'beitreten';
   }
 </script>
 
@@ -94,68 +81,52 @@
       <p class="leise">Ausbildungs- und Testmittel · Funk bleibt primär</p>
     </header>
 
-    {#if erstellt}
-      <div class="codes">
-        <p><strong>Lage erstellt.</strong> Codes jetzt notieren:</p>
-        <div class="code-box">
-          <span class="leise">Teilnehmer-Code</span>
-          <span class="code mono markierbar">{erstellt.teilnehmerCode}</span>
-        </div>
-        <div class="code-box leitung">
-          <span class="leise">Leitungs-Code</span>
-          <span class="code mono markierbar">{erstellt.leitungCode}</span>
-        </div>
-        <p class="warnung">Leitungs-Code sicher aufbewahren – er lässt sich nicht wiederherstellen und gibt volle Kontrolle über die Lage.</p>
-        <button class="primaer" onclick={alsLeitungWeiter}>Weiter: als Leitung beitreten</button>
-      </div>
-    {:else}
-      <div class="segmente" role="group" aria-label="Modus">
-        <button aria-pressed={modus === 'beitreten'} onclick={() => (modus = 'beitreten')}>Lage beitreten</button>
-        <button aria-pressed={modus === 'erstellen'} onclick={() => (modus = 'erstellen')}>Neue Lage erstellen</button>
-      </div>
+    <div class="segmente" role="group" aria-label="Modus">
+      <button aria-pressed={modus === 'beitreten'} onclick={() => (modus = 'beitreten')}>Mission beitreten</button>
+      <button aria-pressed={modus === 'erstellen'} onclick={() => (modus = 'erstellen')}>Neue Mission</button>
+    </div>
 
+    <form onsubmit={absenden}>
       {#if modus === 'beitreten'}
-        <form onsubmit={beitreten}>
-          <label class="feld">Code
-            <input
-              class="mono code-eingabe"
-              bind:value={code}
-              required
-              autocomplete="off"
-              autocapitalize="characters"
-              spellcheck="false"
-              pattern="[A-Za-z0-9]{'{6,12}'}"
-              placeholder="z.B. K7MP3XQ9"
-            />
-          </label>
-          <label class="feld">Rufname <input bind:value={rufname} required maxlength="32" autocomplete="nickname" placeholder="z.B. Adler 1" /></label>
-          <div class="zwei">
-            <label class="feld">Einheit <input bind:value={einheit} required maxlength="32" placeholder="z.B. Zug 2" /></label>
-            <label class="feld">Funktion <input bind:value={funktion} maxlength="32" placeholder="z.B. Grfhr" list="funktionen" /></label>
-            <datalist id="funktionen">
-              {#each FUNKTIONS_VORSCHLAEGE as f (f)}<option value={f}></option>{/each}
-            </datalist>
-          </div>
-          <div class="feld">
-            <span>Eigenes Symbol</span>
-            {#if symbolOffen}
-              <SymbolPicker value={sidc} onchange={(s) => (sidc = s)} />
-            {:else}
-              <button type="button" class="symbol-knopf" onclick={() => (symbolOffen = true)}>Symbol wählen …</button>
-            {/if}
-          </div>
-          {#if fehler}<p class="fehler" role="alert">{fehler}</p>{/if}
-          <button class="primaer" disabled={laeuft}>{laeuft ? 'Verbinde …' : 'Beitreten'}</button>
-        </form>
+        <label class="feld">Code
+          <input
+            class="mono code-eingabe"
+            bind:value={code}
+            required
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            pattern="[A-Za-z0-9]{'{6,12}'}"
+            placeholder="z.B. K7MP3XQ9"
+          />
+        </label>
       {:else}
-        <form onsubmit={erstellen}>
-          <label class="feld">Name der Lage <input bind:value={lageName} required maxlength="80" placeholder="z.B. Übung Gantrisch" /></label>
-          <label class="feld">Erstell-Passwort <input type="password" bind:value={passwort} required autocomplete="current-password" /></label>
-          {#if fehler}<p class="fehler" role="alert">{fehler}</p>{/if}
-          <button class="primaer" disabled={laeuft}>{laeuft ? 'Erstelle …' : 'Lage erstellen'}</button>
-        </form>
+        <label class="feld">Name der Mission <input bind:value={lageName} required maxlength="80" placeholder="z.B. Übung Gantrisch" /></label>
+        <label class="feld">Erstell-Passwort <input type="password" bind:value={passwort} required autocomplete="current-password" /></label>
       {/if}
-    {/if}
+      <label class="feld">Rufname <input bind:value={rufname} required maxlength="32" autocomplete="nickname" placeholder="z.B. Adler 1" /></label>
+      <div class="zwei">
+        <label class="feld">Einheit <input bind:value={einheit} required maxlength="32" placeholder="z.B. Zug 2" /></label>
+        <label class="feld">Funktion <input bind:value={funktion} maxlength="32" placeholder="z.B. Grfhr" list="funktionen" /></label>
+        <datalist id="funktionen">
+          {#each FUNKTIONS_VORSCHLAEGE as f (f)}<option value={f}></option>{/each}
+        </datalist>
+      </div>
+      <div class="feld">
+        <span>Eigenes Symbol</span>
+        {#if symbolOffen}
+          <SymbolPicker value={sidc} onchange={(s) => (sidc = s)} />
+        {:else}
+          <button type="button" class="symbol-knopf" onclick={() => (symbolOffen = true)}>Symbol wählen …</button>
+        {/if}
+      </div>
+      {#if fehler}<p class="fehler" role="alert">{fehler}</p>{/if}
+      {#if modus === 'beitreten'}
+        <button class="primaer" disabled={laeuft}>{laeuft ? 'Verbinde …' : 'Beitreten'}</button>
+      {:else}
+        <button class="primaer" disabled={laeuft}>{laeuft ? 'Eröffne …' : 'Mission eröffnen'}</button>
+      {/if}
+    </form>
     {#if apk}
       <a class="app-link leise" href="/app/lagebild.apk" download>Android-App installieren ({apk.versionName})</a>
     {/if}
@@ -217,30 +188,5 @@
   .fehler {
     margin: 0;
     color: var(--danger);
-  }
-  .codes {
-    display: grid;
-    gap: 10px;
-  }
-  .codes p {
-    margin: 0;
-  }
-  .code-box {
-    display: grid;
-    padding: 12px;
-    background: var(--bg);
-    border-radius: var(--radius);
-  }
-  .code-box.leitung {
-    border: 1px solid var(--warn);
-  }
-  .code {
-    font-size: 2rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    user-select: all;
-  }
-  .warnung {
-    color: var(--warn);
   }
 </style>

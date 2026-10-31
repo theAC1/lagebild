@@ -60,19 +60,27 @@ test.afterAll(async () => {
   await teilnehmer?.context().close();
 });
 
-test('Lage erstellen, beitreten, gegenseitig sehen @hoch', async () => {
+test('Mission eröffnen (direkt als Leitung), beitreten, gegenseitig sehen @hoch', async () => {
   await leitung.goto('/');
-  await expect(leitung.getByRole('button', { name: 'Neue Lage erstellen', exact: true })).toBeVisible();
+  await expect(leitung.getByRole('button', { name: 'Neue Mission', exact: true })).toBeVisible();
   await bild(leitung, 'quer-login');
-  await leitung.getByRole('button', { name: 'Neue Lage erstellen', exact: true }).click();
-  await leitung.getByLabel('Name der Lage').fill('Übung Aare');
+  await leitung.getByRole('button', { name: 'Neue Mission', exact: true }).click();
+  await leitung.getByLabel('Name der Mission').fill('Übung Aare');
   await leitung.getByLabel('Erstell-Passwort').fill('e2e');
-  await leitung.getByRole('button', { name: 'Lage erstellen', exact: true }).click();
-  teilnehmerCode = (await leitung.locator('.code-box:not(.leitung) .code').textContent())!.trim();
+  await leitung.getByLabel('Rufname').fill('Adler');
+  await leitung.getByLabel('Einheit').fill('KP');
+  await leitung.getByRole('button', { name: 'Mission eröffnen', exact: true }).click();
+  await expect(leitung.locator('.verbindung.verbunden')).toBeVisible();
+
+  // Die Codes stehen unter Leitung › Zugang (Teilnehmer, Gruppenführer, Beobachter)
+  await werkzeug(leitung, 'Leitung').click();
+  teilnehmerCode = (await sheet(leitung).locator('.code-box .code').textContent())!.trim();
   expect(teilnehmerCode).toMatch(/^[A-Z0-9]{8}$/);
   await bild(leitung, 'e2e-codes');
-  await leitung.getByRole('button', { name: 'Weiter: als Leitung beitreten', exact: true }).click();
-  await beitreten(leitung, 'Adler', 'KP');
+  await sheet(leitung).getByRole('button', { name: 'Gruppenführer', exact: true }).click();
+  await expect(sheet(leitung).locator('.code-box .code')).toHaveText(/^[A-Z0-9]{10}$/);
+  await sheet(leitung).getByRole('button', { name: 'Teilnehmer', exact: true }).click();
+  await schliesseSheet(leitung);
 
   // Neue Lage beginnt in der Aktionsplanung: grauer Rahmen, Schild «AP», kein Status; die Leitung startet die Lageverfolgung
   await expect(leitung.locator('.phase-rahmen.ap')).toBeAttached();
@@ -135,6 +143,33 @@ test('Lage erstellen, beitreten, gegenseitig sehen @hoch', async () => {
   await leitung.getByRole('button', { name: 'Einstellungen', exact: true }).click();
   await expect(sheet(leitung).getByRole('group', { name: 'Bedienung' })).toBeVisible();
   await bild(leitung, 'quer-einstellungen');
+  await schliesseSheet(leitung);
+});
+
+test('Wiederbeitritt desselben Geräts ohne Doppel-Eintrag; Leitung setzt die Rolle @hoch', async () => {
+  // Bravo verlässt die Mission und tritt mit demselben Gerät wieder bei: derselbe Eintrag, kein zweiter
+  await teilnehmer.getByRole('button', { name: 'Einstellungen', exact: true }).click();
+  await sheet(teilnehmer).getByRole('button', { name: 'Lage verlassen', exact: true }).click();
+  await sheet(teilnehmer).getByRole('button', { name: 'Verlassen', exact: true }).click();
+  await teilnehmer.goto(`/?code=${teilnehmerCode}`);
+  await beitreten(teilnehmer, 'Bravo', 'Zug 1');
+  await leitung.getByRole('button', { name: 'Teilnehmende', exact: true }).click();
+  await expect(sheet(leitung).locator('.zeile', { hasText: 'Bravo' })).toHaveCount(1);
+  await expect(sheet(leitung).locator('.zeile')).toHaveCount(2);
+
+  // Teilnehmerdetail der Leitung: Kennung, Rolle setzen (Bravo sieht danach das Gruppenführer-Panel), zurücksetzen
+  await sheet(leitung).locator('.zeile', { hasText: 'Bravo' }).click();
+  await expect(sheet(leitung).locator('dd', { hasText: /^[A-Z2-7]{4}-[A-Z2-7]{4}$/ })).toBeVisible();
+  const rolle = sheet(leitung).getByRole('group', { name: 'Rolle von Bravo' });
+  await rolle.getByRole('button', { name: 'Gruppenführer', exact: true }).click();
+  await expect(rolle.getByRole('button', { name: 'Gruppenführer', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(sheet(leitung).locator('.badge', { hasText: 'Gruppenführer' })).toBeVisible();
+  await bild(leitung, 'quer-teilnehmer-rolle');
+  await werkzeug(teilnehmer, 'Leitung').click();
+  await expect(sheet(teilnehmer).getByRole('tab')).toHaveText(['Alarme', 'Aufträge']);
+  await schliesseSheet(teilnehmer);
+  await rolle.getByRole('button', { name: 'Teilnehmer', exact: true }).click();
+  await expect(werkzeug(teilnehmer, 'Leitung')).toHaveCount(0);
   await schliesseSheet(leitung);
 });
 
@@ -385,8 +420,8 @@ test('Export GPX, Nachbearbeitung statt Beenden, zurück und löschen @hoch', as
   await leitung.getByRole('button', { name: /^Phase: Aktionsnachbearbeitung/ }).click();
   await sheet(leitung).getByPlaceholder('Name der Lage').fill('Übung Aare');
   await sheet(leitung).getByRole('button', { name: 'Endgültig löschen', exact: true }).click();
-  await expect(leitung.getByRole('button', { name: 'Lage beitreten', exact: true })).toBeVisible();
-  await expect(teilnehmer.getByRole('button', { name: 'Lage beitreten', exact: true })).toBeVisible();
+  await expect(leitung.getByRole('button', { name: 'Mission beitreten', exact: true })).toBeVisible();
+  await expect(teilnehmer.getByRole('button', { name: 'Mission beitreten', exact: true })).toBeVisible();
   await expect(teilnehmer.locator('.toast', { hasText: 'gelöscht' })).toBeVisible();
 
   // Code ist danach ungültig (Lage gelöscht)

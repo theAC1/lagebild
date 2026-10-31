@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 /** Hauptversion dieses Vertrags. Erhöhen, wenn ältere Stände nicht mehr mit neueren zusammenarbeiten; steht im Live-Update
  *  (web.json, gesiegelt) und in Einstellungen › Über. */
-export const PROTOKOLL_VERSION = 1;
+export const PROTOKOLL_VERSION = 2; // 2: Beitritt mit Gerätesignatur, vier Rollen (Spec v7)
 
 // --- Grundtypen -------------------------------------------------------------
 
@@ -65,8 +65,12 @@ export const taufSchluessel = (name: string): string => name.trim().toLocaleLowe
 
 // --- Entitäten --------------------------------------------------------------
 
-export const Rolle = z.enum(['teilnehmer', 'leitung']);
+/** Rollen (Spec v7): genau eine Leitung je Lage; Gruppenführer mit Rechten über die eigene Einheit; Beobachter nur lesen. */
+export const Rolle = z.enum(['leitung', 'gruppenfuehrer', 'teilnehmer', 'beobachter']);
 export type Rolle = z.infer<typeof Rolle>;
+/** Rollen, die ein Code oder die Leitung vergibt; Leitung wird man nur per Übergabe. */
+export const CodeRolle = Rolle.exclude(['leitung']);
+export type CodeRolle = z.infer<typeof CodeRolle>;
 
 /** Phasen einer Lage (Spec v6): AP Aktionsplanung (vor der Mission), LV Lageverfolgung (während), AN Aktionsnachbearbeitung. */
 export const Phase = z.enum(['ap', 'lv', 'an']);
@@ -113,6 +117,8 @@ export const Teilnehmer = z.object({
   sendetPos: z.boolean(), // false = Emission Control
   online: z.boolean(),
   zuletzt: z.number(), // Server-Zeit letzte Aktivität
+  geraet: z.string().optional(), // gekürzte Gerätekennung «XXXX-XXXX»; fehlt bei Einträgen von vor Spec v7
+  stand: z.number().optional(), // Web-Stand des Geräts (aus hallo)
 });
 export type Teilnehmer = z.infer<typeof Teilnehmer>;
 
@@ -376,7 +382,8 @@ export type Notiz = z.infer<typeof Notiz>;
 // --- Client → Server --------------------------------------------------------
 
 export const ClientMsg = z.discriminatedUnion('typ', [
-  z.object({ typ: z.literal('hallo'), token: z.string().min(20).max(200) }), // erste Nachricht, sonst Verbindung zu
+  // erste Nachricht, sonst Verbindung zu; `stand` = Web-Stand (__WEB_CODE__), sieht die Leitung im Teilnehmerdetail
+  z.object({ typ: z.literal('hallo'), token: z.string().min(20).max(200), stand: z.number().int().min(0).max(1e13).optional() }),
   z.object({ typ: z.literal('pos'), pos: Position }),
   z.object({ typ: z.literal('sendetPos'), an: z.boolean() }),
   z.object({ typ: z.literal('status'), status: z.string().max(32), text: Text(200) }),
@@ -421,9 +428,15 @@ export const ClientMsg = z.discriminatedUnion('typ', [
   // Debriefing-Notizen: nur in AN
   z.object({ typ: z.literal('notiz.neu'), t: Zeit, text: Text(500).min(1) }),
   z.object({ typ: z.literal('notiz.loeschen'), id: Id }),
-  // neuer Teilnehmer-Code; der alte wird ungültig, bestehende Tokens bleiben. Antwort 'code' nur an die auslösende Verbindung.
-  z.object({ typ: z.literal('lage.codeErneuern') }),
+  // neuer Code der Rolle `art` (ohne Angabe Teilnehmer); der alte wird ungültig, bestehende Tokens bleiben.
+  // Antwort 'code' nur an die auslösende Verbindung.
+  z.object({ typ: z.literal('lage.codeErneuern'), art: CodeRolle.optional() }),
   z.object({ typ: z.literal('teilnehmer.entfernen'), id: Id }),
+  // Rollen (Spec v7): Rolle und Einheit anderer setzt nur die Leitung (nicht sich selbst); Leitung nur per Übergabe an ein
+  // verbundenes Mitglied, das nicht Beobachter ist. Eigene Angaben ändern alle, Gruppenführer ohne Einheit.
+  z.object({ typ: z.literal('teilnehmer.aendern'), id: Id, rolle: CodeRolle.optional(), einheit: Text(32).min(1).optional() }),
+  z.object({ typ: z.literal('leitung.uebergeben'), id: Id }),
+  z.object({ typ: z.literal('ich.aendern'), rufname: Text(32).min(1).optional(), funktion: Text(32).optional(), einheit: Text(32).min(1).optional(), sidc: Sidc.optional() }),
 ]);
 export type ClientMsg = z.infer<typeof ClientMsg>;
 
@@ -472,24 +485,50 @@ export type ServerMsg =
   | { typ: 'lage'; lage: Lage }
   // Lage gelöscht oder ich wurde entfernt → Client zurück zum Login.
   | { typ: 'beendet' }
-  | { typ: 'code'; teilnehmerCode: string } // Antwort auf lage.codeErneuern
+  | { typ: 'code'; art: CodeRolle; code: string } // Antwort auf lage.codeErneuern
   | { typ: 'ping' } // alle PING_MS: Lebenszeichen für den Watchdog im Client
   | { typ: 'fehler'; meldung: string };
 
 // --- REST -------------------------------------------------------------------
 
-/** `phase`: Startphase. Vorgabe LV: ältere Web-Stände senden keine Phase und könnten AP nicht verlassen; der Client sendet 'ap'. */
-export const LageErstellen = z.object({ name: Text(80).min(1), erstellPasswort: z.string().min(1).max(200), phase: Phase.exclude(['an']).optional() });
-export type LageErstellt = { lageId: string; teilnehmerCode: string; leitungCode: string };
+/**
+ * Gerätenachweis (Spec v7): Ed25519-Schlüssel des Geräts (raw, base64url), Challenge aus POST /api/challenge (einmal,
+ * 2 min) und Signatur über `beitrittsText` bzw. `eroeffnungsText`. Der Server leitet die Geräte-ID selbst ab.
+ */
+const B64URL = (bytes: number) => z.string().regex(new RegExp(`^[A-Za-z0-9_-]{${Math.ceil((bytes * 4) / 3)}}$`));
+export const GeraetNachweis = z.object({ pub: B64URL(32), challenge: B64URL(32), signatur: B64URL(64) });
+export type GeraetNachweis = z.infer<typeof GeraetNachweis>;
+export type Challenge = { challenge: string };
+/** Signierter Text beim Beitritt; `code` wie im Body nach dem Normalisieren (ohne Leerraum, gross). */
+export const beitrittsText = (challenge: string, code: string): string => `lagebild-beitritt\n${challenge}\n${code}`;
+/** Signierter Text beim Eröffnen: statt des Codes der Name der Lage (ohne Leerraum am Rand). */
+export const eroeffnungsText = (challenge: string, name: string): string => `lagebild-eroeffnen\n${challenge}\n${name}`;
 
-export const Beitreten = z.object({
-  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{6,12}$/),
-  rufname: Text(32).min(1),
-  einheit: Text(32).min(1),
-  funktion: Text(32),
-  sidc: Sidc,
-});
+const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+/** Geräte-ID (Spec v5 R§1): base32(SHA-256(öffentlicher Schlüssel, raw))[0..16]; `hash` = die SHA-256-Bytes. */
+export function geraetIdAus(hash: Uint8Array): string {
+  let id = '';
+  let wert = 0;
+  let bits = 0;
+  for (const b of hash.subarray(0, 10)) {
+    wert = ((wert & 0x1f) << 8) | b;
+    for (bits += 8; bits >= 5; bits -= 5) id += BASE32[(wert >>> (bits - 5)) & 31];
+  }
+  return id;
+}
+/** Anzeige der Geräte-ID: zwei Vierergruppen, z.B. «K7MP-3XQ9». */
+export const kurzKennung = (geraetId: string): string => `${geraetId.slice(0, 4)}-${geraetId.slice(4, 8)}`;
+
+/** Wer beitritt oder eröffnet: Angaben wie im Teilnehmer. */
+const Person = { rufname: Text(32).min(1), einheit: Text(32).min(1), funktion: Text(32), sidc: Sidc, geraet: GeraetNachweis };
+
+/** `phase`: Startphase. Vorgabe LV: ältere Web-Stände senden keine Phase und könnten AP nicht verlassen; der Client sendet 'ap'. */
+export const LageErstellen = z.object({ name: Text(80).min(1), erstellPasswort: z.string().min(1).max(200), phase: Phase.exclude(['an']).optional(), ...Person });
+
+export const Beitreten = z.object({ code: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{6,12}$/), ...Person });
 export type Beigetreten = { token: string; teilnehmerId: string; lageId: string; rolle: Rolle };
+/** Das eröffnende Gerät ist sofort Leitung; die Codes zeigt danach Leitung › Zugang. */
+export type LageErstellt = Beigetreten & { teilnehmerCode: string; gruppenfuehrerCode: string; beobachterCode: string };
 
 /** GET /api/spuren?seit=<ms> (Bearer): gespeicherte Positionen je Teilnehmer, zeitlich aufsteigend. */
 export type Spuren = Record<string, Position[]>;

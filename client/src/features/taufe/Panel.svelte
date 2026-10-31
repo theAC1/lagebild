@@ -91,6 +91,8 @@
   <div class="kopf">
     {#if tz.modus}
       <p>Taufmodus läuft: Objekt auf der Karte antippen.</p>
+    {:else if store.istBeobachter}
+      <p class="leise">Beobachter: nur lesen.</p>
     {:else}
       <button class="primaer gross" onclick={starte}>Taufmodus starten</button>
       <p class="leise">Gebäude, Strassen und Gewässer antippen und aus der Namensliste taufen. Flächen, Wald und fehlende Objekte im Taufmodus Punkt für Punkt zeichnen.</p>

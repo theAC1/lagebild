@@ -4,12 +4,12 @@
 // behält eine nutzbare Fläche. Bildschirm aus dem Projekt (quer 851×393, quer-gross 780×360).
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { WebSocket } from 'ws';
-import { bedienung } from './hilfen.ts';
+import { bedienung, beitreten, neueMission } from './hilfen.ts';
+import type { Beigetreten } from '../shared/protocol.ts';
 
 const PORT = Number(process.env.PW_PORT ?? 8797);
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const NAH = { latitude: 46.9476, longitude: 7.4462 };
-const SIDC = '10031000001211000000';
 /** Freie Karte: Anteil der Bildschirmfläche, unter dem nur Karte liegt (ohne bzw. mit offenem Panel). */
 const KARTE_MIN = { ohnePanel: 0.5, mitPanel: 0.3 };
 
@@ -20,12 +20,11 @@ type Ansicht = { name: string; bed: 'klassisch' | 'daumen'; p: Page };
 const ansichten: Ansicht[] = [];
 let leitungToken = '';
 
-async function seite(browser: Browser, code: string, rufname: string, bed: Ansicht['bed'], geolocation: typeof ADLER) {
+async function seite(browser: Browser, code: string | Beigetreten, rufname: string, bed: Ansicht['bed'], geolocation: typeof ADLER) {
   const ctx = await browser.newContext({ geolocation });
   await ctx.clock.install({ time: new Date('2026-10-29T22:00:00+01:00') });
-  const r = await ctx.request.post('/api/beitreten', { data: { code, rufname, einheit: 'Zug 1', funktion: '', sidc: SIDC } });
-  expect(r.status()).toBe(201);
-  const { token } = await r.json();
+  const r = await beitreten(ctx.request, code, { rufname });
+  const { token } = r;
   await ctx.addInitScript((t) => localStorage.setItem('lagebild.token', t), token);
   await ctx.addInitScript(bedienung, bed);
   const p = await ctx.newPage();
@@ -151,11 +150,11 @@ async function pruefe(a: Ansicht, phase: string, mitPanel: boolean) {
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(180_000);
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name: 'Übung Aare Querformat', erstellPasswort: 'e2e', phase: 'ap' } });
-  const codes = await r.json();
+  const codes = await neueMission(ctx.request, 'Übung Aare Querformat', 'ap');
   await ctx.close();
+  // genau eine Leitung (Spec v7): beide Bedienungen zeigen dieselbe Leitung auf zwei Geräten
   for (const bed of ['klassisch', 'daumen'] as const) {
-    const l = await seite(browser, codes.leitungCode, `Adler ${bed}`, bed, ADLER);
+    const l = await seite(browser, codes, `Adler ${bed}`, bed, ADLER);
     leitungToken = l.token;
     ansichten.push({ name: `${bed} Leitung`, bed, p: l.p });
     ansichten.push({ name: `${bed} Teilnehmer`, bed, p: (await seite(browser, codes.teilnehmerCode, `Bravo ${bed}`, bed, NAH)).p });

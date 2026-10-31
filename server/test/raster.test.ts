@@ -23,7 +23,7 @@ describe('Führungsraster', () => {
 
   it('je Art ein Raster (Setzen ersetzt), Grande und Piccolo nebeneinander; an alle, Snapshot, Löschen, Export', async () => {
     const l = await s.lage();
-    const ltgB = await s.beitreten(l.leitungCode, 'Leitung', 'Stab');
+    const ltgB = l;
     const ltg = await verbinde(s.url, ltgB.token);
     const a = await verbinde(s.url, (await s.beitreten(l.teilnehmerCode, 'Adler')).token);
     const piccolo: RDef = { ...GRANDE, art: 'piccolo', zellM: 10 };
