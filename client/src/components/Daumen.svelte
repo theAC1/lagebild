@@ -320,11 +320,18 @@
   }
   .rand :global(.rand-knopf) {
     flex: none;
-    height: clamp(var(--haupt), 13dvh, 72px);
+    /* min-height statt height: lange Wörter («Wiedergabe») trennen auf zwei Zeilen, der Knopf wächst mit, statt dass
+       die Beschriftung über den Rand läuft */
+    min-height: clamp(var(--haupt), 13dvh, 72px);
     box-shadow: var(--schatten);
     padding-inline: 0;
     font-size: 0.58rem; /* «MELDEN» passt in die schmale Spalte */
     letter-spacing: 0;
+  }
+  /* statt «WIEDERG…» (Ellipse aus app.css) trennen: «WIEDER-GABE» */
+  .rand :global(.rand-knopf > span) {
+    white-space: normal;
+    hyphens: auto;
   }
   .rand :global(.alarm-halten) {
     width: 64px;
