@@ -197,7 +197,34 @@ test('AN: Wiedergabe offen mit Ereignisliste @layout', async () => {
     await expect(a.p.locator('.phase-rahmen.an')).toBeAttached();
     await pruefe(a, 'AN', false);
     await a.p.getByRole('button', { name: 'Wiedergabe', exact: true }).first().click();
-    await expect(a.p.getByRole('region', { name: 'Wiedergabe' }).getByRole('slider', { name: 'Zeitpunkt' })).toBeVisible();
+    const wg = a.p.getByRole('region', { name: 'Wiedergabe' });
+    const zeitpunkt = wg.getByRole('slider', { name: 'Zeitpunkt' });
+    await expect(zeitpunkt).toBeVisible();
     await pruefe(a, 'AN Wiedergabe', true);
+    // Mitlauf ans Ende der Liste: Uhrzeit, Schieber und Knöpfe bleiben als Kopf ganz im Panel, darunter noch ≥ 2 Listenzeilen
+    await zeitpunkt.fill(String(Math.floor(Number(await zeitpunkt.getAttribute('max')) / 1000) * 1000));
+    await wg.getByRole('button', { name: 'Voriges Ereignis' }).click();
+    await wg.getByRole('button', { name: 'Abspielen' }).click();
+    await a.p.waitForTimeout(1500);
+    await expect(wg.locator('.liste [aria-current="true"]')).toBeAttached();
+    const m = await wg.evaluate((w) => {
+      const r = (s: string) => w.querySelector(s)!.getBoundingClientRect();
+      const panel = r('.inhalt');
+      const rumpf = (w.querySelector('.rumpf') ?? w.querySelector('.inhalt'))!.getBoundingClientRect(); // Scrollbereich der Liste
+      return {
+        panel: { t: panel.top, b: panel.bottom },
+        teile: [r('.zeit strong'), r('[aria-label="Zeitpunkt"]'), r('.spiel')].map((x) => ({ t: x.top, b: x.bottom })),
+        frei: rumpf.bottom - Math.max(rumpf.top, r('.leiste').bottom),
+        zeile: parseFloat(getComputedStyle(w.querySelector('.liste .zeile')!).minHeight),
+      };
+    });
+    for (const [i, t] of m.teile.entries()) {
+      expect(t.t, `${a.name}: Kopfteil ${i} oben im Panel`).toBeGreaterThanOrEqual(m.panel.t - 0.5);
+      expect(t.b, `${a.name}: Kopfteil ${i} unten im Panel`).toBeLessThanOrEqual(m.panel.b + 0.5);
+    }
+    expect(m.frei, `${a.name}: Liste zeigt ≥ 2 Zeilen`).toBeGreaterThanOrEqual(2 * m.zeile);
+    const pause = wg.getByRole('button', { name: 'Pause' });
+    if (await pause.isVisible()) await pause.click(); // am Ende hält die Wiedergabe von selbst
+    await pruefe(a, 'AN Wiedergabe Mitlauf', true);
   }
 });

@@ -80,19 +80,22 @@
   const notizMarken = $derived(store.notizen.map((n) => ({ id: n.id, x: (versatzAus(f, n.t) / (gesamt || 1)) * 100 })));
 
   let liste = $state<HTMLElement>();
-  let steuerung = $state<HTMLElement>();
-  // aktuelle Zeile beim Abspielen im Blick halten, aber nie die Knöpfe (Pause!) oben aus dem Panel schieben: quer ist
-  // das Panel nur gut 300 px hoch, scrollIntoView rollte beim Abspielen die ganze Zeitleiste weg. Den Stand zeigt dann
-  // die Zeile «Zuletzt» unter den Knöpfen.
+  let kopf = $state<HTMLElement>();
+  let rumpf = $state<HTMLElement>();
+  // aktuelle Zeile beim Abspielen im Blick halten. Quer scrollt nur der Rumpf unter dem festen Kopf; hoch (Sheet ohne feste
+  // Höhe) scrollt das ganze Panel, dann nie weiter, als der Kopf ganz sichtbar bleibt – den Stand zeigt sonst «Zuletzt».
   $effect(() => {
     void aktuell;
     const zeile = liste?.querySelector<HTMLElement>('[aria-current="true"]');
-    const panel = zeile?.closest<HTMLElement>('.inhalt');
-    if (!zeile || !panel || !steuerung) return;
-    const p = panel.getBoundingClientRect();
+    if (!zeile || !rumpf || !kopf) return;
+    const scroller = rumpf.scrollHeight > rumpf.clientHeight + 1 ? rumpf : rumpf.closest<HTMLElement>('.inhalt');
+    if (!scroller) return;
+    const p = scroller.getBoundingClientRect();
     const z = zeile.getBoundingClientRect();
-    const d = z.bottom > p.bottom ? Math.min(z.bottom - p.bottom, Math.max(0, steuerung.getBoundingClientRect().top - p.top)) : Math.min(0, z.top - p.top);
-    panel.scrollTop += d;
+    const k = kopf.getBoundingClientRect();
+    const mitKopf = scroller.contains(kopf);
+    const d = z.bottom > p.bottom ? Math.min(z.bottom - p.bottom, mitKopf ? Math.max(0, k.top - p.top) : Infinity) : Math.min(0, z.top - (mitKopf ? k.bottom : p.top));
+    scroller.scrollTop += d;
   });
 
   function naechstes(richtung: 1 | -1) {
@@ -121,102 +124,149 @@
 {:else if !f.length}
   <p class="leise">Keine Lageverfolgung aufgezeichnet.</p>
 {:else}
-  <section class="leiste" aria-label="Zeitleiste">
-    <div class="zeit">
-      <strong class="mono" aria-live="off">{uhrzeit(wg.t)}</strong>
-      <span class="leise mono">{Math.round(versatz / 60_000)} / {Math.round(gesamt / 60_000)} min LV</span>
-    </div>
-    <div class="schiene">
-      <input
-        type="range"
-        aria-label="Zeitpunkt"
-        min="0"
-        max={gesamt}
-        step="1000"
-        value={versatz}
-        oninput={(e) => {
-          pause();
-          springeVersatz(Number(e.currentTarget.value));
-        }}
-      />
-      {#each naehte as n, i (i)}<span class="naht" style:left="{n.x}%" title="{n.phase} übersprungen">{n.phase}</span>{/each}
-      {#each notizMarken as n (n.id)}<span class="notiz-marke" style:left="{n.x}%" aria-hidden="true"></span>{/each}
-    </div>
-    <div class="knoepfe" bind:this={steuerung}>
-      <button class="icon" aria-label="Voriges Ereignis" title="Voriges Ereignis (Alt+←)" onclick={() => naechstes(-1)}>⏮</button>
-      {#if wg.spielt}
-        <button class="primaer spiel" aria-label="Pause" onclick={pause}>⏸</button>
-      {:else}
-        <button class="primaer spiel" aria-label="Abspielen" title="Abspielen (Leertaste)" onclick={spiele}>▶</button>
-      {/if}
-      <button class="icon" aria-label="Nächstes Ereignis" title="Nächstes Ereignis (Alt+→)" onclick={() => naechstes(1)}>⏭</button>
+  <div class="wg">
+    <!-- fester Kopf: Uhrzeit, Knöpfe, Schieber, Tempo; nur der Rumpf (Notiz, «Zuletzt», Ereignisliste) scrollt darunter -->
+    <section class="leiste" aria-label="Zeitleiste" bind:this={kopf}>
+      <div class="reihe">
+        <div class="zeit">
+          <strong class="mono" aria-live="off">{uhrzeit(wg.t)}</strong>
+          <span class="leise mono">{Math.round(versatz / 60_000)} / {Math.round(gesamt / 60_000)} min LV</span>
+        </div>
+        <div class="knoepfe">
+          <button class="icon" aria-label="Voriges Ereignis" title="Voriges Ereignis (Alt+←)" onclick={() => naechstes(-1)}>⏮</button>
+          {#if wg.spielt}
+            <button class="primaer spiel" aria-label="Pause" onclick={pause}>⏸</button>
+          {:else}
+            <button class="primaer spiel" aria-label="Abspielen" title="Abspielen (Leertaste)" onclick={spiele}>▶</button>
+          {/if}
+          <button class="icon" aria-label="Nächstes Ereignis" title="Nächstes Ereignis (Alt+→)" onclick={() => naechstes(1)}>⏭</button>
+        </div>
+      </div>
+      <div class="schiene">
+        <input
+          type="range"
+          aria-label="Zeitpunkt"
+          min="0"
+          max={gesamt}
+          step="1000"
+          value={versatz}
+          oninput={(e) => {
+            pause();
+            springeVersatz(Number(e.currentTarget.value));
+          }}
+        />
+        {#each naehte as n, i (i)}<span class="naht" style:left="{n.x}%" title="{n.phase} übersprungen">{n.phase}</span>{/each}
+        {#each notizMarken as n (n.id)}<span class="notiz-marke" style:left="{n.x}%" aria-hidden="true"></span>{/each}
+      </div>
       <div class="segmente tempo" role="group" aria-label="Tempo">
         {#each TEMPI as x (x)}<button aria-pressed={wg.tempo === x} onclick={() => (wg.tempo = x)}>{x}×</button>{/each}
       </div>
-    </div>
-    {#if store.istLeitung}
-      {#if notiz === null}
-        <button class="breit" onclick={() => (pause(), (notiz = ''))}>+ Notiz bei {uhrzeit(wg.t)}</button>
-      {:else}
-        <form class="notiz" onsubmit={(e) => (e.preventDefault(), notizSpeichern())}>
-          <textarea aria-label="Notiz" maxlength="500" rows="2" placeholder="Beobachtung für das Debriefing" bind:value={notiz}></textarea>
-          <div class="knoepfe">
-            <button type="button" onclick={() => (notiz = null)}>Abbrechen</button>
-            <button class="primaer" type="submit" disabled={!notiz.trim()}>Notiz speichern</button>
-          </div>
-        </form>
-      {/if}
-    {/if}
-    {#if aktuell >= 0}
-      {@const z = zeilen[aktuell]}
-      <p class="zuletzt" role="status">Zuletzt <span class="mono">{uhrzeit(z.t)}</span> · {z.rufname} · {z.ereignis}{z.details ? `: ${z.details}` : ''}</p>
-    {/if}
-  </section>
+    </section>
 
-  <section class="ereignisse" aria-label="Ereignisliste">
-    <div class="kopfzeile">
-      <h3>Ereignisse ({zeilen.length})</h3>
-      <button onclick={() => exportiere('csv')}>CSV</button>
-      <button onclick={() => exportiere('pdf')}>PDF</button>
+    <div class="rumpf" bind:this={rumpf}>
+      {#if store.istLeitung}
+        {#if notiz === null}
+          <button class="breit" onclick={() => (pause(), (notiz = ''))}>+ Notiz bei {uhrzeit(wg.t)}</button>
+        {:else}
+          <form class="notiz" onsubmit={(e) => (e.preventDefault(), notizSpeichern())}>
+            <textarea aria-label="Notiz" maxlength="500" rows="2" placeholder="Beobachtung für das Debriefing" bind:value={notiz}></textarea>
+            <div class="knoepfe">
+              <button type="button" onclick={() => (notiz = null)}>Abbrechen</button>
+              <button class="primaer" type="submit" disabled={!notiz.trim()}>Notiz speichern</button>
+            </div>
+          </form>
+        {/if}
+      {/if}
+      {#if aktuell >= 0}
+        {@const z = zeilen[aktuell]}
+        <p class="zuletzt" role="status">Zuletzt <span class="mono">{uhrzeit(z.t)}</span> · {z.rufname} · {z.ereignis}{z.details ? `: ${z.details}` : ''}</p>
+      {/if}
+
+      <section class="ereignisse" aria-label="Ereignisliste">
+        <div class="kopfzeile">
+          <h3>Ereignisse ({zeilen.length})</h3>
+          <button onclick={() => exportiere('csv')}>CSV</button>
+          <button onclick={() => exportiere('pdf')}>PDF</button>
+        </div>
+        <ol class="liste" bind:this={liste}>
+          {#each zeilen as z, i (i)}
+            <li>
+              <button class="zeile" aria-current={i === aktuell} onclick={() => (pause(), springe(z.t))}>
+                <span class="mono leise">{uhrzeit(z.t)}</span>
+                <span><strong>{z.ereignis}</strong> · {z.rufname}{z.details ? ` – ${z.details}` : ''}{z.zelle ? ` · ${z.zelle}` : ''}</span>
+              </button>
+              {#if z.notizId && store.istLeitung}
+                {@const id = z.notizId}
+                <button class="icon weg" aria-label="Notiz löschen" onclick={() => notizLoeschen(id)}>✕</button>
+              {/if}
+            </li>
+          {/each}
+        </ol>
+      </section>
     </div>
-    <ol class="liste" bind:this={liste}>
-      {#each zeilen as z, i (i)}
-        <li>
-          <button class="zeile" aria-current={i === aktuell} onclick={() => (pause(), springe(z.t))}>
-            <span class="mono leise">{uhrzeit(z.t)}</span>
-            <span><strong>{z.ereignis}</strong> · {z.rufname}{z.details ? ` – ${z.details}` : ''}{z.zelle ? ` · ${z.zelle}` : ''}</span>
-          </button>
-          {#if z.notizId && store.istLeitung}
-            {@const id = z.notizId}
-            <button class="icon weg" aria-label="Notiz löschen" onclick={() => notizLoeschen(id)}>✕</button>
-          {/if}
-        </li>
-      {/each}
-    </ol>
-  </section>
+  </div>
 {/if}
 
 <style>
+  /* Quer hat das Sheet eine feste Höhe: Kopf fest, Rumpf scrollt. Hoch (nur max-height) greift height: 100% nicht,
+     dann scrollt wie bisher das ganze Panel. */
+  .wg {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  /* quer: die Liste läuft bis an den Panelrand (Sheet-Innenabstand unten bleibt sonst als tote Fläche unter dem Scrollbereich) */
+  @media (orientation: landscape) {
+    .wg {
+      height: calc(100% + 12px);
+      margin-bottom: -12px;
+    }
+  }
   .leiste {
+    flex: none;
     display: grid;
-    gap: 8px;
+    gap: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--line);
+  }
+  .rumpf {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-top: 4px;
+  }
+  .reihe {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px 8px;
+  }
+  .reihe .knoepfe {
+    gap: 4px;
   }
   .zeit {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
+    display: grid;
+    line-height: 1.15;
   }
   .zeit strong {
-    font-size: 1.4rem;
+    font-size: 1.2rem;
+  }
+  .zeit span {
+    font-size: 0.75rem;
   }
   .schiene {
     position: relative;
-    padding-bottom: 14px;
+  }
+  /* Platz für die Naht-Beschriftungen nur, wenn es Nähte gibt (mehrere LV-Abschnitte) */
+  .schiene:has(.naht) {
+    padding-bottom: 12px;
   }
   .schiene input {
     width: 100%;
     min-height: var(--touch);
+    margin: 0;
     accent-color: #2e9e44;
   }
   .naht {
@@ -236,17 +286,18 @@
     gap: 6px;
   }
   .spiel {
-    min-width: 64px;
+    min-width: var(--touch);
     font-size: 1.2rem;
   }
   .tempo {
-    flex: 1;
+    flex-wrap: nowrap;
+    padding: 0;
   }
   .fehler {
     color: var(--danger);
   }
   .zuletzt {
-    margin: 0;
+    margin: 8px 0 0;
     font-size: 0.9rem;
     color: var(--text-2);
     overflow-wrap: anywhere;
@@ -268,7 +319,7 @@
   }
   .notiz-marke {
     position: absolute;
-    bottom: 16px;
+    top: calc(var(--touch) - 12px);
     width: 8px;
     height: 8px;
     translate: -50% 0;
