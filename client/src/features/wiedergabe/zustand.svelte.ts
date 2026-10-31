@@ -16,6 +16,8 @@ class Wiedergabe {
   t = $state(0);
   spielt = $state(false);
   tempo = $state<Tempo>(10);
+  /** Lage, deren Wechsel nach AN dieses Gerät ausgelöst hat: dort öffnet die Wiedergabe von selbst (Oeffner). */
+  selbstOeffnenFuer = $state('');
 }
 export const wg = new Wiedergabe();
 

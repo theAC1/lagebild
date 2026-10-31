@@ -622,7 +622,8 @@ Gebaut in der heutigen Server-Lage. Die Regeln liegen als Reducer in `shared/reg
 - Rahmen um die Karte: **AP dunkelgrau**, **LV schwarz** (wie bisher), **AN grün**. Der gelbe Rahmen des Taufmodus liegt darüber.
 - Phasenschild «AP» / «LV» / «AN» im Kopf (beide Bedienungen); für die Leitung ein Knopf zum Wechseln.
 
-### Wiedergabe (AN, Panel «Wiedergabe», öffnet beim Wechsel nach AN von selbst)
+### Wiedergabe (AN, Panel «Wiedergabe»)
+- Von selbst öffnet sie nur auf dem Gerät der Leitung, die nach AN gewechselt hat. Alle anderen sehen den grünen Rahmen und öffnen sie mit einem Tipp: Daumen-Ränder mit dem Randknopf «Wiedergabe» (an der Stelle von Status: quer links, hoch im Dock), Klassisch als erster Knopf der Werkzeugleiste. So laden nicht alle Geräte gleichzeitig das ganze Protokoll.
 - Zeigt alles mit Zeitstempel auf der Karte wie zum Zeitpunkt: Positionen (aus den Spuren), Status, Marker, Sichtungen, Zeichnungen, Taufen, Alarme, Bloodhound-Linien, Chat und Meldungslog bis dahin. Die Anzeige nutzt die normalen Kartenlayer: das Panel ersetzt den Lagezustand im Client durch den Stand zum Zeitpunkt und stellt beim Schliessen den Live-Stand wieder her.
 - Zeitleiste mit Schieber, Play/Pause, Tempo 1× / 10× / 60×, Sprung zum vorigen und nächsten Ereignis; vor- und zurückspulen über den Schieber. Start pausiert am Anfang der ersten LV. Desktop: Leertaste spielt/pausiert, Alt+← / Alt+→ springen zum Ereignis.
 - Nur LV-Zeiträume: AP-Abschnitte dazwischen überspringt die Wiedergabe; die Zeitleiste markiert die Naht mit der übersprungenen Phase («AP», nach AN → LV «AN»).

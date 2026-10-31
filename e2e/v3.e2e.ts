@@ -374,3 +374,21 @@ test('Tag/Nacht nach Sonnenstand: hell am Mittag, dunkel nach Sonnenuntergang (m
   await expect(abend.locator('html')).toHaveAttribute('data-thema', 'nacht');
   await abend.context().close();
 });
+
+// Am Schluss: in AN sind keine Beitritte mehr möglich (Tag/Nacht tritt neu bei)
+test('AN: Wiedergabe öffnet nur bei der wechselnden Leitung, alle anderen tippen den Randknopf «Wiedergabe»', async () => {
+  await knopf(leitung, /^Phase: Lageverfolgung/).click();
+  await sheets(leitung).getByRole('button', { name: 'Nachbearbeitung starten (AN)', exact: true }).click();
+  await sheets(leitung).getByRole('button', { name: 'Ja, wechseln', exact: true }).click();
+  await expect(leitung.getByRole('region', { name: 'Wiedergabe' })).toBeVisible();
+  // quer: Knopf am linken Rand, gross genug für den Daumen
+  const rand = await box(leitung, 'Wiedergabe');
+  expect(rand.x + rand.width).toBeLessThan(100);
+  expect(Math.min(rand.width, rand.height)).toBeGreaterThanOrEqual(56);
+
+  await expect(bravo.locator('.phase-rahmen.an')).toBeAttached();
+  await expect(bravo.getByRole('region', { name: 'Wiedergabe' })).toHaveCount(0);
+  // hoch: im Dock, ein Tipp
+  await bravo.getByRole('navigation', { name: 'Hauptaktionen' }).getByRole('button', { name: 'Wiedergabe', exact: true }).click();
+  await expect(bravo.getByRole('region', { name: 'Wiedergabe' }).getByRole('slider', { name: 'Zeitpunkt' })).toBeVisible();
+});

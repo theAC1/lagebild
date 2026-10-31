@@ -287,8 +287,12 @@ test('Export GPX, Nachbearbeitung statt Beenden, zurück und löschen', async ()
   await teilnehmer.reload();
   await expect(teilnehmer.locator('.phase-rahmen.an')).toBeAttached();
 
-  // Wiedergabe öffnet von selbst, beginnt am Anfang der LV (Marker noch nicht gesetzt); ans Ende spulen zeigt ihn
+  // Wiedergabe öffnet nur bei der Leitung von selbst; Teilnehmende tippen «Wiedergabe» in der Leiste.
+  // Sie beginnt am Anfang der LV (Marker noch nicht gesetzt); ans Ende spulen zeigt ihn
+  await expect(leitung.getByRole('region', { name: 'Wiedergabe' })).toBeVisible();
   const wiedergabe = teilnehmer.getByRole('region', { name: 'Wiedergabe' });
+  await expect(wiedergabe).toHaveCount(0);
+  await werkzeug(teilnehmer, 'Wiedergabe').click();
   const zeitpunkt = wiedergabe.getByRole('slider', { name: 'Zeitpunkt' });
   await expect(zeitpunkt).toBeVisible();
   const sperre = teilnehmer.getByRole('button', { name: 'Marker Sperre Nord' });
@@ -326,6 +330,7 @@ test('Export GPX, Nachbearbeitung statt Beenden, zurück und löschen', async ()
   await expect(teilnehmer.getByRole('button', { name: /^Eigener Status/ })).toBeVisible();
   await phaseWechseln('Phase: Lageverfolgung', 'Nachbearbeitung starten (AN)');
   await expect(teilnehmer.locator('.phase-rahmen.an')).toBeAttached();
+  await werkzeug(teilnehmer, 'Wiedergabe').click();
 
   // Debriefing-Notiz der Leitung am Zeitpunkt: alle sehen sie in der Liste; nur die Leitung löscht
   const wgLeitung = leitung.getByRole('region', { name: 'Wiedergabe' });

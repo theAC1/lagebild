@@ -53,4 +53,5 @@ export interface Feature {
 
 export const inPhase = (f: Pick<Feature, 'phasen'>, phase: Phase): boolean => !f.phasen || f.phasen.includes(phase);
 
-export const features: Feature[] = [marker, status, chat, sichtung, alarm, rangebearing, spuren, zeichnen, raster, taufe, leitung, meldungen, offline, bloodhound, wiedergabe];
+// Wiedergabe zuerst: in AN der erste Knopf der Werkzeugleiste (Klassisch), auch wenn die Leiste scrollt
+export const features: Feature[] = [wiedergabe, marker, status, chat, sichtung, alarm, rangebearing, spuren, zeichnen, raster, taufe, leitung, meldungen, offline, bloodhound];

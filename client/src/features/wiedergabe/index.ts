@@ -11,6 +11,7 @@ const feature: Feature = {
   Panel,
   MapLayer: Oeffner,
   phasen: ['an'],
+  haupt: {}, // Daumen-Ränder: fester Randknopf (in AN fehlen Status, Melden, Alarm) statt im Mehr-Menü
 };
 
 export default feature;

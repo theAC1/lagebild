@@ -4,6 +4,7 @@
   import { abmelden, api, send, store } from '../../lib/store.svelte.ts';
   import { schreibe, toast } from '../../lib/ui.svelte.ts';
   import { codesKey, PHASE_TEXT } from './logik.ts';
+  import { wg } from '../wiedergabe/zustand.svelte.ts';
 
   /** Gewählter Wechsel, wartet auf «Ja, wechseln». */
   let ziel = $state<Phase | null>(null);
@@ -15,7 +16,8 @@
 
   function wechseln(p: Phase) {
     ziel = null;
-    if (!send({ typ: 'lage.phase', phase: p })) toast('Keine Verbindung – Phase nicht gewechselt.');
+    if (!send({ typ: 'lage.phase', phase: p })) return toast('Keine Verbindung – Phase nicht gewechselt.');
+    wg.selbstOeffnenFuer = p === 'an' ? (store.lage?.id ?? '') : '';
   }
 
   async function loeschen() {

@@ -2,7 +2,7 @@
   // Bedienung «Daumen-Ränder» (Spec v3). Die Karte läuft randlos unter allem durch; Kopf, Knöpfe und Koordinaten
   // schweben darüber. Quer: links Status, Melden, unten Alarm; rechts oben die Kartenknöpfe (Ebenen, Folgen, Nordung)
   // als Reihe, rechts unten Chat, Mehr. Hoch: Dock unten (Status, Melden, Chat, Mehr), Alarm links darüber, Kartenknöpfe
-  // rechts. «Melden» öffnet daneben die Wahl Sichtung/Marker (Rückmeldung 30.10.: der Unterschied war nicht klar).
+  // rechts. In AN (ohne Status, Melden, Alarm) sitzt «Wiedergabe» an der Stelle von Status. «Melden» öffnet daneben die Wahl Sichtung/Marker (Rückmeldung 30.10.: der Unterschied war nicht klar).
   // Was ein Hauptknopf tut, bestimmt das Feature (Feature.haupt); wo er sitzt, steht hier.
   import { MediaQuery } from 'svelte/reactivity';
   import { features, inPhase, type Feature } from '../features/registry.ts';
@@ -178,6 +178,7 @@
   {#if quer.current}
     <aside class="rand links" aria-label="Melden">
       {@render knopf('status')}
+      {@render knopf('wiedergabe')}
       {#if melden.length}{@render meldenKnopfS()}{/if}
       <span class="luecke"></span>
       {@render knopf('alarm')}
@@ -194,6 +195,7 @@
       {#if koordLeiste}<KoordLeiste />{/if}
       <nav class="dock" aria-label="Hauptaktionen">
         {@render knopf('status')}
+        {@render knopf('wiedergabe')}
         {#if melden.length}{@render meldenKnopfS()}{/if}
         {@render knopf('chat')}
         {@render mehrKnopf()}

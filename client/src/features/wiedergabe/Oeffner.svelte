@@ -1,17 +1,14 @@
 <script lang="ts">
-  // Wechsel nach AN (oder Start in AN): Wiedergabe einmal je Lage von selbst öffnen – ein Tipp weniger.
+  // Wechsel nach AN: die Wiedergabe öffnet von selbst nur auf dem Gerät der Leitung, die gewechselt hat. Alle anderen
+  // tippen «Wiedergabe» (Randknopf bzw. Werkzeugleiste): sonst laden alle Geräte gleichzeitig das ganze Protokoll.
   import { untrack } from 'svelte';
   import { store } from '../../lib/store.svelte.ts';
   import { oeffne } from '../../lib/ui.svelte.ts';
+  import { wg } from './zustand.svelte.ts';
 
-  let geoeffnetFuer = '';
   $effect(() => {
-    if (store.phase !== 'an' || !store.lage) {
-      geoeffnetFuer = '';
-      return;
-    }
-    if (geoeffnetFuer === store.lage.id) return;
-    geoeffnetFuer = store.lage.id;
+    if (store.phase !== 'an' || !store.lage || wg.selbstOeffnenFuer !== store.lage.id) return;
+    wg.selbstOeffnenFuer = '';
     untrack(() => oeffne('wiedergabe'));
   });
 </script>
