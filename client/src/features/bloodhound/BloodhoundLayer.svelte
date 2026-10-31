@@ -125,12 +125,10 @@
       eigene.push(feature(store.meinePos, ziel, STUFE_FARBE[ms?.stufe ?? 'neutral']));
     }
     const leitung: GeoJSON.Feature[] = [];
-    if (store.istLeitung) {
-      for (const au of store.bloodhound.values()) {
-        const von = store.teilnehmer.get(au.an)?.pos;
-        const bis = zielPunkt(au.ziel);
-        if (von && bis && au.an !== store.ich) leitung.push(feature(von, bis));
-      }
+    for (const au of store.bloodhound.values()) {
+      const von = store.teilnehmer.get(au.an)?.pos;
+      const bis = zielPunkt(au.ziel);
+      if (von && bis && au.an !== store.ich) leitung.push(feature(von, bis)); // fremde Aufträge: dünn gestrichelt, für alle
     }
     (m.getSource(QUELLE) as GeoJSONSource).setData({ type: 'FeatureCollection', features: eigene });
     (m.getSource(LEITUNG) as GeoJSONSource).setData({ type: 'FeatureCollection', features: leitung });

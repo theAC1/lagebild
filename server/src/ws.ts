@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, Server } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { ClientMsg, MAX_NACHRICHT, PING_MS, type Lage, type ServerMsg, type Teilnehmer } from '../../shared/protocol.ts';
-import { empfaengt, istAbgelehnt, sichtbar, sichtbareAuftraege, wende } from '../../shared/regeln/index.ts';
+import { empfaengt, istAbgelehnt, meldungSichtbar, offen, sichtbar, wende } from '../../shared/regeln/index.ts';
 import type { Db } from './db.ts';
 import { sichtAusDb, speichere } from './regeln.ts';
 import { log, neuerCode, rateLimiter, sha256 } from './sicherheit.ts';
@@ -79,10 +79,10 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
       ebenen: db.ebenenSicherstellen(lage.id),
       zeichnungen: db.eintraege(lage.id, 'zeichnung'),
       taufen: db.eintraege(lage.id, 'taufe'),
-      bloodhound: sichtbareAuftraege(db.eintraege(lage.id, 'bloodhound'), v),
+      bloodhound: db.eintraege(lage.id, 'bloodhound').filter(offen),
       raster: db.eintraege(lage.id, 'raster'),
       alarme: db.eintraege(lage.id, 'alarm').filter((a) => a.aufgehobenAm === null),
-      meldungen: db.eintraege(lage.id, 'meldung', 200),
+      meldungen: db.eintraege(lage.id, 'meldung', 200).filter((m) => meldungSichtbar(m, v)),
       serverZeit: Date.now(),
     };
   }
@@ -129,7 +129,7 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
   function verteile(lageId: string, d: ServerMsg): void {
     if (d.typ === 'teilnehmer') return anAlle(lageId, { typ: 'teilnehmer', teilnehmer: mitOnline(lageId, d.teilnehmer) });
     if (d.typ === 'teilnehmer.weg') rauswerfen(lageId, d.id);
-    if (d.typ === 'chat' || d.typ === 'bloodhound') {
+    if (d.typ === 'chat' || d.typ === 'meldung') {
       for (const e of verbindungen(lageId)) if (empfaengt(d, e)) senden(e.ws, d);
       return;
     }

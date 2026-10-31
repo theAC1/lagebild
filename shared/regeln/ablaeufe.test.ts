@@ -69,6 +69,14 @@ describe('Position und Alarm', () => {
 });
 
 describe('Folgen über Module hinweg', () => {
+  it('Bloodhound-Meldungen gehen nur an den Empfänger (Leitung sieht alle)', () => {
+    const w = welt();
+    w.tu('ltg', { typ: 'bloodhound.auftrag', an: 'b', ziel: { art: 'teilnehmer', id: 'a' } });
+    const id = w.daten.eintraege.bloodhound![0].id;
+    w.tu('b', { typ: 'bloodhound.beendet', id });
+    expect(w.daten.eintraege.meldung!.map((m) => m.nur)).toEqual([['b'], ['b']]);
+  });
+
   it('Teilnehmer entfernen beendet Aufträge an ihn und auf ihn; teilnehmer.weg zuletzt', () => {
     const w = welt({ ...leereLage(LAGE, [tn('ltg', 'leitung'), tn('a'), tn('b'), tn('c')]) });
     w.tu('ltg', { typ: 'bloodhound.auftrag', an: 'b', ziel: { art: 'punkt', punkt: { lat: 47, lon: 8 } } });
@@ -95,11 +103,14 @@ describe('Sichtbarkeit beim Verteilen', () => {
   const a = tn('a');
   const b = tn('b', 'teilnehmer', { einheit: 'Zug 2' });
   const chat = (an: Chat['an']): ServerMsg => ({ typ: 'chat', chat: { id: 'c', von: 'a', an, text: 'x', t: 0 } });
-  it('Chat nach Empfänger, Bloodhound nur Leitung und Empfänger, Rest an alle', () => {
+  it('Chat nach Empfänger, Bloodhound-Linie an alle, Bloodhound-Meldung nur Leitung und Empfänger, Rest an alle', () => {
     expect([ltg, a, b].map((e) => empfaengt(chat({ art: 'einheit', einheit: 'Zug 2' }), e))).toEqual([false, true, true]);
     expect([ltg, a, b].map((e) => empfaengt(chat({ art: 'person', id: 'ltg' }), e))).toEqual([true, true, false]);
     const auftrag: ServerMsg = { typ: 'bloodhound', auftrag: { id: 'h', von: 'ltg', an: 'b', ziel: { art: 'punkt', punkt: { lat: 0, lon: 0 } }, erstelltAm: 0, quittiertAm: null, ende: null, endeAm: null } };
-    expect([ltg, a, b].map((e) => empfaengt(auftrag, e))).toEqual([true, false, true]);
+    expect([ltg, a, b].map((e) => empfaengt(auftrag, e))).toEqual([true, true, true]);
+    const meldung = (nur?: string[]): ServerMsg => ({ typ: 'meldung', meldung: { id: 'm', von: 'ltg', status: null, text: 'x', t: 0, nur } });
+    expect([ltg, a, b].map((e) => empfaengt(meldung(['b']), e))).toEqual([true, false, true]);
+    expect([ltg, a, b].map((e) => empfaengt(meldung(), e))).toEqual([true, true, true]);
     expect(empfaengt({ typ: 'marker.geloescht', id: 'm' }, b)).toBe(true);
   });
 });

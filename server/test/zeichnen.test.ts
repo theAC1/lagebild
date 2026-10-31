@@ -244,7 +244,7 @@ describe('Ebenen', () => {
 });
 
 describe('Bloodhound-Aufträge', () => {
-  it('Leitung → Teilnehmer; Verteilung nur an Leitung und Empfänger; Snapshot', async () => {
+  it('Leitung → Teilnehmer; Linie an alle, Meldung nur an Leitung und Empfänger; Snapshot', async () => {
     const { ltg, a, b, aB, bB, ltgB } = await szenario();
     a.senden({ typ: 'bloodhound.auftrag', an: bB.teilnehmerId, ziel: { art: 'punkt', punkt: P(47, 8) } });
     expect(await fehlerText(a)).toBe('Nur für die Leitung');
@@ -254,14 +254,15 @@ describe('Bloodhound-Aufträge', () => {
     expect(auf).toMatchObject({ von: ltgB.teilnehmerId, an: aB.teilnehmerId, ende: null, quittiertAm: null });
     await ltg.warte('bloodhound');
     await pause(100);
-    expect(b.empfangen.some((m) => m.typ === 'bloodhound')).toBe(false);
+    expect((await b.warte('bloodhound')).auftrag.id).toBe(auf.id); // Ziel/Unbeteiligte sehen die Linie
+    expect(b.empfangen.some((m) => m.typ === 'meldung')).toBe(false); // …aber keine Meldung
     expect((await a.warte('meldung', (m) => m.meldung.text === 'Bloodhound-Auftrag an Adler')).meldung.von).toBe(ltgB.teilnehmerId);
 
-    // Snapshot: Leitung sieht alle offenen, Empfänger seine, andere nichts
+    // Snapshot: alle sehen die offenen Aufträge
     const nach = async (token: string) => (await verbinde(s.url, token)).snapshot.bloodhound;
     expect(await nach(ltgB.token)).toHaveLength(1);
     expect(await nach(aB.token)).toHaveLength(1);
-    expect(await nach(bB.token)).toHaveLength(0);
+    expect(await nach(bB.token)).toHaveLength(1);
 
     // Quittieren: nur Empfänger
     ltg.senden({ typ: 'bloodhound.quittieren', id: auf.id });

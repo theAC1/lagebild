@@ -75,8 +75,8 @@ export function lauf(e: Ereignis) {
     tu,
     sende: (d: ServerMsg): void => void deltas.push(d),
     /** Eintrag ins Meldungslog (Nachbesprechung), vom Autor. */
-    meldung(text: string, status: string | null = null): void {
-      const m: Meldung = { id: e.neueId(), von: e.autor.id, status, text: text.slice(0, 200), t: e.jetzt };
+    meldung(text: string, status: string | null = null, nur?: string[]): void {
+      const m: Meldung = { id: e.neueId(), von: e.autor.id, status, text: text.slice(0, 200), t: e.jetzt, ...(nur && { nur }) };
       tu({ was: 'speichern', art: 'meldung', obj: m, t: m.t }, { typ: 'meldung', meldung: m });
     },
     fertig: (): Ergebnis => ({ aenderungen, deltas }),

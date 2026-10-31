@@ -354,6 +354,8 @@ export const Meldung = z.object({
   status: z.string().nullable(),
   text: Text(200),
   t: z.number(),
+  /** Nur diese Personen (und die Leitung) bekommen den Eintrag; ohne Angabe alle. */
+  nur: z.array(Id).max(2).optional(),
 });
 export type Meldung = z.infer<typeof Meldung>;
 
@@ -421,7 +423,7 @@ export type ServerMsg =
       ebenen: Ebene[]; // nach reihenfolge; enthält immer die Standard-Ebene
       zeichnungen: Zeichnung[];
       taufen: Taufe[];
-      bloodhound: BloodhoundAuftrag[]; // offene Aufträge: Leitung alle, sonst nur die an mich
+      bloodhound: BloodhoundAuftrag[]; // offene Aufträge: für alle
       raster: Raster[]; // Führungsraster der Lage (höchstens Grande und Piccolo)
       alarme: Alarm[]; // nicht aufgehobene
       meldungen: Meldung[]; // letzte 200

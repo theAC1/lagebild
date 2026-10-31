@@ -1,14 +1,11 @@
-// Bloodhound-Aufträge: erteilen/aufheben nur Leitung; quittieren/beendet/erreicht nur der Empfänger. Je Empfänger ein offener.
-import type { BloodhoundAuftrag, BloodhoundEnde, Teilnehmer } from '../protocol.ts';
+// Bloodhound-Aufträge (Linie für alle sichtbar, Meldungen nur an Leitung und Empfänger, nie ans Ziel): erteilen/aufheben nur Leitung; quittieren/beendet/erreicht nur der Empfänger. Je Empfänger ein offener.
+import type { BloodhoundAuftrag, BloodhoundEnde } from '../protocol.ts';
 import { lauf, nein, type Befehl, type Ereignis, type Ergebnis, type Lauf, type Zustand } from './typen.ts';
 
 export const MAX_AUFTRAEGE_JE_LAGE = 1000;
 
 export const offen = (a: BloodhoundAuftrag): boolean => a.ende === null;
 
-/** Offene Aufträge, die `t` sehen darf: Leitung alle, sonst die an sie selbst. */
-export const sichtbareAuftraege = (auftraege: BloodhoundAuftrag[], t: Pick<Teilnehmer, 'id' | 'rolle'>): BloodhoundAuftrag[] =>
-  auftraege.filter((a) => offen(a) && (t.rolle === 'leitung' || a.an === t.id));
 
 const name = (z: Zustand, id: string): string => z.teilnehmerListe(true).find((x) => x.id === id)?.rufname ?? '?';
 
@@ -17,7 +14,7 @@ export function beendeAuftraege(l: Lauf, jetzt: number, treffer: BloodhoundAuftr
   for (const a of treffer) {
     const neu: BloodhoundAuftrag = { ...a, ende: 'aufgehoben', endeAm: jetzt };
     l.tu({ was: 'speichern', art: 'bloodhound', obj: neu, t: neu.erstelltAm }, { typ: 'bloodhound', auftrag: neu });
-    l.meldung(`Bloodhound-Auftrag aufgehoben (${grund})`);
+    l.meldung(`Bloodhound-Auftrag aufgehoben (${grund})`, null, [a.an]);
   }
 }
 
@@ -41,7 +38,7 @@ export function wendeBloodhound(z: Zustand, e: Ereignis & { msg: BloodhoundBefeh
     // ein offener Auftrag je Empfänger: der neue ersetzt den alten
     for (const alt of z.eintraege('bloodhound').filter((a) => offen(a) && a.an === m.an)) speichere({ ...alt, ende: 'aufgehoben', endeAm: jetzt });
     speichere({ id: e.neueId(), von: t.id, an: m.an, ziel, erstelltAm: jetzt, quittiertAm: null, ende: null, endeAm: null });
-    l.meldung(`Bloodhound-Auftrag an ${name(z, m.an)}`);
+    l.meldung(`Bloodhound-Auftrag an ${name(z, m.an)}`, null, [m.an]);
     return l.fertig();
   }
 
@@ -56,6 +53,6 @@ export function wendeBloodhound(z: Zustand, e: Ereignis & { msg: BloodhoundBefeh
   }
   const ende: BloodhoundEnde = m.typ === 'bloodhound.aufheben' ? 'aufgehoben' : m.typ === 'bloodhound.beendet' ? 'beendet' : 'erreicht';
   speichere({ ...a, ende, endeAm: jetzt });
-  l.meldung({ aufgehoben: `Bloodhound-Auftrag an ${name(z, a.an)} aufgehoben`, beendet: 'Bloodhound beendet', erreicht: 'Bloodhound-Ziel erreicht' }[ende]);
+  l.meldung({ aufgehoben: `Bloodhound-Auftrag an ${name(z, a.an)} aufgehoben`, beendet: 'Bloodhound beendet', erreicht: 'Bloodhound-Ziel erreicht' }[ende], null, [a.an]);
   return l.fertig();
 }

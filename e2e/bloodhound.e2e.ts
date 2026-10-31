@@ -14,6 +14,8 @@ test.describe.configure({ mode: 'serial' });
 let leitung: Page;
 let bravo: Page;
 let bravoCtx: BrowserContext;
+let charlie: Page; // Unbeteiligte: sieht die Linie, bekommt keine Meldung
+const charlieMsgs: { typ: string; auftrag?: { ende: string | null } }[] = [];
 
 async function seite(browser: Browser, code: string, rufname: string, geolocation: typeof ADLER, viewport: { width: number; height: number }) {
   const ctx = await browser.newContext({ geolocation, viewport });
@@ -62,6 +64,11 @@ test.beforeAll(async ({ browser }) => {
   const b = await seite(browser, lage.teilnehmerCode, 'Bravo', BRAVO, { width: 390, height: 844 });
   bravo = b.page;
   bravoCtx = b.ctx;
+  const c = await seite(browser, lage.teilnehmerCode, 'Charlie', ADLER, { width: 390, height: 844 });
+  charlie = c.page;
+  const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws`); // Charlies Datenstrom: Linie (Delta) ja, Meldung nein
+  ws.on('open', () => ws.send(JSON.stringify({ typ: 'hallo', token: c.token })));
+  ws.on('message', (d) => charlieMsgs.push(JSON.parse(d.toString())));
   await expect(leitung.locator('.bft-label', { hasText: 'Bravo' })).toBeVisible();
   await setzeMarker(l.token);
   await expect(leitung.locator('[data-ziel-art="marker"]').first()).toBeAttached();
@@ -70,6 +77,7 @@ test.beforeAll(async ({ browser }) => {
 test.afterAll(async () => {
   await leitung?.context().close();
   await bravo?.context().close();
+  await charlie?.context().close();
 });
 
 test('persönliches Bloodhound per Rechtsklick-Radial, überlebt Reload, Beenden', async () => {
@@ -148,6 +156,12 @@ test('Auftrag: Leitung → Bravo sieht Banner, quittiert, Leitung sieht «quitti
   await expect(leitung.locator('.toast', { hasText: 'Bravo hat das Ziel erreicht' })).toBeVisible();
   await expect(panel.locator('li[data-auftrag]')).toHaveCount(0);
   await bild(leitung, 'erreicht-leitung');
+
+  // Unbeteiligte (Charlie): bekam den Auftrag (Linie auf der Karte), aber nie eine Meldung, keinen Toast, keine Leiste
+  expect(charlieMsgs.filter((m) => m.typ === 'bloodhound').map((m) => m.auftrag!.ende)).toEqual([null, null, 'erreicht']); // Auftrag, Quittung, Ende
+  expect(charlieMsgs.filter((m) => m.typ === 'meldung')).toEqual([]);
+  await expect(charlie.locator('.toast')).toHaveCount(0);
+  await expect(leiste(charlie)).toHaveCount(0);
 });
 
 test('Aufheben durch die Leitung beendet das Bloodhound beim Empfänger', async () => {

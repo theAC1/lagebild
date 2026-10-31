@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { SIDC, testServer, verbinde } from './helfer.ts';
+import { pause, SIDC, testServer, verbinde } from './helfer.ts';
 
 let s: Awaited<ReturnType<typeof testServer>>;
 beforeAll(async () => (s = await testServer()));
@@ -40,5 +40,33 @@ describe('Bloodhound-Aufträge enden mit Empfänger oder Ziel', () => {
     const auf = (await a.warte('bloodhound')).auftrag;
     ltg.senden({ typ: 'teilnehmer.entfernen', id: bB.teilnehmerId });
     expect((await a.warte('bloodhound', (m) => m.auftrag.id === auf.id && m.auftrag.ende !== null)).auftrag.ende).toBe('aufgehoben');
+  });
+});
+
+describe('Sichtbarkeit: Linie für alle, Meldung nur für Betroffene', () => {
+  it('Unbeteiligte bekommen Auftrag (Delta, Snapshot), aber keine Meldung', async () => {
+    const l = await s.lage();
+    const ltgB = await s.beitreten(l.leitungCode, 'Leitung', 'Stab');
+    const aB = await s.beitreten(l.teilnehmerCode, 'Adler', 'Zug 1');
+    const bB = await s.beitreten(l.teilnehmerCode, 'Bär', 'Zug 2');
+    const cB = await s.beitreten(l.teilnehmerCode, 'Cäsar', 'Zug 2');
+    const ltg = await verbinde(s.url, ltgB.token);
+    const a = await verbinde(s.url, aB.token);
+    const b = await verbinde(s.url, bB.token);
+    ltg.senden({ typ: 'bloodhound.auftrag', an: aB.teilnehmerId, ziel: { art: 'teilnehmer', id: bB.teilnehmerId } });
+    const auf = (await b.warte('bloodhound')).auftrag;
+    await a.warte('meldung');
+    await ltg.warte('meldung');
+    a.senden({ typ: 'bloodhound.beendet', id: auf.id });
+    await b.warte('bloodhound', (m) => m.auftrag.id === auf.id && m.auftrag.ende === 'beendet');
+    await a.warte('meldung', (m) => m.meldung.text === 'Bloodhound beendet');
+    await pause(100);
+    expect(b.empfangen.some((m) => m.typ === 'meldung')).toBe(false);
+    ltg.senden({ typ: 'bloodhound.auftrag', an: aB.teilnehmerId, ziel: { art: 'punkt', punkt: { lat: 47, lon: 8 } } });
+    const neu = (await b.warte('bloodhound', (m) => m.auftrag.ende === null && m.auftrag.id !== auf.id)).auftrag;
+    const c = await verbinde(s.url, cB.token);
+    expect(c.snapshot.bloodhound.map((x) => x.id)).toEqual([neu.id]);
+    expect(c.snapshot.meldungen).toEqual([]);
+    expect((await verbinde(s.url, ltgB.token)).snapshot.meldungen.length).toBeGreaterThan(0);
   });
 });

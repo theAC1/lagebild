@@ -108,6 +108,7 @@ Rechte: alle dürfen zeichnen; bearbeiten/löschen nur Ersteller und Leitung (wi
 
 - Luftlinie von mir zu Ziel (Teilnehmer, Marker, Sichtung, Kartenpunkt), keine Strassenroute. Anzeige: Distanz, Azimut (Grad und ‰), Restzeit aus geglätteter eigener Geschwindigkeit (ohne Bewegung: «—»). Linienfarbe nach Restzeit: > 360 s neutral, ≤ 360 s grün, ≤ 180 s gelb, ≤ 60 s rot. Aktualisiert sich, wenn sich Ziel oder ich bewegen. Ein aktives Bloodhound pro Person, beenden jederzeit.
 - **Auftrag durch die Leitung:** Die Leitung schickt einer Person ein Ziel; bei ihr startet Bloodhound automatisch mit Hinweis «Auftrag von Leitung». Die Leitung sieht pro Auftrag Distanz/Restzeit der Person (aus deren gesendeten Positionen, serverseitig nichts Neues zu rechnen nötig) und kann ihn aufheben. Die Person kann ihn quittieren und beenden; Beenden wird der Leitung gemeldet. Erreicht (≤ 25 m) wird automatisch gemeldet.
+- **Sichtbarkeit (seit 31.10.):** Offene Aufträge (Linie Empfänger → Ziel) sehen alle Teilnehmenden auf der Karte (Snapshot und Deltas an alle); Banner, Distanz, Toasts und Meldungslog-Einträge («Bloodhound-Auftrag an X», «aufgehoben», «beendet», «erreicht») bekommen nur Leitung und Empfänger. Ist das Ziel eine Person, bekommt sie keine Meldung (Annahme). Das Meldungslog filtert der Server (`Meldung.nur`, `meldungSichtbar` in `shared/regeln/sichtbar.ts`), im Snapshot wie bei Deltas.
 
 ## Spec v3: Bedienung «Daumen-Ränder» (29.10.2026, drei Frage-Runden mit Juan)
 
@@ -346,7 +347,7 @@ Juan: «Keine zentrale Verwaltung oder etwas, sondern immer lokale Missions und 
 
 **Chat**
 - Direktnachrichten nur für Absender und Empfänger lesbar (zusätzlich paarweise verschlüsselt); Gruppen- und Allgemein-Chat für alle Geräte der Mission lesbar, die Anzeige filtert nach Gruppe (L, R§2 Tabelle).
-- Bloodhound-Aufträge haben alle Geräte, angezeigt nur bei Leitung und Empfänger (R§2 Tabelle).
+- Bloodhound-Aufträge haben alle Geräte, Linie für alle, Meldungen nur bei Leitung und Empfänger (R§2 Tabelle).
 
 **Taufnamen nach Offline-Arbeit**
 - Wählen zwei Geräte offline denselben Taufnamen, gewinnt die frühere Taufe (Reihenfolge nach HLC). Die spätere bleibt sichtbar, ist als «Namenskonflikt» markiert, und ihr Ersteller wird zum Umbenennen aufgefordert (A, R§2 Tabelle).

@@ -88,7 +88,7 @@ class LageStore {
   ebenen = new SvelteMap<string, Ebene>();
   zeichnungen = new SvelteMap<string, Zeichnung>();
   taufen = new SvelteMap<string, Taufe>();
-  /** nur offene Bloodhound-Aufträge (Leitung: alle, sonst die an mich) */
+  /** nur offene Bloodhound-Aufträge (für alle Teilnehmenden) */
   bloodhound = new SvelteMap<string, BloodhoundAuftrag>();
   /** inkl. aufgehobener seit dem Snapshot (aufgehobenAm != null) */
   alarme = new SvelteMap<string, Alarm>();
