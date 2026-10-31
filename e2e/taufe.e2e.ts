@@ -238,8 +238,12 @@ test('Teilnehmer tauft im Querformat auf dem Luftbild', async () => {
   await p.waitForTimeout(800);
   await bild(p, 'modus-luftbild-quer');
   await dokuBild(p, 'quer-taufmodus');
-  await tippe(p, -150, 0); // Abschnitt westlich der Kreuzung bei x = −90
   const wahl = p.getByRole('region', { name: 'Namen wählen' });
+  // erneut tippen, falls die Vektorkacheln (Luftbild, ausgelasteter Rechner) beim ersten Tipp noch nicht bereit waren
+  await expect(async () => {
+    await tippe(p, -150, 0); // Abschnitt westlich der Kreuzung bei x = −90
+    await expect(wahl).toBeVisible({ timeout: 1500 });
+  }).toPass({ timeout: 20_000 });
   await expect(wahl.getByRole('button', { name: 'Jaguar', exact: true })).toHaveCount(0);
   await wahl.getByRole('button', { name: 'Horse', exact: true }).click();
   await expect(label(leitung.page, 'Horse')).toBeVisible();
