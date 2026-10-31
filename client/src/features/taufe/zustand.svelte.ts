@@ -3,7 +3,7 @@ import { MAX_TAUF_PUNKTE, type Fassade, type Taufe, type TaufeAenderung, type Ta
 import { OHNE_QUITTUNG, sendeBestaetigt, store } from '../../lib/store.svelte.ts';
 import { toast } from '../../lib/ui.svelte.ts';
 import { fassadenFarben, fassadeVonKante, naechsteFassade } from './fassaden.ts';
-import { alsGeometrie, haengeAn, linienVon, type Linie } from './geo.ts';
+import { alsGeometrie, haengeAn, imRing, linienVon, vereinePolygone, type Linie, type Ring, type XY } from './geo.ts';
 
 /** Ab dieser Zoomstufe sind Objekte antippbar (Kachel-Daten bis z14, darunter zu klein zum Treffen). */
 export const MIN_ZOOM = 15;
@@ -18,6 +18,8 @@ export type Wahl = {
   vorlage?: string;
   /** gezeichnete Fläche: Familie frei wählbar */
   familieWaehlbar: boolean;
+  /** Gebäude: angetippte Teile (Welt-Polygone je Teil); die Geometrie ist ihre Vereinigung */
+  teile?: Ring[][][];
 };
 
 class TaufZustand {
@@ -68,6 +70,19 @@ export async function loesche(id: string): Promise<boolean> {
   const z = await sendeBestaetigt({ typ: 'taufe.loeschen', id }, (m) => m.typ === 'taufe.geloescht' && m.id === id);
   if (z === 'unbestaetigt') toast(OHNE_QUITTUNG);
   return z === 'bestaetigt';
+}
+
+/**
+ * Gebäudeteil antippen (Juan, 31.10.: swisstopo teilt Gebäude in Unterelemente): der erste Tipp wählt ein Teil,
+ * jeder weitere fügt eines hinzu, ein Tipp auf ein gewähltes Teil nimmt es wieder weg. Getauft wird der gemeinsame
+ * Umriss. Gibt false zurück, wenn kein Teil mehr gewählt ist.
+ */
+export function sammleTeil(teil: Ring[][], tipp: XY, objektart: string): boolean {
+  const alt = tz.wahl?.teile ?? [];
+  const i = alt.findIndex((t) => t.some((p) => imRing(tipp, p[0])));
+  const teile = i >= 0 ? alt.filter((_, j) => j !== i) : [...alt, teil];
+  tz.wahl = teile.length ? { familie: 'gebaeude', geometrie: alsGeometrie({ polygone: vereinePolygone(teile.flat()) }, MAX_TAUF_PUNKTE), quelle: 'vt', objektart, familieWaehlbar: false, teile } : null;
+  return teile.length > 0;
 }
 
 /** Abschnitt an die Strasse/das Gewässer `id` anhängen. */

@@ -11,6 +11,7 @@
     if (tz.zeichnen) return tz.zeichnen.length < 3 ? `Eckpunkte antippen (${tz.zeichnen.length}/3)` : `${tz.zeichnen.length} Punkte – abschliessen oder weiter antippen`;
     if (tz.zoom < MIN_ZOOM - 0.01) return `Näher zoomen (ab Stufe ${MIN_ZOOM})`;
     if (verlaengert) return `Weitere Abschnitte antippen: hängt an «${verlaengert.name}»`;
+    if (tz.wahl?.teile) return 'Weitere Gebäudeteile antippen: dazu, nochmals: weg';
     return 'Objekt antippen und Namen wählen';
   });
 

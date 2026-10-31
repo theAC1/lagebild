@@ -251,3 +251,34 @@ test('Teilnehmer tauft im Querformat auf dem Luftbild', async () => {
   await knopf(p, 'Fertig verlängern').click();
   await knopf(p, 'Fertig').click();
 });
+
+// Rückmeldung 31.10. – Hauptnutzung Handy quer: Gebäudeteile sammeln, Fläche Punkt für Punkt
+const querBild = (p: Page, name: string) => dokuBild(p, `quer-taufe-${name}`);
+
+test('quer: mehrteiliges Gebäude – Teile antippen sammelt (dazu/weg), getauft wird der gemeinsame Umriss', async () => {
+  const p = bravo.page;
+  await knopf(p, 'Mehr').click();
+  await p.getByRole('menuitem', { name: 'Geländetaufe' }).click();
+  await knopf(p, 'Taufmodus starten').click();
+  const wahl = p.getByRole('region', { name: 'Namen wählen' });
+  await expect(async () => {
+    await tippe(p, -150, 30);
+    await expect(wahl).toBeVisible({ timeout: 1500 });
+  }).toPass({ timeout: 20_000 });
+  await expect(wahl).toContainText('1 Teil');
+  await tippe(p, -120, 30);
+  await expect(wahl).toContainText('2 Teile');
+  await tippe(p, -120, 30); // nochmals: weg
+  await expect(wahl).toContainText('1 Teil');
+  await tippe(p, -120, 30);
+  await expect(wahl).toContainText('2 Teile');
+  await p.waitForTimeout(300);
+  await querBild(p, 'teile');
+  await wahl.getByRole('button', { name: 'Iridium', exact: true }).click();
+  await expect(label(leitung.page, 'Iridium')).toBeVisible();
+  const iridium = await taufeNamens('Iridium');
+  expect(iridium.geometry.type).toBe('Polygon');
+  expect((iridium.geometry.coordinates as number[][][])[0]).toHaveLength(5); // ohne gemeinsame Wand
+  expect(ausdehnung(iridium)).toEqual([-160, 20, -110, 40]);
+});
+

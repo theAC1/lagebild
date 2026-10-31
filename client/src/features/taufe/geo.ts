@@ -253,8 +253,9 @@ export function vereineFlaeche(stuecke: Flaeche[], tipp: XY): Ring[][] {
   const P = kn.punkte;
   const teileKante = ([a, b]: [number, number], [x0, y0, x1, y1]: Box): [number, number][] => {
     const auf = (ax: 0 | 1, v: number) => Math.abs(P[a][ax] - v) <= FANG && Math.abs(P[b][ax] - v) <= FANG;
-    const ax: 0 | 1 | -1 = auf(0, x0) || auf(0, x1) ? 0 : auf(1, y0) || auf(1, y1) ? 1 : -1;
-    if (ax < 0) return [[a, b]];
+    const achse = auf(0, x0) || auf(0, x1) ? 0 : auf(1, y0) || auf(1, y1) ? 1 : -1;
+    if (achse < 0) return [[a, b]];
+    const ax = achse as 0 | 1;
     const quer = (1 - ax) as 0 | 1;
     const [lo, hi] = [Math.min(P[a][quer], P[b][quer]), Math.max(P[a][quer], P[b][quer])];
     const dazwischen = P.map((p, i) => i)
@@ -282,14 +283,17 @@ export function vereineFlaeche(stuecke: Flaeche[], tipp: XY): Ring[][] {
       }
   }
 
-  // Kanten zählen (gerichtet), Gegenkanten heben sich auf
+  return ausKanten([...gruppe].flatMap((i) => teile[i].kanten), P);
+}
+
+/** Gerichtete Kanten → Polygone: Gegenkanten (gemeinsame Wände, Nähte) heben sich auf, der Rest wird zu Ringen. */
+function ausKanten(kanten: [number, number][], P: XY[]): Ring[][] {
   const zahl = new Map<string, number>();
-  for (const i of gruppe)
-    for (const [a, b] of teile[i].kanten) {
-      const gegen = `${b}>${a}`;
-      if ((zahl.get(gegen) ?? 0) > 0) zahl.set(gegen, zahl.get(gegen)! - 1);
-      else zahl.set(`${a}>${b}`, (zahl.get(`${a}>${b}`) ?? 0) + 1);
-    }
+  for (const [a, b] of kanten) {
+    const gegen = `${b}>${a}`;
+    if ((zahl.get(gegen) ?? 0) > 0) zahl.set(gegen, zahl.get(gegen)! - 1);
+    else zahl.set(`${a}>${b}`, (zahl.get(`${a}>${b}`) ?? 0) + 1);
+  }
   const aus = new Map<number, number[]>();
   for (const [k, n] of zahl) {
     const [a, b] = k.split('>').map(Number);
@@ -313,6 +317,32 @@ export function vereineFlaeche(stuecke: Flaeche[], tipp: XY): Ring[][] {
     }
   }
   return ordneRinge(ringe.filter((r) => r.length >= 4));
+}
+
+/**
+ * Vereinigt aneinanderstossende Polygone (Gebäudeteile, die der Nutzer zusammen antippt) zu einem Umriss:
+ * gemeinsame Wände verschwinden, nicht berührende Teile bleiben eigene Polygone. Ecken näher als `tol` (~0,4 m)
+ * gelten als gleich, und jede Kante wird an fremden Ecken geteilt, die auf ihr liegen (Teile haben nicht immer
+ * dieselben Stützpunkte auf der gemeinsamen Wand). Feiner als FANG: Teile derselben Kachel teilen exakte Punkte.
+ * ponytail: Kantenaufhebung, keine echte Polygon-Vereinigung – überlappende (statt angrenzende) Teile bleiben
+ * doppelt umrandet; swisstopo-Teile grenzen aneinander. Bei Bedarf eine Clipping-Bibliothek.
+ */
+export function vereinePolygone(polygone: Ring[][], tol = 1): Ring[][] {
+  const kn = new Knoten(tol);
+  // Aussenringe gegen den Uhrzeigersinn (Fläche > 0), Löcher umgekehrt: Gegenkanten passen nur bei gleicher Lage
+  const ringe = polygone.flatMap((p) => p.map((r, i) => ((flaecheInhalt(r) > 0) === (i === 0) ? r : [...r].reverse())));
+  const kanten = ringe.flatMap((r) => r.slice(1).map((q, i): [number, number] => [kn.id(r[i]), kn.id(q)])).filter(([a, b]) => a !== b);
+  const P = kn.punkte;
+  const geteilt = kanten.flatMap(([a, b]): [number, number][] => {
+    const auf = P.map((_, i) => i)
+      .filter((i) => i !== a && i !== b)
+      .map((i) => ({ i, ...abstandSegment(P[i], P[a], P[b]) }))
+      .filter((x) => x.d <= tol && x.t > 0 && x.t < 1)
+      .sort((x, y) => x.t - y.t);
+    const kette = [a, ...auf.map((x) => x.i), b];
+    return kette.slice(1).map((x, i) => [kette[i], x]);
+  });
+  return ausKanten(geteilt, P);
 }
 
 /** Punkte auf einer Geraden (z. B. Teilpunkte der aufgehobenen Kachelkante) entfernen; Ring bleibt geschlossen. */

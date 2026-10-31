@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { abschnitt, alsGeometrie, ausWelt, haengeAn, linienAufKachel, schneideLinie, schneideRing, vereineFlaeche, zuWelt, type Flaeche, type Ring, type XY } from './geo.ts';
+import { abschnitt, alsGeometrie, ausWelt, haengeAn, linienAufKachel, schneideLinie, schneideRing, vereineFlaeche, vereinePolygone, zuWelt, type Flaeche, type Ring, type XY } from './geo.ts';
 
 const K0 = { x: 0, y: 0, z: 14 };
 const K1 = { x: 1, y: 0, z: 14 }; // rechts daneben: Grenze bei x = 4096
@@ -99,3 +99,16 @@ describe('Flächen über Kachelgrenzen', () => {
     expect(bbox(p[0][0])).toEqual([3000, 0, 5000, 2000]);
   });
 });
+
+describe('Mehrteilige Gebäude (31.10.: Teile zusammen antippen)', () => {
+  it('gemeinsame Wand verschwindet, auch mit fremdem Stützpunkt auf der Wand und gegenläufigem Ring; Fernes bleibt eigenes Polygon', () => {
+    const a = rechteck(0, 0, 10, 10);
+    const b: Ring = [[10, 0], [10.3, 5], [10, 10], [20, 10], [20, 0], [10, 0]]; // Uhrzeigersinn, Wandpunkt 0,3 daneben
+    const p = vereinePolygone([[a], [b], [rechteck(50, 0, 60, 10)]]);
+    expect(p).toHaveLength(2);
+    expect(p[0][0]).toHaveLength(5);
+    expect(bbox(p[0][0])).toEqual([0, 0, 20, 10]);
+    expect(bbox(p[1][0])).toEqual([50, 0, 60, 10]);
+  });
+});
+

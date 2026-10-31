@@ -57,6 +57,7 @@
   <section class="wahl" aria-label="Namen wählen">
     <h3>{FAMILIE_LABEL[familie]} taufen</h3>
     {#if tz.wahl.vorlage}<p class="leise">In der Karte: {tz.wahl.vorlage}</p>{/if}
+    {#if tz.wahl.teile}<p class="leise">{tz.wahl.teile.length === 1 ? '1 Teil' : `${tz.wahl.teile.length} Teile`} – weitere Gebäudeteile antippen: dazu, nochmals: weg</p>{/if}
     {#if tz.wahl.familieWaehlbar}
       <div class="chips" role="group" aria-label="Familie">
         {#each TAUF_FAMILIEN.filter((f) => f !== 'strasse') as f (f)}

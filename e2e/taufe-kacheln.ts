@@ -19,6 +19,8 @@ export const GELAENDE: Record<string, F[]> = {
   building: [
     poly({ class: '' }, -55, 15, -10, 45), // «West»: ganz in einer Kachel
     poly({ class: 'roof' }, 0, 15, 45, 45), // «Ost»: über die Kachelgrenze
+    poly({ class: '' }, -160, 20, -135, 40), // «Teil»: ein Gebäude aus zwei Teilen mit gemeinsamer Wand (wie swisstopo)
+    poly({ class: '' }, -135, 20, -110, 40),
   ],
   transportation: [
     linie({ class: 'minor' }, [-250, 0], [-90, 0], [60, 0], [250, 0]),

@@ -12,7 +12,7 @@
   import { abschnitt, alsGeometrie, vereineFlaeche, type XY } from './geo.ts';
   import Modus from './Modus.svelte';
   import { flaechenStuecke, fuegeVektorHinzu, linienStuecke, VT, VT_LAYER, VT_TREFFER, welt, weltJePixel, zeigeVektor } from './vektor.ts';
-  import { beendeModus, faerbeUm, MIN_ZOOM, tz, verlaengere } from './zustand.svelte.ts';
+  import { beendeModus, faerbeUm, MIN_ZOOM, sammleTeil, tz, verlaengere } from './zustand.svelte.ts';
 
   const m = getMap();
   const Q = 'taufe';
@@ -223,7 +223,9 @@
       // Tipp knapp neben dem Umriss (Trefferbox): mit einem Punkt im getippten Stück nochmals
       if (!polygone.length && w.k.f.geometry.type === 'Polygon') polygone = vereineFlaeche(stuecke, welt({ lng: w.k.f.geometry.coordinates[0][0][0], lat: w.k.f.geometry.coordinates[0][0][1] }));
       if (!polygone.length) return toast('Umriss nicht gefunden – näher zoomen.');
-      tz.wahl = { familie: w.familie, geometrie: alsGeometrie({ polygone }, MAX_TAUF_PUNKTE), quelle: 'vt', objektart, familieWaehlbar: false };
+      if (w.familie === 'gebaeude') {
+        if (!sammleTeil(polygone, tipp, objektart)) return schliesse('taufe');
+      } else tz.wahl = { familie: w.familie, geometrie: alsGeometrie({ polygone }, MAX_TAUF_PUNKTE), quelle: 'vt', objektart, familieWaehlbar: false };
     }
     oeffne('taufe');
   }
