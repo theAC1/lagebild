@@ -2,11 +2,9 @@
 // Gebäude/Strasse taufen, verlängern, Stossrichtung, Layer aus/an, doppelter Name. Gegen den echten Server.
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
 import { kachel, ll, MITTE } from './taufe-kacheln.ts';
-import { dokuBild } from './hilfen.ts';
+import { dokuBild, HOCH, QUER } from './hilfen.ts';
 
 const SIDC = '10031000001211000000';
-const HOCH = { width: 390, height: 844 };
-const QUER = { width: 844, height: 390 };
 const TAG = new Date('2026-10-30T11:00:00+01:00');
 
 test.describe.configure({ mode: 'serial' });
@@ -239,6 +237,7 @@ test('Teilnehmer tauft im Querformat auf dem Luftbild', async () => {
   await expect.poll(() => bravo.kacheln.length).toBeGreaterThan(0);
   await p.waitForTimeout(800);
   await bild(p, 'modus-luftbild-quer');
+  await dokuBild(p, 'quer-taufmodus');
   await tippe(p, -150, 0); // Abschnitt westlich der Kreuzung bei x = −90
   const wahl = p.getByRole('region', { name: 'Namen wählen' });
   await expect(wahl.getByRole('button', { name: 'Jaguar', exact: true })).toHaveCount(0);

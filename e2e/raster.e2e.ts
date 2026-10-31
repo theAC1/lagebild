@@ -1,5 +1,5 @@
 // Führungsraster (v4): auflegen, ziehen, fixieren; Rechte (fixiert: nur noch die Leitung); Ebene; Koordinatenleiste;
-// Marker per Rasterposition. Bedienung «Daumen-Ränder» (Vorgabe), Leitung quer, Teilnehmerin hoch.
+// Marker per Rasterposition. Bedienung «Daumen-Ränder» (Vorgabe), beide Handys quer.
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { ansprache, zelleVon, zellMitte, type RasterGeo } from '../shared/raster.ts';
 import { dokuBild, leereStelle } from './hilfen.ts';
@@ -7,8 +7,6 @@ import { dokuBild, leereStelle } from './hilfen.ts';
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const BRAVO = { latitude: 46.9472, longitude: 7.4452 };
 const SIDC = '10031000001211000000';
-const QUER = { width: 844, height: 390 };
-const HOCH = { width: 390, height: 844 };
 const TAG = new Date('2026-10-29T12:00:00+01:00'); // heller Tagmodus wie auf Papier
 
 test.describe.configure({ mode: 'serial' });
@@ -18,8 +16,8 @@ let codes: { teilnehmerCode: string; leitungCode: string };
 let leitung: Sitzung;
 let bravo: Sitzung;
 
-async function sitzung(browser: Browser, code: string, rufname: string, geolocation: typeof ADLER, viewport: typeof QUER): Promise<Sitzung> {
-  const ctx = await browser.newContext({ geolocation, viewport });
+async function sitzung(browser: Browser, code: string, rufname: string, geolocation: typeof ADLER): Promise<Sitzung> {
+  const ctx = await browser.newContext({ geolocation });
   await ctx.clock.install({ time: TAG });
   const r = await ctx.request.post('/api/beitreten', { data: { code, rufname, einheit: 'Zug 1', funktion: '', sidc: SIDC } });
   expect(r.status()).toBe(201);
@@ -85,8 +83,8 @@ test.beforeAll(async ({ browser }) => {
   const r = await ctx.request.post('/api/lage', { data: { name: 'Raster', erstellPasswort: 'e2e', phase: 'lv' } });
   codes = await r.json();
   await ctx.close();
-  leitung = await sitzung(browser, codes.leitungCode, 'Adler', ADLER, QUER);
-  bravo = await sitzung(browser, codes.teilnehmerCode, 'Bravo', BRAVO, HOCH);
+  leitung = await sitzung(browser, codes.leitungCode, 'Adler', ADLER);
+  bravo = await sitzung(browser, codes.teilnehmerCode, 'Bravo', BRAVO);
   for (const s of [leitung, bravo]) {
     await knopf(s.page, 'Eigener Position folgen').click();
     await s.page.waitForTimeout(1200);
@@ -114,7 +112,7 @@ test('Teilnehmerin legt Grande auf, zieht und fixiert es; Leitung sieht es', asy
   await expect(abschnitt(p, 'Grande')).toContainText('21 × 16 Zellen');
   await abschnitt(p, 'Grande').getByRole('button', { name: 'Weniger Zeilen' }).click();
   await expect(abschnitt(p, 'Grande')).toContainText('21 × 15 Zellen');
-  await bild(p, 'hoch-vorschau');
+  await bild(p, 'quer-tn-vorschau');
 
   // ziehen: das Raster liegt über dem Sheet
   await p.waitForTimeout(800);
@@ -166,7 +164,7 @@ test('Koordinatenleiste zeigt die eigene Rasterzelle samt Quadrant', async () =>
   expect(z).not.toBeNull();
   await expect(bravo.page.locator('footer .leiste .raster')).toHaveText(`Grande ${ansprache(z!)}`);
   await karte(bravo.page, 'Landeskarte');
-  await bild(bravo.page, 'hoch-grande-landeskarte');
+  await bild(bravo.page, 'quer-tn-grande-landeskarte');
 });
 
 test('Radial «Koordinate» zeigt die Rasterzelle des Punkts als eigene Zeile', async () => {
@@ -212,7 +210,7 @@ test('Marker per Rasterposition: Melden → Marker → Rasterposition → H, 09,
   await ps.getByRole('group', { name: 'Quadrant' }).getByRole('button', { name: 'C', exact: true }).click();
   await expect(ps.locator('.gross')).toHaveText('Grande H 09 C');
   await expect(ps).toContainText('Hotel 09 Charlie');
-  await bild(p, 'hoch-melden');
+  await bild(p, 'quer-tn-melden');
   await ps.getByRole('button', { name: 'Marker setzen' }).click();
   await expect(p.locator('[aria-label="Marker Grande H 09 C"]')).toBeVisible();
   await expect(leitung.page.locator('[aria-label="Marker Grande H 09 C"]')).toBeVisible();
@@ -254,7 +252,7 @@ test('Piccolo neben Grande: Leitung legt es auf und fixiert; beide unterscheidba
   await expect(p.locator('.raster-frei .kopf.name', { hasText: 'Piccolo' })).toBeVisible();
   expect(pic.zellM).toBe(10);
   await karte(p, 'Luftbild');
-  await bild(p, 'hoch-piccolo-luftbild');
+  await bild(p, 'quer-tn-piccolo-luftbild');
 });
 
 test('Offline-Gebiet aus dem Raster: Aufziehen startet mit dem Rahmen vorbelegt, «Weiter» sofort möglich', async () => {

@@ -1,7 +1,7 @@
 // Bloodhound: persönliches Bloodhound per Rechtsklick-Radial (Desktop) und Auftrag der Leitung bis «erreicht».
-import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type BrowserContextOptions, type Page } from '@playwright/test';
 import { WebSocket } from 'ws';
-import { bedienung, dokuBild } from './hilfen.ts';
+import { bedienung, DESKTOP, dokuBild } from './hilfen.ts';
 
 const PORT = Number(process.env.PW_PORT ?? 8797);
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
@@ -17,8 +17,8 @@ let bravoCtx: BrowserContext;
 let charlie: Page; // Unbeteiligte: sieht die Linie, bekommt keine Meldung
 const charlieMsgs: { typ: string; auftrag?: { ende: string | null } }[] = [];
 
-async function seite(browser: Browser, code: string, rufname: string, geolocation: typeof ADLER, viewport: { width: number; height: number }) {
-  const ctx = await browser.newContext({ geolocation, viewport });
+async function seite(browser: Browser, code: string, rufname: string, geolocation: typeof ADLER, kontext: BrowserContextOptions = {}) {
+  const ctx = await browser.newContext({ geolocation, ...kontext });
   const r = await ctx.request.post('/api/beitreten', { data: { code, rufname, einheit: 'Zug 1', funktion: '', sidc: SIDC } });
   expect(r.status()).toBe(201);
   const { token } = await r.json();
@@ -59,12 +59,12 @@ test.beforeAll(async ({ browser }) => {
   const r = await ctx.request.post('/api/lage', { data: { name: 'Bloodhound', erstellPasswort: 'e2e', phase: 'lv' } });
   const lage = (await r.json()) as { teilnehmerCode: string; leitungCode: string };
   await ctx.close();
-  const l = await seite(browser, lage.leitungCode, 'Adler', ADLER, { width: 1440, height: 900 });
+  const l = await seite(browser, lage.leitungCode, 'Adler', ADLER, DESKTOP);
   leitung = l.page;
-  const b = await seite(browser, lage.teilnehmerCode, 'Bravo', BRAVO, { width: 390, height: 844 });
+  const b = await seite(browser, lage.teilnehmerCode, 'Bravo', BRAVO);
   bravo = b.page;
   bravoCtx = b.ctx;
-  const c = await seite(browser, lage.teilnehmerCode, 'Charlie', ADLER, { width: 390, height: 844 });
+  const c = await seite(browser, lage.teilnehmerCode, 'Charlie', ADLER);
   charlie = c.page;
   const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws`); // Charlies Datenstrom: Linie (Delta) ja, Meldung nein
   ws.on('open', () => ws.send(JSON.stringify({ typ: 'hallo', token: c.token })));
@@ -125,7 +125,6 @@ test('Auftrag: Leitung → Bravo sieht Banner, quittiert, Leitung sieht «quitti
   await expect(bar).toContainText('Auftrag von Leitung');
   await expect(bar).toContainText('Treffpunkt');
   await expect(bar).toContainText(/\d+ m|\d\.\d+ km/);
-  await bild(bravo, 'auftrag-banner-hoch');
   await bar.getByRole('button', { name: 'Quittieren' }).click();
   await expect(bar).toContainText('quittiert');
 
@@ -137,7 +136,6 @@ test('Auftrag: Leitung → Bravo sieht Banner, quittiert, Leitung sieht «quitti
   await bild(leitung, 'auftraege-leitung');
 
   // Handy quer: Leiste kollidiert nicht mit den Knöpfen rechts; ohne Panel reserviert links nichts Platz
-  await bravo.setViewportSize({ width: 844, height: 390 });
   await expect(bravo.locator('section.sheet')).toHaveCount(0);
   const rechts = (await bravo.locator('nav.werkzeuge').boundingBox())!;
   expect(await bravo.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--links').trim())).toBe('0px');
@@ -147,7 +145,6 @@ test('Auftrag: Leitung → Bravo sieht Banner, quittiert, Leitung sieht «quitti
   await expect.poll(async () => (await bravo.locator('.maplibregl-canvas').boundingBox())!.width).toBeCloseTo(rechts.x, 0);
   await bravo.waitForTimeout(1000);
   await bild(bravo, 'auftrag-banner-quer');
-  await bravo.setViewportSize({ width: 390, height: 844 });
 
   // Simulierte Position nahe am Ziel → erreicht, Auftrag endet
   await bravoCtx.setGeolocation({ latitude: MARKER.lat, longitude: MARKER.lon - 0.0001 }); // ~7 m

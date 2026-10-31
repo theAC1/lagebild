@@ -13,7 +13,8 @@ npm run check                            # tsc (Server/Vertrag) + svelte-check (
 npm test                                 # vitest: Server, Client-Logik, Features
 npm run build                            # client/dist inkl. Service Worker
 LAGE_ERSTELL_PASSWORT=… npm start        # Produktion: liefert client/dist + API + WebSocket (PORT, DATA_DIR)
-npm run e2e                              # Playwright: baut, startet Server auf PW_PORT (8797) mit frischem DATA_DIR
+npm run e2e                              # Playwright: baut, startet Server auf PW_PORT (8797) mit frischem DATA_DIR, alle Projekte
+npx playwright test --project=quer       # nur die Vorgabe (Handy quer)
 E2E_BILDER=1 npm run e2e                 # dazu die Doku-Bilder in docs/screens neu schreiben (sonst keine Bildschirmfotos)
 ```
 
@@ -38,7 +39,15 @@ VARIANTE=debug deploy/android.sh   # Debug-Build statt signierter Release-APK
   - **Protokoll:** `PROTOKOLL_VERSION` aus `shared/protocol.ts` (Hauptversion des Vertrags). Bringt ein Stand eine andere, wird er trotzdem angeboten, mit «Update nötig, um mit neueren Geräten zu arbeiten». Stand und Protokoll stehen in Einstellungen › Über. Der neue Stand ruft nach dem Mounten `notifyAppReady()` (`appBereit()` in `main.ts`); kommt das nicht innert 20 s, fällt das Plugin auf den letzten guten bzw. den eingebauten Stand zurück, und dieses Bundle wird nicht erneut geladen. Eine neue APK entfernt geladene Bundles (`resetWhenUpdate`); der eingebaute Stand ist dann der Rückfall. Origin (`https://localhost`) und damit localStorage/IndexedDB/Cache Storage bleiben beim Wechsel gleich.
 - **Service Worker** ist in der App aus; für native Änderungen fragt sie beim Start und bei `visibilitychange` `/app/version.json` ab und zeigt «Neue App-Version · Herunterladen».
 
-E2E braucht einmalig `npx playwright install chromium`. Die Tests (`e2e/*.e2e.ts`) spielen eine ganze Lage mit Leitung und Teilnehmer durch und legen Screenshots unter `docs/screens/e2e-*.png` ab.
+E2E braucht einmalig `npx playwright install chromium`. Die Tests (`e2e/*.e2e.ts`) spielen eine ganze Lage mit Leitung und Teilnehmer durch. **Vorgabe ist das Handy quer** (Juan 31.10.: «die Hauptnutzung (98 %) wird in landscape genutzt»): Android FHD+ 2340×1080 bei DPR 2.75 = 851×393 CSS-px, mit Touch (`playwright.config.ts`, Masse auch in `e2e/hilfen.ts`). Projekte:
+
+| Projekt | Bildschirm | Läuft |
+|---|---|---|
+| `quer` | 851×393, DPR 2.75 | alle Tests |
+| `quer-gross` | 780×360, DPR 3 (Android «Anzeigegrösse gross») | Tag `@layout` (`e2e/quer-layout.e2e.ts`: beide Bedienungen × Leitung/Teilnehmer × AP/LV/AN mit Wiedergabe; Knöpfe ganz im Bild, nicht verdeckt, ohne Überlappung, ≥ 44 px, Beschriftung ganz; freie Kartenfläche) |
+| `hoch` | 393×851, DPR 2.75 | Tag `@hoch` (Ablauf `e2e/lage.e2e.ts`) |
+
+Tests, die bewusst Hochformat, Tablet oder Desktop prüfen, setzen ihren Kontext selbst (`HOCH`, `DESKTOP` aus `e2e/hilfen.ts`; Desktop hebt Touch und `isMobile` auf). Doku-Bilder schreibt nur das Projekt `quer`; die aktuellen Quer-Bilder heissen `docs/screens/quer-*.png`.
 
 ## Betrieb
 

@@ -1,7 +1,7 @@
 // Spec v3: Bedienung «Daumen-Ränder» (Vorgabe) – Querformat Handy/Tablet, Hochformat, Meldungen mit wenig Tipps,
 // Marker per Fadenkreuz, Alarm halten, Tag/Nacht nach Sonnenstand.
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
-import { dokuBild } from './hilfen.ts';
+import { dokuBild, HOCH, QUER } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const NAH = { latitude: 46.9466, longitude: 7.4462 }; // ~150 m östlich
@@ -9,8 +9,6 @@ const SIDC = '10031000001211000000';
 // Uhrzeit fürs Thema (Bern, 29.10.: Sonnenaufgang ≈ 07:13, Untergang ≈ 17:11 MEZ)
 const NACHT = new Date('2026-10-29T22:00:00+01:00');
 const TAG = new Date('2026-10-29T12:00:00+01:00');
-const QUER = { width: 844, height: 390 };
-const HOCH = { width: 390, height: 844 };
 
 test.describe.configure({ mode: 'serial' });
 
@@ -69,7 +67,7 @@ test.afterAll(async () => {
   await bravo?.context().close();
 });
 
-test('Handy quer 844×390: Melden links, Karte rechts, grosse Ziele, schlanke Kopfzeile', async () => {
+test('Handy quer 851×393: Melden links, Karte rechts, grosse Ziele, schlanke Kopfzeile', async () => {
   const status = await box(leitung, /^Eigener Status/);
   const melden = await box(leitung, 'Melden');
   const alarm = await box(leitung, /^Alarm/);
@@ -96,7 +94,7 @@ test('Handy quer 844×390: Melden links, Karte rechts, grosse Ziele, schlanke Ko
   }
   // Karte randlos: ohne offenes Panel über die ganze Fläche, die Knöpfe schweben darüber
   const karte = (await leitung.locator('.maplibregl-canvas').boundingBox())!;
-  expect(karte).toMatchObject({ x: 0, y: 0, width: QUER.width, height: QUER.height });
+  for (const [k, soll] of Object.entries({ x: 0, y: 0, width: QUER.width, height: QUER.height })) expect(karte[k as keyof typeof karte], k).toBeCloseTo(soll, 0);
   expect(Math.min(status.width, status.height, melden.height)).toBeGreaterThanOrEqual(56);
 
   // Kopfzeile: Phasenschild (für die Leitung ein Knopf), Lage, Verbindung, Zahl der Teilnehmenden – keine weiteren Knöpfe
@@ -107,6 +105,7 @@ test('Handy quer 844×390: Melden links, Karte rechts, grosse Ziele, schlanke Ko
   await expect(kopf.getByRole('button')).toHaveCount(2);
   await expect(leitung.locator('html')).toHaveAttribute('data-thema', 'nacht');
   await bild(leitung, 'quer-dunkel');
+  await dokuBild(leitung, 'quer-karte-leitung-daumen');
 });
 
 test('Mehr-Menü: übrige Werkzeuge, Panels zwischen linkem Rand und Karte', async () => {
@@ -144,7 +143,7 @@ test('Status mit einem Tipp (zwei mit Öffnen), Panel schliesst sich', async () 
   await expect(bravo.locator('.toast', { hasText: 'Adler' })).toContainText('Halt');
 });
 
-test('Hochformat 390×844: Dock unten, Alarm links darüber, Kartenknöpfe rechts', async () => {
+test('Hochformat 393×851: Dock unten, Alarm links darüber, Kartenknöpfe rechts', async () => {
   const dock = bravo.getByRole('navigation', { name: 'Hauptaktionen' });
   const namen = await dock.getByRole('button').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''));
   expect(namen.map((n) => n.split(/[:(]/)[0].trim())).toEqual(['Eigener Status', 'Melden', 'Chat', 'Mehr']);
@@ -180,6 +179,7 @@ test('Melden-Wahl: zwei Kacheln direkt neben dem Knopf (quer rechts, hoch darüb
       expect(k.y - (w.y + w.height)).toBeLessThan(20);
     }
     await bild(p, `melden-${quer ? 'quer' : 'hoch'}`);
+    if (quer) await dokuBild(p, 'quer-melden');
     if (quer) await p.mouse.click(QUER.width / 2, QUER.height - 40); // daneben tippen
     else await p.keyboard.press('Escape');
     await expect(wahl).toHaveCount(0);

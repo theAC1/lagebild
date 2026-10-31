@@ -1,6 +1,6 @@
 // Spec v2: Querformat (Handy, Tablet, Desktop), zwei Panels, Desktop-Bedienung, Radial-Menü.
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { bedienung, dokuBild } from './hilfen.ts';
+import { bedienung, dokuBild, HOCH, QUER } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const NAH = { latitude: 46.9466, longitude: 7.4462 }; // ~150 m östlich
@@ -65,8 +65,8 @@ test.beforeAll(async ({ browser }) => {
   const r = await ctx.request.post('/api/lage', { data: { name: 'Querformat', erstellPasswort: 'e2e', phase: 'lv' } });
   const lage = (await r.json()) as { teilnehmerCode: string; leitungCode: string };
   await ctx.close();
-  leitung = await seite(browser, lage.leitungCode, 'Adler', ADLER, { width: 844, height: 390 });
-  bravo = await seite(browser, lage.teilnehmerCode, 'Bravo', NAH, { width: 390, height: 844 });
+  leitung = await seite(browser, lage.leitungCode, 'Adler', ADLER, QUER);
+  bravo = await seite(browser, lage.teilnehmerCode, 'Bravo', NAH, HOCH);
   await expect(leitung.locator('.bft-label', { hasText: 'Bravo' })).toBeVisible();
 });
 
@@ -75,8 +75,8 @@ test.afterAll(async () => {
   await bravo?.context().close();
 });
 
-test('Handy quer 844×390: Leiste rechts, Panel seitlich, einklappen gemerkt', async () => {
-  await pruefeQuerLayout(leitung, 844);
+test('Handy quer 851×393: Leiste rechts, Panel seitlich, einklappen gemerkt', async () => {
+  await pruefeQuerLayout(leitung, QUER.width);
   await bild(leitung, 'handy-quer');
   await leitung.keyboard.press('Escape');
   await expect(sheets(leitung)).toHaveCount(0);

@@ -2,12 +2,10 @@
 // Alle Kachel-Anfragen gehen an page.route (Farbkacheln), nichts an swisstopo. Service Worker aus, sonst sieht route nichts.
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { crc32, deflateSync } from 'node:zlib';
-import { dokuBild } from './hilfen.ts';
+import { dokuBild, HOCH, wische } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const SIDC = '10031000001211000000';
-const HOCH = { width: 390, height: 844 };
-const QUER = { width: 844, height: 390 };
 const GRUEN = [40, 170, 60] as const;
 const BLAU = [30, 80, 220] as const;
 
@@ -41,7 +39,7 @@ const geholt: string[] = [];
 test.beforeAll(async ({ browser }) => {
   const r0 = await (await browser.newContext()).request.post('/api/lage', { data: { name: 'Übung Aare', erstellPasswort: 'e2e', phase: 'lv' } });
   const { teilnehmerCode } = await r0.json();
-  ctx = await browser.newContext({ geolocation: ADLER, viewport: HOCH, serviceWorkers: 'block' });
+  ctx = await browser.newContext({ geolocation: ADLER, serviceWorkers: 'block' });
   const r = await ctx.request.post('/api/beitreten', { data: { code: teilnehmerCode, rufname: 'Fuchs', einheit: 'Zug 1', funktion: '', sidc: SIDC } });
   const { token } = await r.json();
   await ctx.addInitScript((t) => localStorage.setItem('lagebild.token', t), token);
@@ -77,25 +75,22 @@ async function oeffneVerwaltung() {
   await expect(knopf('Neues Gebiet aufziehen')).toBeVisible();
 }
 
-/** Mitte der Karte (randlos, ganzer Bildschirm). */
-const mitte = () => {
-  const v = page.viewportSize()!;
-  return { x: v.width / 2, y: v.height / 2 };
+/** Mitte der Karte: hoch randlos der ganze Bildschirm, quer rechts neben dem offenen Panel. */
+const mitte = async () => {
+  const b = (await page.locator('.maplibregl-canvas').boundingBox())!;
+  return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
 };
 
+/** Rechteck mit dem Finger aufziehen, symmetrisch um die Kartenmitte. */
 async function ziehe(dx: number, dy: number) {
-  const m = mitte();
-  await page.mouse.move(m.x - dx, m.y - dy);
-  await page.mouse.down();
-  await page.mouse.move(m.x, m.y, { steps: 4 });
-  await page.mouse.move(m.x + dx, m.y + dy, { steps: 4 });
-  await page.mouse.up();
+  const m = await mitte();
+  await wische(page, { x: m.x - dx, y: m.y - dy }, { x: m.x + dx, y: m.y + dy });
 }
 
 /** Farbe knapp neben der Kartenmitte (dort sitzt das eigene Symbol) aus einem Screenshot; der Browser dekodiert das PNG. */
 async function farbeMitte(): Promise<number[]> {
   const b64 = (await page.screenshot()).toString('base64');
-  const m = mitte();
+  const m = await mitte();
   return page.evaluate(
     async ({ b64, x, y }) => {
       const img = new Image();
@@ -121,14 +116,14 @@ test('Rechteck aufziehen, laden, offline aus dem Speicher, löschen', async () =
   await expect(page.getByText('Noch keine Offline-Gebiete')).toBeVisible();
   await knopf('Neues Gebiet aufziehen').click();
   await expect(page.getByText('Rechteck auf der Karte aufziehen')).toBeVisible();
-  await ziehe(50, 50);
+  await ziehe(80, 80); // der Messpunkt neben dem eigenen Symbol liegt auch nach dem Hineinzoomen sicher drin
   const leiste = page.getByRole('dialog', { name: 'Offline-Gebiet aufziehen' });
   await expect(leiste).toContainText(/[\d.]+ × [\d.]+ km · ca\. [\d.]+ MB/);
-  await bild('aufziehen-hoch');
+  await bild('aufziehen-quer');
   await knopf('Weiter').click();
   await expect(leiste).toContainText('Frei auf dem Gerät');
   await expect(leiste).not.toContainText('WLAN empfohlen');
-  await bild('bestaetigen-hoch');
+  await bild('bestaetigen-quer');
   await knopf('Laden').click();
 
   await expect(gebiete()).toHaveCount(1);
@@ -138,31 +133,33 @@ test('Rechteck aufziehen, laden, offline aus dem Speicher, löschen', async () =
   expect(g.erledigt).toBe(g.gesamt);
   expect(await kachelnImSpeicher()).toBe(g.gesamt);
   expect(g.bytes).toBeGreaterThan(0);
-  await bild('verwaltung-hoch');
+  await bild('verwaltung-quer');
+  await dokuBild(page, 'quer-offline-gebiete');
 
+  const vorgabe = page.viewportSize()!;
   // Umbenennen bleibt gespeichert
   await gebiete().first().getByRole('textbox', { name: 'Name' }).fill('Raum Bern');
   await gebiete().first().getByRole('textbox', { name: 'Name' }).press('Enter');
   await expect.poll(async () => (await gespeichert())[0].name).toBe('Raum Bern');
 
-  // Quer: Verwaltung als Seitenpanel
-  await page.setViewportSize(QUER);
-  await page.waitForTimeout(400);
-  await bild('verwaltung-quer');
+  // Hoch: Verwaltung als Sheet unten
   await page.setViewportSize(HOCH);
+  await page.waitForTimeout(400);
+  await bild('verwaltung-hoch');
+  await page.setViewportSize(vorgabe);
 
   // Offline: eine Stufe tiefer zoomen → die Farbe der feineren Stufe kommt aus dem Speicher
   await knopf('Schliessen').first().click();
   offlineAn = true;
   await ctx.setOffline(true);
-  const m = mitte();
-  await page.waitForTimeout(1500); // Karte nach dem Drehen (quer → hoch) zur Ruhe kommen lassen
+  const m = await mitte();
+  await page.waitForTimeout(1500); // Karte nach dem Drehen (hoch → quer) zur Ruhe kommen lassen
   const vorZoom = nah(await farbeMitte(), BLAU) ? BLAU : GRUEN;
   expect(nah(await farbeMitte(), vorZoom)).toBe(true);
   await page.mouse.dblclick(m.x + 40, m.y + 40); // neben dem eigenen Symbol (Doppelklick darauf = Details)
   const nachZoom = vorZoom === BLAU ? GRUEN : BLAU;
   await expect.poll(async () => nah(await farbeMitte(), nachZoom), { timeout: 10_000 }).toBe(true);
-  await bild('karte-offline-hoch');
+  await bild('karte-offline-quer');
   // ausserhalb: grob statt Fehlerflut, keine Toasts
   await expect(page.locator('.toast')).toHaveCount(0);
 
@@ -177,7 +174,7 @@ test('Rechteck aufziehen, laden, offline aus dem Speicher, löschen', async () =
 
 test('Pausieren, Fortsetzen und Weiterladen nach Neuladen', async () => {
   await knopf('Schliessen').first().click();
-  const m = mitte();
+  const m = await mitte();
   await page.mouse.move(m.x + 40, m.y + 40);
   for (let i = 0; i < 4; i++) {
     await page.mouse.wheel(0, 500); // herauszoomen: grösseres Gebiet, das nicht in ein paar Sekunden fertig ist
@@ -186,7 +183,7 @@ test('Pausieren, Fortsetzen und Weiterladen nach Neuladen', async () => {
   await page.waitForTimeout(1000);
   await oeffneVerwaltung();
   await knopf('Neues Gebiet aufziehen').click();
-  await ziehe(170, 330);
+  await ziehe(330, 120);
   await knopf('Luftbild').click();
   const ohne = Number((await page.getByRole('dialog', { name: 'Offline-Gebiet aufziehen' }).textContent())?.match(/\(([\d']+) Kacheln\)/)?.[1].replace(/'/g, ''));
   await knopf('Volles Detail').click(); // bis z20: mehr Kacheln, das Gebiet ist nicht in ein paar Sekunden fertig
@@ -210,7 +207,7 @@ test('Pausieren, Fortsetzen und Weiterladen nach Neuladen', async () => {
   expect((await gespeichert())[0]).toMatchObject({ status: 'pausiert', erledigt: pausiert });
   await oeffneVerwaltung();
   await expect(g.getByRole('status')).toContainText('Pausiert');
-  await bild('pausiert-hoch');
+  await bild('pausiert-quer');
   await g.getByRole('button', { name: 'Fortsetzen' }).click();
   await expect.poll(async () => (await gespeichert())[0].erledigt, { timeout: 15_000 }).toBeGreaterThan(pausiert + 5);
 
@@ -226,13 +223,13 @@ test('Pausieren, Fortsetzen und Weiterladen nach Neuladen', async () => {
   await expect(gebiete()).toHaveCount(0);
 });
 
-test('Aufziehen im Querformat', async () => {
-  await page.setViewportSize(QUER);
+test('Aufziehen im Hochformat', async () => {
+  await page.setViewportSize(HOCH);
   await page.waitForTimeout(400);
   await knopf('Neues Gebiet aufziehen').click();
   await ziehe(120, 60);
   await expect(page.getByRole('dialog', { name: 'Offline-Gebiet aufziehen' })).toContainText('km');
-  await bild('aufziehen-quer');
+  await bild('aufziehen-hoch');
   await knopf('Abbrechen').click();
   await expect(knopf('Neues Gebiet aufziehen')).toBeVisible();
 });

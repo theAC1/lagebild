@@ -57,7 +57,7 @@ test('Piccolo «Als PDF»: Datei mit Luftbild, SpotMap und Landeskarte', async (
   const codes = await (await start.request.post('/api/lage', { data: { name: 'Übung Aare', erstellPasswort: 'e2e' } })).json();
   await start.close();
 
-  const ctx = await browser.newContext({ geolocation: ADLER, viewport: { width: 844, height: 390 } });
+  const ctx = await browser.newContext({ geolocation: ADLER });
   const r = await ctx.request.post('/api/beitreten', { data: { code: codes.leitungCode, rufname: 'Adler', einheit: 'Zug 1', funktion: '', sidc: SIDC } });
   const { token } = await r.json();
   const raster = { art: 'piccolo', ...rasterUm(zuLv95({ lat: ADLER.latitude, lon: ADLER.longitude }), RASTER_VORGABE.piccolo) };
@@ -82,6 +82,8 @@ test('Piccolo «Als PDF»: Datei mit Luftbild, SpotMap und Landeskarte', async (
   const piccolo = p.getByRole('region', { name: 'Führungsraster' }).getByRole('region', { name: 'Piccolo' });
   await expect(piccolo).toContainText('Fixiert');
 
+  await piccolo.getByRole('button', { name: 'A3' }).scrollIntoViewIfNeeded();
+  await dokuBild(p, 'quer-fuehrungsraster');
   const download = p.waitForEvent('download', { timeout: 120_000 });
   await piccolo.getByRole('button', { name: 'Als PDF' }).click();
   await expect(piccolo.getByRole('button', { name: 'PDF entsteht …' })).toBeDisabled();
