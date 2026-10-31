@@ -259,7 +259,7 @@ test('quer: mehrteiliges Gebäude – Teile antippen sammelt (dazu/weg), getauft
   await expect(wahl).toContainText('1 Teil');
   await tippe(p, -120, 30);
   await expect(wahl).toContainText('2 Teile');
-  await p.waitForTimeout(300);
+  await expect(p.locator('.toasts .toast')).toHaveCount(0, { timeout: 10_000 }); // Hinweis eines zu frühen Tipps
   await querBild(p, 'teile');
   await wahl.getByRole('button', { name: 'Iridium', exact: true }).click();
   await expect(label(leitung.page, 'Iridium')).toBeVisible();
@@ -287,6 +287,15 @@ test('quer: Wald Punkt für Punkt zeichnen (Doppeltipp zählt nicht), Punkt zieh
   };
   await zieh([-70, -60], [-70, -75]); // Punkt ziehen (Finger)
   await zieh([-70, -10], [-70, 5]); // Mittelgriff zwischen den ersten Punkten ziehen = neuer Punkt
+  await expect(knopf(p, 'Punkt löschen')).toHaveCount(0); // gezogen ist nicht gewählt
+  // Mittelgriff antippen fügt ein, Punkt antippen wählt ihn (einmal, trotz Ersatz-Mausereignissen), «Punkt löschen»
+  const [kx, ky] = await px(p, -55, -42.5);
+  await p.touchscreen.tap(kx, ky);
+  await p.waitForTimeout(900);
+  await expect(knopf(p, 'Punkt löschen')).toHaveCount(0); // eingefügt, nicht gewählt
+  await p.touchscreen.tap(kx, ky);
+  await knopf(p, 'Punkt löschen').click();
+  await expect(knopf(p, 'Punkt löschen')).toHaveCount(0);
   await p.waitForTimeout(300);
   await querBild(p, 'flaeche');
   await wahl.getByRole('group', { name: 'Familie' }).getByRole('button', { name: 'Wald' }).click();

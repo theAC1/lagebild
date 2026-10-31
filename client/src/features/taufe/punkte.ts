@@ -18,7 +18,7 @@ export const alsPolygon = (ps: Punkt[]): TaufGeometrie => ({ type: 'Polygon', co
 const kreuzt = (ps: Punkt[], geschlossen: boolean) => kreuztSich(ps.map(lonLat), geschlossen);
 
 /** Neue Punkte übernehmen; bei abgeschlossener neuer Fläche folgt die Geometrie der Namenswahl. */
-function setze(e: Entwurf, punkte: Punkt[], griff = e.griff): void {
+function setze(e: Entwurf, punkte: Punkt[], griff: number | undefined): void {
   tz.zeichnen = { ...e, punkte, griff };
   if (e.fertig && !e.id && tz.wahl) tz.wahl = { ...tz.wahl, geometrie: alsPolygon(punkte) };
 }
@@ -106,7 +106,9 @@ export function startePunkte(m: MapLibreMap): () => void {
     setze(basis, griff.art === 'mitte' ? mitPunkt(basis.punkte, griff.i, p) : ersetzePunkt(basis.punkte, griff.i, p), griff.art === 'mitte' ? griff.i + 1 : griff.i);
   };
   let letzter: Px = { x: NaN, y: NaN };
-  const los = () => {
+  const los = (ev: Event) => {
+    if (ev.type === 'touchend') fingerZeit = Date.now();
+    else if (Date.now() - fingerZeit < 800) return;
     const z = zug;
     zug = null;
     if (!z) return;
@@ -115,10 +117,10 @@ export function startePunkte(m: MapLibreMap): () => void {
     if (!e) return;
     if (z.bewegt) {
       if (kreuzt(e.punkte, e.fertig)) {
-        setze(z.basis, z.basis.punkte);
+        setze(z.basis, z.basis.punkte, undefined);
         toast(KREUZT);
-      }
-    } else if (z.griff.art === 'mitte') setze(e, mitPunkt(e.punkte, z.griff.i, z.griff.p), z.griff.i + 1);
+      } else setze(e, e.punkte, undefined); // gezogen: nicht gewählt (Wählen = antippen)
+    } else if (z.griff.art === 'mitte') setze(e, mitPunkt(e.punkte, z.griff.i, z.griff.p), undefined);
     else if (!e.fertig && z.griff.i === 0 && e.punkte.length >= 3) abschliessen();
     else setze(e, e.punkte, e.griff === z.griff.i ? undefined : z.griff.i);
   };
@@ -126,9 +128,14 @@ export function startePunkte(m: MapLibreMap): () => void {
     const r = m.getContainer().getBoundingClientRect();
     return { x: x - r.left, y: y - r.top };
   };
-  const maus = (e: MapMouseEvent) => e.originalEvent.button === 0 && runter(e.point) && e.preventDefault();
-  const finger = (e: MapTouchEvent) => e.points.length === 1 && runter(e.point) && e.preventDefault();
-  const mausZug = (e: MouseEvent) => zug && ziehe(relativ(e.clientX, e.clientY));
+  // Nach einem Fingertipp schickt der Browser Ersatz-Mausereignisse: die zählen nicht (sonst schaltet ein Tipp zweimal)
+  let fingerZeit = 0;
+  const maus = (e: MapMouseEvent) => Date.now() - fingerZeit > 800 && e.originalEvent.button === 0 && runter(e.point) && e.preventDefault();
+  const finger = (e: MapTouchEvent) => {
+    fingerZeit = Date.now();
+    if (e.points.length === 1 && runter(e.point)) e.preventDefault();
+  };
+  const mausZug = (e: MouseEvent) => zug && Date.now() - fingerZeit > 800 && ziehe(relativ(e.clientX, e.clientY));
   const fingerZug = (e: TouchEvent) => zug && e.touches[0] && ziehe(relativ(e.touches[0].clientX, e.touches[0].clientY));
   m.on('mousedown', maus);
   m.on('touchstart', finger);
