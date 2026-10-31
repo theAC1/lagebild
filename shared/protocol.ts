@@ -68,15 +68,24 @@ export const taufSchluessel = (name: string): string => name.trim().toLocaleLowe
 export const Rolle = z.enum(['teilnehmer', 'leitung']);
 export type Rolle = z.infer<typeof Rolle>;
 
+/** Phasen einer Lage (Spec v6): AP Aktionsplanung (vor der Mission), LV Lageverfolgung (während), AN Aktionsnachbearbeitung. */
+export const Phase = z.enum(['ap', 'lv', 'an']);
+export type Phase = z.infer<typeof Phase>;
+export const PhasenWechsel = z.object({ phase: Phase, t: z.number() });
+export type PhasenWechsel = z.infer<typeof PhasenWechsel>;
+export const MAX_PHASENWECHSEL = 200;
+
 export const Lage = z.object({
   id: Id,
   name: Text(80).min(1),
   statusSet: z.array(StatusDef).min(1).max(20),
   erstelltAm: z.number(),
-  beendetAm: z.number().nullable(),
+  /** Phasenverlauf, aufsteigend; der letzte Eintrag ist die aktuelle Phase (ersetzt `beendetAm`, 31.10.). */
+  phasen: z.array(PhasenWechsel).min(1).max(MAX_PHASENWECHSEL),
   taufListen: TaufListen.optional(), // Geländetaufe: angepasste Namenslisten der Leitung
 });
 export type Lage = z.infer<typeof Lage>;
+export const phaseVon = (l: Pick<Lage, 'phasen'>): Phase => l.phasen[l.phasen.length - 1].phase;
 
 export const Position = z.object({
   lat: Lat,
@@ -359,6 +368,11 @@ export const Meldung = z.object({
 });
 export type Meldung = z.infer<typeof Meldung>;
 
+/** Debriefing-Notiz der Leitung (nur in AN), an einem Zeitpunkt der Wiedergabe. */
+export const MAX_NOTIZEN_JE_LAGE = 500;
+export const Notiz = z.object({ id: Id, von: Id, t: Zeit, text: Text(500).min(1), erstelltAm: z.number() });
+export type Notiz = z.infer<typeof Notiz>;
+
 // --- Client → Server --------------------------------------------------------
 
 export const ClientMsg = z.discriminatedUnion('typ', [
@@ -402,7 +416,11 @@ export const ClientMsg = z.discriminatedUnion('typ', [
   z.object({ typ: z.literal('alarm.aufheben'), id: Id }), // Auslöser oder Leitung
   // nur Leitung:
   z.object({ typ: z.literal('lage.statusSet'), statusSet: z.array(StatusDef).min(1).max(20) }),
-  z.object({ typ: z.literal('lage.beenden') }),
+  // Phase wechseln (AP↔LV, LV↔AN); verlässt die Lage LV, hebt der Server offene Alarme und Bloodhound-Aufträge auf.
+  z.object({ typ: z.literal('lage.phase'), phase: Phase }),
+  // Debriefing-Notizen: nur in AN
+  z.object({ typ: z.literal('notiz.neu'), t: Zeit, text: Text(500).min(1) }),
+  z.object({ typ: z.literal('notiz.loeschen'), id: Id }),
   // neuer Teilnehmer-Code; der alte wird ungültig, bestehende Tokens bleiben. Antwort 'code' nur an die auslösende Verbindung.
   z.object({ typ: z.literal('lage.codeErneuern') }),
   z.object({ typ: z.literal('teilnehmer.entfernen'), id: Id }),
@@ -427,6 +445,7 @@ export type ServerMsg =
       raster: Raster[]; // Führungsraster der Lage (höchstens Grande und Piccolo)
       alarme: Alarm[]; // nicht aufgehobene
       meldungen: Meldung[]; // letzte 200
+      notizen: Notiz[]; // Debriefing (AN)
       serverZeit: number;
     }
   | { typ: 'teilnehmer'; teilnehmer: Teilnehmer }
@@ -448,17 +467,19 @@ export type ServerMsg =
   | { typ: 'sichtung'; sichtung: Sichtung }
   | { typ: 'alarm'; alarm: Alarm }
   | { typ: 'meldung'; meldung: Meldung }
+  | { typ: 'notiz'; notiz: Notiz }
+  | { typ: 'notiz.geloescht'; id: string }
   | { typ: 'lage'; lage: Lage }
-  // Lage beendet oder ich wurde entfernt → Client zurück zum Login. Mit `lage`: Lage beendet, die Leitung behält
-  // ihr Token für Export und Löschen (REST), aber ohne WebSocket.
-  | { typ: 'beendet'; lage?: Lage }
+  // Lage gelöscht oder ich wurde entfernt → Client zurück zum Login.
+  | { typ: 'beendet' }
   | { typ: 'code'; teilnehmerCode: string } // Antwort auf lage.codeErneuern
   | { typ: 'ping' } // alle PING_MS: Lebenszeichen für den Watchdog im Client
   | { typ: 'fehler'; meldung: string };
 
 // --- REST -------------------------------------------------------------------
 
-export const LageErstellen = z.object({ name: Text(80).min(1), erstellPasswort: z.string().min(1).max(200) });
+/** `phase`: Startphase, Vorgabe AP (Tests und Last-Skript starten direkt in LV). */
+export const LageErstellen = z.object({ name: Text(80).min(1), erstellPasswort: z.string().min(1).max(200), phase: Phase.exclude(['an']).optional() });
 export type LageErstellt = { lageId: string; teilnehmerCode: string; leitungCode: string };
 
 export const Beitreten = z.object({
@@ -472,6 +493,13 @@ export type Beigetreten = { token: string; teilnehmerId: string; lageId: string;
 
 /** GET /api/spuren?seit=<ms> (Bearer): gespeicherte Positionen je Teilnehmer, zeitlich aufsteigend. */
 export type Spuren = Record<string, Position[]>;
+
+/** Ereignisprotokoll (Spec v6): Deltas der Regeln mit Zeit und Autor, ohne Positionen, Teilnehmer und Lage. */
+export type ProtokollEintrag = { t: number; von: string; d: ServerMsg };
+/** GET /api/protokoll (Bearer): Grundlage von Wiedergabe und Ereignisliste in AN. Chat/Meldungen gefiltert wie live. */
+export type Protokoll = { teilnehmer: Teilnehmer[]; ereignisse: ProtokollEintrag[]; spuren: Spuren };
+const OHNE_PROTOKOLL = new Set<ServerMsg['typ']>(['snapshot', 'teilnehmer', 'pos', 'lage', 'beendet', 'code', 'ping', 'fehler', 'notiz', 'notiz.geloescht']);
+export const imProtokoll = (d: ServerMsg): boolean => !OHNE_PROTOKOLL.has(d.typ);
 
 /** Zeitschwellen für die Stale-Logik (Client-Darstellung). */
 export const STALE_MS = 2 * 60_000; // ausgegraut, falls Position kein staleNach hat

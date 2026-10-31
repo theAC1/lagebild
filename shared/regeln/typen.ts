@@ -1,8 +1,8 @@
 // Schnittstelle der Regeln: Lesesicht auf den Zustand einer Lage + Ereignis → Änderungen und Deltas oder Ablehnung.
 // Rein und deterministisch: keine I/O, keine Uhr, kein Zufall. Zeit und IDs kommen mit dem Ereignis.
-import type { Alarm, BloodhoundAuftrag, Chat, ClientMsg, Ebene, Lage, Marker, Meldung, Position, Raster, ServerMsg, Sichtung, Taufe, Teilnehmer, Zeichnung } from '../protocol.ts';
+import type { Alarm, BloodhoundAuftrag, Chat, ClientMsg, Ebene, Lage, Marker, Meldung, Notiz, Position, Raster, ServerMsg, Sichtung, Taufe, Teilnehmer, Zeichnung } from '../protocol.ts';
 
-export type Eintraege = { marker: Marker; chat: Chat; sichtung: Sichtung; alarm: Alarm; meldung: Meldung; ebene: Ebene; zeichnung: Zeichnung; bloodhound: BloodhoundAuftrag; raster: Raster; taufe: Taufe };
+export type Eintraege = { marker: Marker; chat: Chat; sichtung: Sichtung; alarm: Alarm; meldung: Meldung; ebene: Ebene; zeichnung: Zeichnung; bloodhound: BloodhoundAuftrag; raster: Raster; taufe: Taufe; notiz: Notiz };
 export type Art = keyof Eintraege;
 
 /**

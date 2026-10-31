@@ -116,7 +116,7 @@ describe('WebSocket', () => {
   it('Leitung-only Aktionen', async () => {
     const { ltg, a, b, bB, aB, ltgB } = await szenario();
     const set = [{ key: 'ok', label: 'OK', farbe: '#00ff00' }];
-    for (const m of [{ typ: 'lage.statusSet', statusSet: set }, { typ: 'lage.beenden' }, { typ: 'teilnehmer.entfernen', id: bB.teilnehmerId }]) {
+    for (const m of [{ typ: 'lage.statusSet', statusSet: set }, { typ: 'lage.phase', phase: 'an' }, { typ: 'teilnehmer.entfernen', id: bB.teilnehmerId }]) {
       a.senden(m);
       expect((await a.warte('fehler')).meldung).toMatch(/Leitung/);
     }
@@ -129,21 +129,65 @@ describe('WebSocket', () => {
     expect((await a.warte('teilnehmer.weg')).id).toBe(bB.teilnehmerId);
     expect((await s.api('/api/spuren', { token: bB.token })).status).toBe(401);
 
-    ltg.senden({ typ: 'lage.beenden' });
-    await a.warte('beendet');
-    await ltg.warte('beendet');
-    // Export bleibt für die Leitung nach dem Beenden möglich, Teilnehmende nicht
+    ltg.senden({ typ: 'lage.phase', phase: 'an' });
+    await a.warte('lage', (m) => m.lage.phasen.at(-1)?.phase === 'an');
+    // Export bleibt der Leitung vorbehalten, auch in AN
     expect((await s.api('/api/export.geojson', { token: aB.token })).status).toBe(403);
     expect((await s.api('/api/export.geojson', { token: ltgB.token })).status).toBe(200);
   });
 
-  it('beendete Lage: Beitreten 410, Wiederverbinden beendet', async () => {
+  it('AN: alle bleiben verbunden, nur lesen; Beitreten und Fotos 410; Wiederverbinden mit Snapshot', async () => {
     const { l, ltg, a, aB } = await szenario();
-    ltg.senden({ typ: 'lage.beenden' });
-    await a.warte('beendet');
+    ltg.senden({ typ: 'lage.phase', phase: 'an' });
+    expect((await a.warte('lage')).lage.phasen.map((p) => p.phase)).toEqual(['lv', 'an']);
+    a.senden({ typ: 'chat', an: { art: 'alle' }, text: 'x' });
+    expect((await a.warte('fehler')).meldung).toBe('Nachbearbeitung: nur lesen');
     const r = await s.api('/api/beitreten', { method: 'POST', body: JSON.stringify({ code: l.teilnehmerCode, rufname: 'X', einheit: 'Y', funktion: '', sidc: SIDC }) });
     expect(r.status).toBe(410);
-    await expect(verbinde(s.url, aB.token)).rejects.toThrow(/Timeout/);
+    expect((await s.api('/api/foto', { method: 'POST', token: aB.token, body: JPEG })).status).toBe(410);
+    a.zu();
+    const neu = await verbinde(s.url, aB.token);
+    expect(neu.snapshot.lage.phasen.at(-1)?.phase).toBe('an');
+    ltg.senden({ typ: 'notiz.neu', t: Date.now() - 1000, text: 'Funkdisziplin' });
+    expect((await neu.warte('notiz')).notiz.text).toBe('Funkdisziplin');
+    expect((await verbinde(s.url, aB.token)).snapshot.notizen.map((n) => n.text)).toEqual(['Funkdisziplin']);
+    ltg.senden({ typ: 'lage.phase', phase: 'lv' });
+    await neu.warte('lage', (m) => m.lage.phasen.at(-1)?.phase === 'lv');
+    neu.senden({ typ: 'chat', an: { art: 'alle' }, text: 'weiter' });
+    await ltg.warte('chat');
+  });
+
+  it('AP: neue Lage beginnt in AP, Positionen werden still verworfen', async () => {
+    const l = await s.lage('Plan', 'ap');
+    const ltgB = await s.beitreten(l.leitungCode, 'Leitung');
+    const aB = await s.beitreten(l.teilnehmerCode, 'Adler');
+    const ltg = await verbinde(s.url, ltgB.token);
+    const a = await verbinde(s.url, aB.token);
+    expect(a.snapshot.lage.phasen.map((p) => p.phase)).toEqual(['ap']);
+    a.senden({ typ: 'pos', pos: pos(46.9, 7.4) });
+    a.senden({ typ: 'chat', an: { art: 'alle' }, text: 'geplant' });
+    await ltg.warte('chat');
+    expect(ltg.empfangen.some((m) => m.typ === 'pos')).toBe(false);
+    expect(await (await s.api('/api/spuren', { token: aB.token })).json()).toEqual({});
+  });
+
+  it('Protokoll: Deltas mit Zeit und Autor, Löschungen bleiben, Chat nach Sichtbarkeit', async () => {
+    const { ltg, a, b, aB, bB, ltgB } = await szenario();
+    a.senden({ typ: 'marker.setzen', marker: { sidc: SIDC, lat: 47, lon: 8, bezeichnung: 'Brücke', notiz: '' } });
+    const { marker } = await b.warte('marker');
+    a.senden({ typ: 'marker.loeschen', id: marker.id });
+    await b.warte('marker.geloescht');
+    a.senden({ typ: 'chat', an: { art: 'person', id: ltgB.teilnehmerId }, text: 'nur Leitung' });
+    await ltg.warte('chat');
+    a.senden({ typ: 'pos', pos: pos(47, 8) });
+    await b.warte('pos');
+    const p = await (await s.api('/api/protokoll', { token: bB.token })).json();
+    expect(p.ereignisse.map((e: { d: { typ: string } }) => e.d.typ)).toEqual(['marker', 'marker.geloescht']);
+    expect(p.ereignisse[1]).toMatchObject({ von: aB.teilnehmerId, t: expect.any(Number) });
+    expect(Object.keys(p.spuren)).toEqual([aB.teilnehmerId]);
+    expect(p.teilnehmer).toHaveLength(3);
+    const fuerLtg = await (await s.api('/api/protokoll', { token: ltgB.token })).json();
+    expect(fuerLtg.ereignisse.map((e: { d: { typ: string } }) => e.d.typ)).toEqual(['marker', 'marker.geloescht', 'chat']);
   });
 
   it('Disconnect broadcastet online:false', async () => {
@@ -376,24 +420,6 @@ describe('WebSocket', () => {
     expect(alt.status).toBe(403);
     expect((await s.beitreten(teilnehmerCode, 'Neu')).rolle).toBe('teilnehmer');
     expect((await s.api('/api/spuren', { token: aB.token })).status).toBe(200);
-  });
-
-  it('Lage beenden: Leitung bekommt die Lage mit und behält Export und Löschen', async () => {
-    const { ltg, a, ltgB } = await szenario();
-    ltg.senden({ typ: 'lage.beenden' });
-    expect((await a.warte('beendet')).lage).toBeUndefined();
-    expect((await ltg.warte('beendet')).lage?.beendetAm).not.toBeNull();
-    // Neu laden: Wiederverbinden liefert wieder 'beendet' mit Lage
-    const ws = new WebSocket(s.url.replace('http', 'ws') + '/ws');
-    const msgs: { typ: string; lage?: unknown }[] = [];
-    ws.on('message', (d) => msgs.push(JSON.parse(d.toString())));
-    const code = new Promise((ok) => ws.on('close', ok));
-    await new Promise((ok) => ws.once('open', ok));
-    ws.send(JSON.stringify({ typ: 'hallo', token: ltgB.token }));
-    expect(await code).toBe(4001);
-    expect(msgs[0]).toMatchObject({ typ: 'beendet', lage: { beendetAm: expect.any(Number) } });
-    expect((await s.api('/api/export.gpx', { token: ltgB.token })).status).toBe(200);
-    expect((await s.api('/api/lage', { method: 'DELETE', token: ltgB.token })).status).toBe(204);
   });
 
   it('ungültige Nachrichten ergeben fehler, Verbindung bleibt', async () => {

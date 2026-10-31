@@ -1,18 +1,21 @@
 <script lang="ts">
+  import type { Phase } from '../../../../shared/protocol.ts';
+  import { PHASE_NAME, WECHSEL } from '../../../../shared/regeln/phase.ts';
   import { abmelden, api, send, store } from '../../lib/store.svelte.ts';
   import { schreibe, toast } from '../../lib/ui.svelte.ts';
-  import { codesKey } from './logik.ts';
+  import { codesKey, PHASE_TEXT } from './logik.ts';
 
-  let beendenSchritt = $state(0);
+  /** Gewählter Wechsel, wartet auf «Ja, wechseln». */
+  let ziel = $state<Phase | null>(null);
   let loeschenName = $state('');
   let loescht = $state(false);
 
   const name = $derived(store.lage?.name ?? '');
   const nameStimmt = $derived(name !== '' && loeschenName.trim() === name.trim());
 
-  function beenden() {
-    if (!send({ typ: 'lage.beenden' })) return toast('Keine Verbindung – Lage nicht beendet.');
-    beendenSchritt = 0; // Server meldet 'beendet' mit Lage → Kern zeigt die Nachbereitung
+  function wechseln(p: Phase) {
+    ziel = null;
+    if (!send({ typ: 'lage.phase', phase: p })) toast('Keine Verbindung – Phase nicht gewechselt.');
   }
 
   async function loeschen() {
@@ -32,34 +35,22 @@
   }
 </script>
 
-{#if !store.beendet}
-<section>
-  <h3>Lage beenden</h3>
-  <p class="leise">
-    Alle Teilnehmenden werden abgemeldet, niemand kann mehr beitreten. Die Daten bleiben gespeichert; die Leitung kann danach noch
-    exportieren und die Lage löschen.
-  </p>
-  {#if beendenSchritt === 0}
-    <button class="gefahr breit" onclick={() => (beendenSchritt = 1)}>Lage beenden …</button>
-  {:else}
+<section aria-label="Phase">
+  <h3>Phase: {PHASE_NAME[store.phase]} ({store.phase.toUpperCase()})</h3>
+  {#if ziel}
     <div class="frage" role="alert">
-      {#if beendenSchritt === 1}
-        <span>Lage «{name}» wirklich beenden?</span>
-        <div class="knoepfe">
-          <button onclick={() => (beendenSchritt = 0)}>Abbrechen</button>
-          <button class="gefahr" onclick={() => (beendenSchritt = 2)}>Ja, weiter</button>
-        </div>
-      {:else}
-        <span><strong>Letzte Bestätigung:</strong> alle Teilnehmenden werden sofort abgemeldet.</span>
-        <div class="knoepfe">
-          <button onclick={() => (beendenSchritt = 0)}>Abbrechen</button>
-          <button class="gefahr voll" onclick={beenden}>Jetzt beenden</button>
-        </div>
-      {/if}
+      <span>{PHASE_TEXT[ziel].frage}</span>
+      <div class="knoepfe">
+        <button onclick={() => (ziel = null)}>Abbrechen</button>
+        <button class="primaer" onclick={() => wechseln(ziel!)}>Ja, wechseln</button>
+      </div>
     </div>
+  {:else}
+    {#each WECHSEL[store.phase] as p (p)}
+      <button class="breit phase-knopf {p}" onclick={() => (ziel = p)}>{PHASE_TEXT[p].knopf(store.phase)}</button>
+    {/each}
   {/if}
 </section>
-{/if}
 
 <section>
   <h3>Lage endgültig löschen</h3>
@@ -97,11 +88,24 @@
     background: var(--danger);
     color: #fff;
   }
+  .phase-knopf {
+    border-width: 2px;
+    font-weight: 600;
+  }
+  .phase-knopf.lv {
+    border-color: var(--text);
+  }
+  .phase-knopf.ap {
+    border-color: #555a5e;
+  }
+  .phase-knopf.an {
+    border-color: #2e9e44;
+  }
   .frage {
     display: grid;
     gap: 8px;
     padding: 10px;
-    border: 1px solid var(--danger);
+    border: 1px solid var(--accent);
     border-radius: var(--radius);
   }
   .knoepfe {

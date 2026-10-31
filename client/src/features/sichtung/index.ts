@@ -14,6 +14,7 @@ const feature: Feature = {
   Detail,
   detailArt: 'sichtung',
   haupt: { aktion: sichtungMelden },
+  phasen: ['lv'],
 };
 
 export default feature;

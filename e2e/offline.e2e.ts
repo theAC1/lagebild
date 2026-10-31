@@ -39,7 +39,7 @@ let offlineAn = false;
 const geholt: string[] = [];
 
 test.beforeAll(async ({ browser }) => {
-  const r0 = await (await browser.newContext()).request.post('/api/lage', { data: { name: 'Übung Aare', erstellPasswort: 'e2e' } });
+  const r0 = await (await browser.newContext()).request.post('/api/lage', { data: { name: 'Übung Aare', erstellPasswort: 'e2e', phase: 'lv' } });
   const { teilnehmerCode } = await r0.json();
   ctx = await browser.newContext({ geolocation: ADLER, viewport: HOCH, serviceWorkers: 'block' });
   const r = await ctx.request.post('/api/beitreten', { data: { code: teilnehmerCode, rufname: 'Fuchs', einheit: 'Zug 1', funktion: '', sidc: SIDC } });

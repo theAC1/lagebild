@@ -77,7 +77,7 @@ function ausdehnung(t: ExportTaufe): number[] {
 
 test.beforeAll(async ({ browser }) => {
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name: 'Übung Taufe', erstellPasswort: 'e2e' } });
+  const r = await ctx.request.post('/api/lage', { data: { name: 'Übung Taufe', erstellPasswort: 'e2e', phase: 'lv' } });
   const codes = await r.json();
   await ctx.close();
   leitung = await sitzung(browser, codes.leitungCode, 'Adler', HOCH);

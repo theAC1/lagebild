@@ -10,7 +10,7 @@ type Lage = { teilnehmerCode: string; leitungCode: string };
 
 async function neueLage(browser: Browser, name: string): Promise<Lage> {
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name, erstellPasswort: 'e2e' } });
+  const r = await ctx.request.post('/api/lage', { data: { name, erstellPasswort: 'e2e', phase: 'lv' } });
   expect(r.status()).toBe(201);
   const lage = (await r.json()) as Lage;
   await ctx.close();

@@ -121,19 +121,19 @@ describe('Leitung vs. Teilnehmer', () => {
     expect(w.daten.eintraege.marker![0]).toMatchObject({ von: 'a', erstelltAm: 2000, geaendertAm: 5000 });
   });
 
-  it('nur die Leitung: Status-Set, Beenden, Entfernen, Ebenen, Bloodhound-Auftrag', () => {
+  it('nur die Leitung: Status-Set, Phase, Entfernen, Ebenen, Bloodhound-Auftrag', () => {
     const w = welt();
     const nurLeitung = [
       { typ: 'lage.statusSet', statusSet: LAGE.statusSet },
-      { typ: 'lage.beenden' },
+      { typ: 'lage.phase', phase: 'an' },
       { typ: 'teilnehmer.entfernen', id: 'b' },
       { typ: 'ebene.neu', name: 'x' },
       { typ: 'bloodhound.auftrag', an: 'b', ziel: { art: 'punkt', punkt: { lat: 47, lon: 8 } } },
     ] as const;
     for (const m of nurLeitung) expect(grund(w.tu('a', m))).toBe('Nur für die Leitung');
     expect(grund(w.tu('ltg', { typ: 'teilnehmer.entfernen', id: 'ltg' }))).toBe('Sich selbst entfernen ist nicht möglich');
-    expect(grund(w.tu('ltg', { typ: 'lage.beenden' }))).toBeUndefined();
-    expect(w.daten.lage.beendetAm).not.toBeNull();
+    expect(grund(w.tu('ltg', { typ: 'lage.phase', phase: 'an' }))).toBeUndefined();
+    expect(w.daten.lage.phasen.at(-1)?.phase).toBe('an');
   });
 
   it('Alarm aufheben: Auslöser oder Leitung', () => {

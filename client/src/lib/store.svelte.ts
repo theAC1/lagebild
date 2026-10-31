@@ -1,6 +1,7 @@
 // Reaktiver Lagezustand + WebSocket-Verbindung + REST-Helfer.
 import { SvelteMap } from 'svelte/reactivity';
 import {
+  phaseVon,
   staleNachFuer,
   STILLE_MS,
   type Alarm,
@@ -12,6 +13,8 @@ import {
   type Lage,
   type Marker,
   type Meldung,
+  type Notiz,
+  type Phase,
   type Position,
   type ServerMsg,
   type Sichtung,
@@ -19,6 +22,7 @@ import {
   type Teilnehmer,
   type Zeichnung,
 } from '../../../shared/protocol.ts';
+import { PHASE_NAME } from '../../../shared/regeln/phase.ts';
 import { apiUrl, wsUrl } from './umgebung.ts';
 import { raeumeAuf } from './speicher.ts';
 import { lies, schliesseAlle, schreibe, toast, ui } from './ui.svelte.ts';
@@ -94,9 +98,10 @@ class LageStore {
   alarme = new SvelteMap<string, Alarm>();
   chat = $state<Chat[]>([]);
   meldungen = $state<Meldung[]>([]);
+  notizen = $state<Notiz[]>([]);
   verbindung = $state<Verbindung>('getrennt');
-  /** Lage beendet, ich bin Leitung: Token bleibt für Export und Löschen, keine Verbindung mehr. */
-  beendet = $state(false);
+  /** Wiedergabe (AN): angezeigter Zeitpunkt, null = live. Die Lage-Daten oben zeigen dann den Stand zu diesem Zeitpunkt. */
+  wiedergabeZeit = $state<number | null>(null);
   /** eigene Live-Position vom Gerät (nicht vom Server) */
   meinePos = $state<Position | null>(null);
   gpsFehler = $state<string | null>(null);
@@ -108,6 +113,8 @@ class LageStore {
 
   ichSelbst = $derived(this.ich ? (this.teilnehmer.get(this.ich) ?? null) : null);
   istLeitung = $derived(this.ichSelbst?.rolle === 'leitung');
+  /** Phase der Lage (Spec v6); vor dem Snapshot LV, damit nichts fälschlich gesperrt wirkt. */
+  phase: Phase = $derived(this.lage ? phaseVon(this.lage) : 'lv');
   /** Eigener, nicht aufgehobener Alarm → Position wird trotz Emission Control gesendet. */
   meinAlarmAktiv = $derived([...this.alarme.values()].some((a) => a.von === this.ich && a.aufgehobenAm === null));
 }
@@ -117,13 +124,13 @@ export const token = () => store.token;
 
 setInterval(() => (store.jetzt = Date.now()), 5000);
 
-export const serverJetzt = () => store.jetzt + store.zeitversatz;
+export const serverJetzt = () => store.wiedergabeZeit ?? store.jetzt + store.zeitversatz;
 
 /** Empfangszeit (Serverzeit) der aktuellen Position je Teilnehmer – Basis für staleNach. */
 const posEmpfang = new Map<string, number>();
 // ponytail: der Snapshot kennt keine Empfangszeit, `zuletzt` (letzte Aktivität) ist die beste Näherung.
 // Überschätzt die Frische, wenn danach nur noch Status kam; ein Feld `posEmpfangenAm` im Vertrag würde das lösen.
-const merkeEmpfang = (t: Teilnehmer, zeit: number) => (t.pos ? posEmpfang.set(t.id, zeit) : posEmpfang.delete(t.id));
+export const merkeEmpfang = (t: Teilnehmer, zeit: number) => (t.pos ? posEmpfang.set(t.id, zeit) : posEmpfang.delete(t.id));
 
 /** Alter der aktuellen Position in ms (Serverzeit); ohne Position seit letzter Aktivität. */
 export const alterMs = (t: Teilnehmer) => Math.max(0, serverJetzt() - (posEmpfang.get(t.id) ?? t.zuletzt));
@@ -158,6 +165,8 @@ const ersetze = <T extends { id: string }>(map: SvelteMap<string, T>, liste: T[]
 };
 
 export function wende(m: ServerMsg): void {
+  // Wiedergabe: die Anzeige zeigt einen früheren Stand; Live-Updates der Teilnehmenden würden ihn überschreiben
+  if (store.wiedergabeZeit !== null && (m.typ === 'teilnehmer' || m.typ === 'pos')) return;
   switch (m.typ) {
     case 'snapshot':
       store.ich = m.ich;
@@ -176,6 +185,7 @@ export function wende(m: ServerMsg): void {
       ersetze(store.alarme, m.alarme);
       store.chat = m.chat;
       store.meldungen = m.meldungen;
+      store.notizen = m.notizen ?? [];
       store.verbindung = 'verbunden';
       versuch = 0;
       sendePosJetzt(); // nach (Wieder-)Verbindung sofort zeigen, wo ich bin
@@ -240,12 +250,23 @@ export function wende(m: ServerMsg): void {
     case 'meldung':
       store.meldungen = [...store.meldungen, m.meldung].slice(-MAX_LOG);
       break;
-    case 'lage':
-      store.lage = m.lage;
+    case 'notiz':
+      store.notizen = [...store.notizen.filter((n) => n.id !== m.notiz.id), m.notiz];
       break;
+    case 'notiz.geloescht':
+      store.notizen = store.notizen.filter((n) => n.id !== m.id);
+      break;
+    case 'lage': {
+      const vorher = store.phase;
+      store.lage = m.lage;
+      if (store.phase !== vorher) {
+        toast(`Phase: ${PHASE_NAME[store.phase]}`, 5000);
+        if (store.phase === 'lv') sendePosJetzt();
+      }
+      break;
+    }
     case 'beendet':
-      if (m.lage) nachbereitung(m.lage);
-      else abmelden('Die Lage wurde beendet oder du wurdest entfernt.');
+      abmelden('Die Lage wurde gelöscht oder du wurdest entfernt.');
       return;
     case 'fehler':
       toast(m.meldung);
@@ -273,7 +294,7 @@ let zuletztGehoert = 0;
 
 export function verbinde(): void {
   clearTimeout(wiederTimer);
-  if (!store.token || store.beendet || ws) return;
+  if (!store.token || ws) return;
   store.verbindung = 'verbinde';
   const s = new WebSocket(wsUrl());
   ws = s;
@@ -299,7 +320,7 @@ export function verbinde(): void {
 function getrennt() {
   ws = null;
   store.verbindung = 'getrennt';
-  if (store.token && !store.beendet) {
+  if (store.token) {
     // Backoff 1 s … 30 s mit Streuung, damit nicht alle Geräte gleichzeitig anklopfen
     const ms = Math.min(30_000, 1000 * 2 ** versuch++) * (0.75 + Math.random() * 0.5);
     wiederTimer = setTimeout(verbinde, ms);
@@ -377,7 +398,7 @@ export function meinePosZumSenden(): Position | null {
 /** Wird jede Sekunde und bei jedem GPS-Fix aufgerufen: sendet nach Intervall, Bewegung oder Ereignis. */
 export function pruefeSenden(): void {
   const pos = meinePosZumSenden();
-  if (!pos || !store.ichSelbst) return;
+  if (!pos || !store.ichSelbst || store.phase !== 'lv') return; // Positionen nur in der Lageverfolgung
   if (!store.ichSelbst.sendetPos && !store.meinAlarmAktiv) return; // Emission Control (ausser bei eigenem Alarm)
   // GPS-Fehler nach dem letzten Fix: den alten Fix nicht als frisch weitersenden, sonst läuft er bei den
   // anderen nie ab und «kein GPS» erscheint nie. Ein Alarm nimmt die letzte Position trotzdem mit.
@@ -413,27 +434,16 @@ function setzeZurueck() {
   store.alarme.clear();
   store.chat = [];
   store.meldungen = [];
+  store.notizen = [];
+  store.wiedergabeZeit = null;
   schliesseAlle();
   ui.koordinate = null;
   ui.radial = null;
 }
 
-/** Lage beendet, ich bin Leitung: Verbindung zu, Token behalten (Export/Löschen per REST). */
-function nachbereitung(lage: Lage): void {
-  clearTimeout(wiederTimer);
-  store.beendet = true;
-  const s = ws;
-  ws = null;
-  s?.close();
-  store.verbindung = 'getrennt';
-  setzeZurueck();
-  store.lage = lage;
-}
-
 /** Token löschen, Verbindung schliessen, zurück zum Login. */
 export function abmelden(grund?: string): void {
   clearTimeout(wiederTimer);
-  store.beendet = false;
   store.token = null;
   schreibe(TOKEN_KEY, null);
   const s = ws;

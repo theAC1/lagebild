@@ -24,8 +24,9 @@ export async function testServer(vertrauteProxies = ['127.0.0.1']) {
         ...(init.headers as Record<string, string>),
       },
     });
-  async function lage(name = 'Übung'): Promise<LageErstellt> {
-    const r = await api('/api/lage', { method: 'POST', body: JSON.stringify({ name, erstellPasswort: PASSWORT }) });
+  /** Vorgabe LV: die meisten Tests prüfen das Verhalten während der Mission. */
+  async function lage(name = 'Übung', phase: 'ap' | 'lv' = 'lv'): Promise<LageErstellt> {
+    const r = await api('/api/lage', { method: 'POST', body: JSON.stringify({ name, erstellPasswort: PASSWORT, phase }) });
     if (r.status !== 201) throw new Error(`lage ${r.status}`);
     return r.json();
   }

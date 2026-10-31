@@ -70,6 +70,7 @@ registriereRadialAktion({
   label: 'Chat',
   icon: ikon('<path d="M4 5h16v11H9l-5 4z"/>'),
   aktion: (z) => oeffne('chat', { an: { art: 'person', id: z.id } }),
+  phasen: ['ap', 'lv'],
 });
 
 registriereRadialAktion({
@@ -78,6 +79,7 @@ registriereRadialAktion({
   icon: ikon('<path d="M12 21s-6-6.2-6-11a6 6 0 0 1 12 0c0 4.8-6 11-6 11z"/><path d="M12 7v6M9 10h6"/>'),
   aktion: () => store.meinePos && oeffne('marker', { neu: { lat: store.meinePos.lat, lon: store.meinePos.lon } }),
   sichtbar: () => !!store.meinePos,
+  phasen: ['ap', 'lv'],
 });
 
 registriereRadialAktion({
@@ -86,6 +88,7 @@ registriereRadialAktion({
   icon: ikon('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
   aktion: (z) => oeffne('marker', { bearbeiten: z.id }),
   sichtbar: darfMarkerAendern,
+  phasen: ['ap', 'lv'],
 });
 
 registriereRadialAktion({
@@ -99,6 +102,7 @@ registriereRadialAktion({
     toast('Marker gelöscht');
   },
   sichtbar: darfMarkerAendern,
+  phasen: ['ap', 'lv'],
 });
 
 // Leere Karte (Ziel 'punkt'): Koordinate kommt vom Kern, Marker/Sichtung/R&B/Bloodhound melden die Features an

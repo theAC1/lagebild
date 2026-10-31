@@ -55,7 +55,7 @@ const at = (dx: number, dy: number) => [c.x + dx, c.y + dy] as const;
 
 test.beforeAll(async ({ browser }) => {
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name: 'Zeichnen', erstellPasswort: 'e2e' } });
+  const r = await ctx.request.post('/api/lage', { data: { name: 'Zeichnen', erstellPasswort: 'e2e', phase: 'lv' } });
   codes = await r.json();
   await ctx.close();
   leitung = await sitzung(browser, codes.leitungCode, 'Adler', ADLER, DESKTOP);

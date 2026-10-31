@@ -112,7 +112,7 @@ export function geojson(d: ExportDaten): object {
   const punkt = (lat: number, lon: number, properties: object) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties });
   return {
     type: 'FeatureCollection',
-    properties: { lage: d.lage.name, erstelltAm: d.lage.erstelltAm, beendetAm: d.lage.beendetAm, ebenen: d.ebenen },
+    properties: { lage: d.lage.name, erstelltAm: d.lage.erstelltAm, phasen: d.lage.phasen, ebenen: d.ebenen },
     features: [
       ...spuren,
       ...d.marker.map(({ lat, lon, ...m }) => punkt(lat, lon, { art: 'marker', ...m })),

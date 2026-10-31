@@ -5,7 +5,8 @@ import { readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import type { z } from 'zod';
-import { Beitreten, LageErstellen, STANDARD_STATUS, type Beigetreten, type Lage, type LageErstellt, type Teilnehmer } from '../../shared/protocol.ts';
+import { Beitreten, LageErstellen, phaseVon, STANDARD_STATUS, type Beigetreten, type Lage, type LageErstellt, type Protokoll, type ProtokollEintrag, type Teilnehmer } from '../../shared/protocol.ts';
+import { meldungSichtbar, sichtbar, type Art, type Eintraege } from '../../shared/regeln/index.ts';
 import { oeffneDb, type Db } from './db.ts';
 import { geojson, gpx, type ExportDaten } from '../../shared/export.ts';
 import { clientIp, corsKopf, gleich, log, neuerCode, neuesToken, rateLimiter, sha256 } from './sicherheit.ts';
@@ -152,13 +153,36 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
     };
   }
 
+  /** Lagen von vor dem Protokoll (31.10.): Ereignisse aus den gespeicherten Einträgen; Änderungen und Löschungen fehlen. */
+  function ausBestand(lage: Lage): ProtokollEintrag[] {
+    const e = <A extends Art>(art: A): Eintraege[A][] => db.eintraege(lage.id, art);
+    const liste: ProtokollEintrag[] = [
+      ...e('marker').map((marker) => ({ t: marker.erstelltAm, von: marker.von, d: { typ: 'marker' as const, marker } })),
+      ...e('sichtung').map((sichtung) => ({ t: sichtung.erstelltAm, von: sichtung.von, d: { typ: 'sichtung' as const, sichtung } })),
+      ...e('zeichnung').map((z) => ({ t: z.erstelltAm, von: z.von, d: { typ: 'zeichnungen' as const, zeichnungen: [z] } })),
+      ...e('taufe').map((taufe) => ({ t: taufe.erstelltAm, von: taufe.von, d: { typ: 'taufe' as const, taufe } })),
+      ...e('chat').map((chat) => ({ t: chat.t, von: chat.von, d: { typ: 'chat' as const, chat } })),
+      ...e('meldung').map((meldung) => ({ t: meldung.t, von: meldung.von, d: { typ: 'meldung' as const, meldung } })),
+      ...e('alarm').flatMap((alarm) => [
+        { t: alarm.t, von: alarm.von, d: { typ: 'alarm' as const, alarm: { ...alarm, aufgehobenAm: null } } },
+        ...(alarm.aufgehobenAm === null ? [] : [{ t: alarm.aufgehobenAm, von: alarm.von, d: { typ: 'alarm' as const, alarm } }]),
+      ]),
+      ...e('bloodhound').flatMap((auftrag) => [
+        { t: auftrag.erstelltAm, von: auftrag.von, d: { typ: 'bloodhound' as const, auftrag: { ...auftrag, ende: null, endeAm: null } } },
+        ...(auftrag.endeAm === null ? [] : [{ t: auftrag.endeAm, von: auftrag.von, d: { typ: 'bloodhound' as const, auftrag } }]),
+      ]),
+    ];
+    return liste.sort((a, b) => a.t - b.t);
+  }
+
   async function api(req: IncomingMessage, res: ServerResponse, pfad: string, url: URL): Promise<void> {
     const route = `${req.method} ${pfad}`;
     if (route === 'POST /api/lage') {
       if (!limitErstellen(ip(req))) throw new HttpFehler(429, 'Zu viele Versuche');
       const e = await jsonBody(req, LageErstellen);
       if (!gleich(e.erstellPasswort, o.erstellPasswort)) throw new HttpFehler(403, 'Erstell-Passwort falsch');
-      const lage: Lage = { id: randomUUID(), name: e.name, statusSet: STANDARD_STATUS, erstelltAm: Date.now(), beendetAm: null };
+      const jetzt = Date.now();
+      const lage: Lage = { id: randomUUID(), name: e.name, statusSet: STANDARD_STATUS, erstelltAm: jetzt, phasen: [{ phase: e.phase ?? 'ap', t: jetzt }] };
       const r: LageErstellt = { lageId: lage.id, teilnehmerCode: neuerCode(8), leitungCode: neuerCode(10) };
       db.lageErstellen(lage, sha256(r.teilnehmerCode), sha256(r.leitungCode));
       db.ebenenSicherstellen(lage.id);
@@ -174,7 +198,7 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
         limitBeitreten(schluessel);
         throw new HttpFehler(403, 'Code ungültig');
       }
-      if (gefunden.lage.beendetAm !== null) throw new HttpFehler(410, 'Lage ist beendet');
+      if (phaseVon(gefunden.lage) === 'an') throw new HttpFehler(410, 'Lage ist in der Nachbearbeitung');
       if (db.teilnehmerListe(gefunden.lage.id).length >= MAX_TEILNEHMER_JE_LAGE) throw new HttpFehler(507, 'Teilnehmer-Kontingent der Lage erschöpft');
       const { lage, rolle } = gefunden;
       const t: Teilnehmer = {
@@ -199,7 +223,7 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
     }
     if (route === 'POST /api/foto') {
       const { lage, teilnehmer } = auth(req);
-      if (lage.beendetAm !== null) throw new HttpFehler(410, 'Lage ist beendet');
+      if (phaseVon(lage) === 'an') throw new HttpFehler(410, 'Lage ist in der Nachbearbeitung');
       // alles vor dem Lesen des Bodys prüfen: der wird ganz im RAM gepuffert
       if (!limitFoto(teilnehmer.id)) throw new HttpFehler(429, 'Zu viele Fotos – bitte kurz warten');
       if (db.fotoAnzahl(lage.id) >= MAX_FOTOS_JE_LAGE) throw new HttpFehler(507, 'Foto-Kontingent der Lage erschöpft');
@@ -233,6 +257,15 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
       const seit = Number(url.searchParams.get('seit') ?? 0);
       if (!Number.isFinite(seit)) throw new HttpFehler(400, 'seit ungültig');
       return antwort(res, 200, db.spuren(lage.id, seit));
+    }
+    if (route === 'GET /api/protokoll') {
+      const { lage, teilnehmer: ich } = auth(req);
+      const roh = db.protokoll(lage.id);
+      const sieht = (e: ProtokollEintrag): boolean =>
+        e.d.typ === 'chat' ? sichtbar(e.d.chat, ich) : e.d.typ === 'meldung' ? meldungSichtbar(e.d.meldung, ich) : true;
+      // ponytail: ganzes Protokoll in einer Antwort; bei sehr langen Lagen seitenweise laden
+      const p: Protokoll = { teilnehmer: db.teilnehmerListe(lage.id, true), ereignisse: (roh.length ? roh : ausBestand(lage)).filter(sieht), spuren: db.spuren(lage.id) };
+      return antwort(res, 200, p);
     }
     if (route === 'GET /api/export.gpx' || route === 'GET /api/export.geojson') {
       const { lage } = auth(req, true);

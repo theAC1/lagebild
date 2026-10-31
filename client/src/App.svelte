@@ -15,8 +15,9 @@
   import TeilnehmerDetail from './components/TeilnehmerDetail.svelte';
   import TeilnehmerListe from './components/TeilnehmerListe.svelte';
   import { onMount, untrack } from 'svelte';
-  import Nachbereitung from './features/leitung/Nachbereitung.svelte';
-  import { features } from './features/registry.ts';
+  import PhaseRahmen from './components/PhaseRahmen.svelte';
+  import PhaseSchild from './components/PhaseSchild.svelte';
+  import { features, inPhase } from './features/registry.ts';
   import { wendeGroesseAn } from './lib/groesse.svelte.ts';
   import { folgeMir, onMapReady } from './lib/map.ts';
   import './lib/radialKern.ts';
@@ -35,7 +36,7 @@
 
   let basisOffen = $state(false);
 
-  const sichtbar = $derived(features.filter((f) => !f.nurLeitung || store.istLeitung));
+  const sichtbar = $derived(features.filter((f) => (!f.nurLeitung || store.istLeitung) && inPhase(f, store.phase)));
   const featureVon = (id: string) => features.find((f) => f.id === id);
   const detailVon = (art: string) => features.find((f) => f.detailArt === art);
   function titelVon(p: PanelZustand): string {
@@ -71,10 +72,10 @@
     if (!(e.target as Element).closest?.('input, textarea, [contenteditable], .markierbar')) e.preventDefault();
   }
 
-  // Angemeldet: Verbindung + GPS + Wakelock; abgemeldet oder Lage beendet: alles stoppen.
+  // Angemeldet: Verbindung + GPS + Wakelock; abgemeldet: alles stoppen.
   // Wachhalten ungetrackt: es liest store.einstellungen, sonst startet jede Einstellung GPS und Verbindung neu.
   $effect(() => {
-    if (!store.token || store.beendet) return;
+    if (!store.token) return;
     verbinde();
     starteGps();
     untrack(aktualisiereWachhalten);
@@ -100,7 +101,7 @@
 <Ausrichtung />
 
 <MapView>
-  {#if store.token && !store.beendet}
+  {#if store.token}
     <BftLayer />
     <EigenePosition />
     {#each features as f (f.id)}
@@ -111,16 +112,15 @@
   {/if}
 </MapView>
 
+{#if store.token && store.lage}<PhaseRahmen />{/if}
 {#if !store.token}
   <Login />
-{:else if store.beendet}
-  <Nachbereitung />
 {:else if daumen}
   <Daumen />
 {:else}
   <header class="kopf">
     <div class="lage">
-      <strong>{store.lage?.name ?? 'Lagebild'}</strong>
+      <strong><PhaseSchild /> {store.lage?.name ?? 'Lagebild'}</strong>
       <span class="verbindung {store.verbindung}" role="status"><span class="lampe"></span>{VERBINDUNG[store.verbindung]}</span>
     </div>
     {#each sichtbar as f (f.id)}
@@ -175,7 +175,7 @@
   </footer>
 {/if}
 
-{#if store.token && !store.beendet}
+{#if store.token}
   {#if !ui.punktWahl && ui.panels.length}
     <div class="panels">
       {#each ui.panels as p (p.id)}

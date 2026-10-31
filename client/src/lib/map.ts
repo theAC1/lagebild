@@ -1,6 +1,6 @@
 // Zugriff auf die MapLibre-Karte für Features: Instanz, Fadenkreuz-Punktwahl, Radial-Einträge.
 import { Marker, type Map as MapLibreMap } from 'maplibre-gl';
-import type { Punkt } from '../../../shared/protocol.ts';
+import type { Phase, Punkt } from '../../../shared/protocol.ts';
 import { store } from './store.svelte.ts';
 import { toast, ui, type RadialArt, type RadialZiel, type ToastKnopf } from './ui.svelte.ts';
 
@@ -97,6 +97,8 @@ export interface RadialAktion {
   aktion: (z: RadialZiel) => void;
   /** Knopf nur zeigen, wenn true (Rechte, Zustand); wird reaktiv gelesen. */
   sichtbar?: (z: RadialZiel) => boolean;
+  /** Nur in diesen Phasen (Spec v6); ohne Angabe immer. */
+  phasen?: Phase[];
 }
 
 /** Höchstens so viele Knöpfe im Ring; spätere Registrierungen fallen weg. */
@@ -113,7 +115,9 @@ export function registriereRadialAktion(a: RadialAktion): () => void {
 }
 
 export const radialAktionenFuer = (z: RadialZiel): RadialAktion[] =>
-  radialAktionen.filter((a) => (typeof a.fuer === 'string' ? a.fuer === z.art : a.fuer.includes(z.art)) && (a.sichtbar?.(z) ?? true)).slice(0, MAX_RADIAL);
+  radialAktionen
+    .filter((a) => (typeof a.fuer === 'string' ? a.fuer === z.art : a.fuer.includes(z.art)) && (!a.phasen || a.phasen.includes(store.phase)) && (a.sichtbar?.(z) ?? true))
+    .slice(0, MAX_RADIAL);
 
 /** DOM-Symbol (Marker-Element) als Ziel fürs Radial-Menü und den Doppelklick markieren. */
 export function markiereZiel(element: HTMLElement, ziel: RadialZiel): void {

@@ -184,7 +184,7 @@ describe('Zeichnungen', () => {
 
   it('Grössenbudget je Lage: neu und wachsende Änderung werden abgelehnt, schrumpfende nicht', () => {
     const db = oeffneDb(':memory:');
-    const lage = { id: 'L', name: 'L', statusSet: [], erstelltAm: 0, beendetAm: null };
+    const lage = { id: 'L', name: 'L', statusSet: [], erstelltAm: 0, phasen: [{ phase: 'lv' as const, t: 0 }] };
     db.lageErstellen(lage, 'tn', 'ltg');
     const std = db.ebenenSicherstellen(lage.id)[0].id;
     const fehler: string[] = [];

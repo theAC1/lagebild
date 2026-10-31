@@ -26,6 +26,7 @@
       label: 'Bloodhound',
       icon: ikon('<circle cx="12" cy="12" r="8.5"/><path d="M12 5.5l2.5 6.5-2.5-1.2L9.5 12z" fill="currentColor"/><path d="M12 18.5v-4"/>'),
       aktion: (z) => starte({ art: z.art as 'teilnehmer' | 'marker' | 'sichtung', id: z.id }),
+      phasen: ['lv'],
       sichtbar: (z) => z.art !== 'teilnehmer' || z.id !== store.ich,
     }),
     registriereRadialAktion({
@@ -33,6 +34,7 @@
       label: 'BH-Auftrag', // kurz: Ring-Beschriftungen werden bei ~10 Zeichen gekürzt
       icon: ikon('<path d="M5 20V4M5 5h11l-2 3.5 2 3.5H5"/>'),
       aktion: (z) => oeffne('leitung', { tab: 'auftraege', an: z.id }),
+      phasen: ['lv'],
       sichtbar: (z) => store.istLeitung && z.id !== store.ich,
     }),
     registriereRadialAktion({
@@ -40,6 +42,7 @@
       label: 'Bloodhound', // wie auf Symbolen; «Bloodhound hierhin» passt nicht in den Ring
       icon: ikon('<circle cx="12" cy="12" r="8.5"/><path d="M12 5.5l2.5 6.5-2.5-1.2L9.5 12z" fill="currentColor"/><path d="M12 18.5v-4"/>'),
       aktion: (z) => starte({ art: 'punkt', punkt: { lat: z.punkt!.lat, lon: z.punkt!.lon } }),
+      phasen: ['lv'],
     }),
   ];
 
@@ -62,6 +65,7 @@
 
   // Auftrag der Leitung an mich: automatisch übernehmen; verschwindet er (z.B. Aufhebung während ich offline war), lokal enden
   $effect(() => {
+    if (store.wiedergabeZeit !== null) return; // Wiedergabe (AN): frühere Aufträge nur als Linie
     const mein = [...store.bloodhound.values()].find((a) => a.an === store.ich && a.ende === null);
     const aktiv = untrack(() => bh.aktiv);
     untrack(() => {

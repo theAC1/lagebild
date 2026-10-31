@@ -56,7 +56,7 @@ const bravoSymbol = (p: Page) => p.locator('.bft', { has: p.locator('.bft-label'
 
 test.beforeAll(async ({ browser }) => {
   const ctx = await browser.newContext();
-  const r = await ctx.request.post('/api/lage', { data: { name: 'Bloodhound', erstellPasswort: 'e2e' } });
+  const r = await ctx.request.post('/api/lage', { data: { name: 'Bloodhound', erstellPasswort: 'e2e', phase: 'lv' } });
   const lage = (await r.json()) as { teilnehmerCode: string; leitungCode: string };
   await ctx.close();
   const l = await seite(browser, lage.leitungCode, 'Adler', ADLER, { width: 1440, height: 900 });

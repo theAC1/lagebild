@@ -12,6 +12,7 @@ const feature: Feature = {
   MapLayer: ZeichnenLayer,
   Detail,
   detailArt: 'zeichnung',
+  phasen: ['ap', 'lv'],
 };
 
 export default feature;

@@ -12,6 +12,7 @@ const feature: Feature = {
   Kopf,         // Knopf in der Kopfleiste, immer erreichbar (Alarm); ersetzt den Knopf in der Werkzeugleiste
   Detail, detailArt: 'marker', // Detail-Sheet bei ui.auswahl = { art: detailArt, id }
   nurLeitung,   // Knopf nur für die Leitung
+  phasen,       // Knöpfe/Panel nur in diesen Phasen (Spec v6, z.B. ['lv']); Kartenlayer laufen immer. Radial-Aktionen ebenso: `phasen`
   badge: () => n, // Zähler am Knopf, reaktiv gelesen (z.B. ungelesen)
   haupt: { aktion?, Knopf? }, // Bedienung «Daumen-Ränder»: fest sichtbare Hauptaktion statt Eintrag im Mehr-Menü
   ebenen: () => [{ label, an, schalten }], // Schalter in der Ebenen-Auswahl unter der Überschrift `label` (z.B. Führungsraster)
