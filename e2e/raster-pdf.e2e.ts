@@ -1,5 +1,5 @@
-// Führungsraster als PDF: Raster und Taufen direkt über den WebSocket, dann im Panel «Als PDF» → Datei mit zwei Seiten.
-// Die Seitenbilder landen als Screenshots in docs/screens (Luftbild-Kacheln von swisstopo, ohne Netz grau).
+// Führungsraster als PDF: Raster und Taufen direkt über den WebSocket, dann im Panel «Als PDF» → Datei mit drei Seiten
+// (Luftbild, SpotMap, Landeskarte). Die Seitenbilder landen als Screenshots in docs/screens (Kacheln von swisstopo, ohne Netz grau).
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { WebSocket } from 'ws';
@@ -51,7 +51,7 @@ async function bild(p: Page, jpeg: Buffer, name: string) {
   await dokuBild(p, `v4-raster-pdf-${name}`);
 }
 
-test('Piccolo «Als PDF»: Datei mit Luftbild und SpotMap', async ({ browser }) => {
+test('Piccolo «Als PDF»: Datei mit Luftbild, SpotMap und Landeskarte', async ({ browser }) => {
   test.setTimeout(150_000);
   const start = await browser.newContext();
   const codes = await (await start.request.post('/api/lage', { data: { name: 'Übung Aare', erstellPasswort: 'e2e' } })).json();
@@ -90,13 +90,14 @@ test('Piccolo «Als PDF»: Datei mit Luftbild und SpotMap', async ({ browser }) 
   expect(d.suggestedFilename()).toMatch(/^ubung-aare-piccolo-\d{4}-\d{2}-\d{2}\.pdf$/);
   const pdf = readFileSync((await d.path())!);
   expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
-  expect(pdf.toString('latin1')).toContain('/Count 2');
+  expect(pdf.toString('latin1')).toContain('/Count 3');
   const seiten = seitenbilder(pdf);
-  expect(seiten).toHaveLength(2);
+  expect(seiten).toHaveLength(3);
   for (const s of seiten) expect([...s.subarray(0, 2)]).toEqual([0xff, 0xd8]);
   await expect(piccolo.getByRole('button', { name: 'Als PDF' })).toBeEnabled();
 
   await bild(p, seiten[0], 'luftbild');
   await bild(p, seiten[1], 'spotmap');
+  await bild(p, seiten[2], 'landeskarte');
   await ctx.close();
 });

@@ -63,7 +63,7 @@
       const { rasterPdf, speichere } = await import('./ausdruck.ts'); // PDF-Druck erst bei Bedarf laden
       const { blob, name: datei, fehlen } = await rasterPdf(r, store.lage?.name ?? 'Lage', [...store.taufen.values()]);
       if (!(await speichere(blob, datei))) toast('PDF braucht eine neuere App-Version – im Browser öffnen.', 5000);
-      else if (fehlen) toast(`PDF erstellt, ${fehlen} Luftbild-Kacheln fehlen (offline?).`, 5000);
+      else if (fehlen) toast(`PDF erstellt, ${fehlen} Kartenkacheln fehlen (offline?).`, 5000);
     } catch (e) {
       toast(`PDF fehlgeschlagen: ${(e as Error).message}`);
     } finally {

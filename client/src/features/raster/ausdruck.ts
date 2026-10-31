@@ -1,29 +1,32 @@
-// PDF je Führungsraster (Juan 30.10.): Seite 1 Luftbild mit Raster, Seite 2 SpotMap (Luftbild mit Taufen und Fassaden)
-// mit Raster. Gezeichnet auf ein Canvas (kein WebGL, keine zweite Karte), Luftbild-Kacheln zuerst aus den
-// Offline-Gebieten, sonst gedrosselt aus dem Netz. Geometrie und PDF-Aufbau rein in druck.ts / pdf.ts.
+// PDF je Führungsraster (Juan 30.10., Aufbau nach seiner Vorlage): Luftbild, SpotMap (Luftbild mit Taufen und
+// Fassaden) und Landeskarte, je mit Raster. Gezeichnet auf ein Canvas (kein WebGL, keine zweite Karte), Kacheln zuerst
+// aus den Offline-Gebieten, sonst gedrosselt aus dem Netz. Geometrie, Tabellenfelder und PDF-Aufbau rein in druck.ts / pdf.ts.
 import type { Raster, Taufe } from '../../../../shared/protocol.ts';
 import { RASTER_NAME, zuLv95 } from '../../../../shared/raster.ts';
 import { oeffneSpeicher } from '../../lib/kachelspeicher.ts';
-import { BASISKARTEN, kachelUrl } from '../../lib/karten.ts';
+import { BASISKARTEN, kachelUrl, type Basiskarte } from '../../lib/karten.ts';
 import { istApp } from '../../lib/umgebung.ts';
 import { drossel, PARALLEL } from '../offline/laden.ts';
 import { FASSADE_FARBE } from '../taufe/fassaden.ts';
 import { FAMILIE_FARBE, LABEL_RANG, labelAnker, platziere, polygoneVon, taufFeatures, ZIEL_FARBE, type LabelWunsch } from '../taufe/darstellung.ts';
 import type { Xy } from './beschriftung.ts';
-import { blatt, blattKoepfe, dateiName, massstabText, RAND, TITEL_H, TILE, kachelPlan, type Blatt, type KachelPlan } from './druck.ts';
+import { blatt, blattFelder, dateiName, TILE, kachelPlan, type Blatt, type Feld, type KachelPlan, type SeitenArt } from './druck.ts';
 import { pdfAusJpegs } from './pdf.ts';
 
 /** 200 dpi: A4 quer = 2339 × 1654 px je Seite */
 const PX_JE_PT = 200 / 72;
 const DUNKEL = '#161b1f';
+/** Grau der Kopffelder (Vorlage) */
+const GRAU = '#9e9e9e';
 const SCHRIFT = 'system-ui, sans-serif';
-const LUFTBILD = kachelUrl(BASISKARTEN.find((k) => k.id === 'luftbild')!);
+const fett = (px: number) => `700 ${px}px ${SCHRIFT}`;
 
 type Kacheln = Map<string, ImageBitmap>;
 type Pos = [number, number];
 
-/** Luftbild-Kacheln des Plans: Offline-Gebiet, sonst Netz (in der PWA über den Kachel-Cache des Service Workers). */
-async function ladeKacheln(plan: KachelPlan): Promise<{ kacheln: Kacheln; fehlen: number }> {
+/** Kacheln des Plans für eine Basiskarte: Offline-Gebiet, sonst Netz (in der PWA über den Kachel-Cache des Service Workers). */
+async function ladeKacheln(plan: KachelPlan, karte: Basiskarte): Promise<{ kacheln: Kacheln; fehlen: number }> {
+  const vorlage = kachelUrl(BASISKARTEN.find((k) => k.id === karte)!);
   const speicher = await oeffneSpeicher();
   // ponytail: eigene Drossel je Ausdruck (wie ein Offline-Download); läuft gleichzeitig ein Download, teilen sie sich das Limit nicht
   const warte = drossel({ schlafe: (ms) => new Promise((r) => setTimeout(r, ms)), jetzt: () => Date.now() });
@@ -34,7 +37,7 @@ async function ladeKacheln(plan: KachelPlan): Promise<{ kacheln: Kacheln; fehlen
   async function arbeiter() {
     while (i < liste.length) {
       const { x, y } = liste[i++];
-      const url = LUFTBILD.replace('{z}', String(plan.z)).replace('{x}', String(x)).replace('{y}', String(y));
+      const url = vorlage.replace('{z}', String(plan.z)).replace('{x}', String(x)).replace('{y}', String(y));
       try {
         let r = await speicher?.match(url).catch(() => undefined);
         if (!r) {
@@ -51,7 +54,7 @@ async function ladeKacheln(plan: KachelPlan): Promise<{ kacheln: Kacheln; fehlen
   return { kacheln, fehlen: liste.length - kacheln.size };
 }
 
-function zeichneLuftbild(ctx: CanvasRenderingContext2D, plan: KachelPlan, kacheln: Kacheln) {
+function zeichneKacheln(ctx: CanvasRenderingContext2D, plan: KachelPlan, kacheln: Kacheln) {
   ctx.fillStyle = '#d6d6d6';
   ctx.fillRect(0, 0, 1e4, 1e4);
   ctx.transform(...plan.matrix);
@@ -73,44 +76,98 @@ function linie(ctx: CanvasRenderingContext2D, punkte: Xy[], farbe: string, breit
   ctx.setLineDash([]);
 }
 
-/** Raster: Rahmen kräftig, Zelllinien dünn, Viertel gestrichelt (wenn die Zellen gross genug sind); immer mit weissem Saum. */
+/** Zelllinien dünn schwarz wie in der Vorlage (ohne Viertel, ohne Saum); den Rahmen zeichnet die Tabelle. */
 function zeichneRaster(ctx: CanvasRenderingContext2D, r: Raster, b: Blatt) {
   const { x, y, w, h } = b.rahmen;
   const zelle = w / r.spalten;
-  const senk = (t: number) => [{ x: x + t * zelle, y }, { x: x + t * zelle, y: y + h }];
-  const waag = (t: number) => [{ x, y: y + t * zelle }, { x: x + w, y: y + t * zelle }];
-  // o = 0: Zellgrenzen, o = 0.5: Viertellinien durch die Zellmitten
-  const linien = (o: number) => [
-    ...Array.from({ length: o ? r.spalten : r.spalten - 1 }, (_, i) => senk(i + (o || 1))),
-    ...Array.from({ length: o ? r.zeilen : r.zeilen - 1 }, (_, i) => waag(i + (o || 1))),
-  ];
-  if (zelle >= 24)
-    for (const l of linien(0.5)) {
-      linie(ctx, l, '#fff', 1, 0.7, [2, 2]);
-      linie(ctx, l, DUNKEL, 0.45, 1, [2, 2]);
-    }
-  for (const l of linien(0)) {
-    linie(ctx, l, '#fff', 1.4, 0.8);
-    linie(ctx, l, DUNKEL, 0.6);
-  }
-  const ring = [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }, { x, y }];
-  linie(ctx, ring, '#fff', 3.4);
-  linie(ctx, ring, DUNKEL, 1.6);
+  ctx.beginPath();
+  for (let i = 1; i < r.spalten; i++) (ctx.moveTo(x + i * zelle, y), ctx.lineTo(x + i * zelle, y + h));
+  for (let j = 1; j < r.zeilen; j++) (ctx.moveTo(x, y + j * zelle), ctx.lineTo(x + w, y + j * zelle));
+  ctx.strokeStyle = DUNKEL;
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
 }
 
-function zeichneKoepfe(ctx: CanvasRenderingContext2D, r: Raster, b: Blatt) {
-  ctx.font = `800 8px ui-monospace, Menlo, monospace`;
+/** Nordpfeil als Windrose mit N, E, S, W wie in der Vorlage. */
+function nordrose(ctx: CanvasRenderingContext2D, f: Feld) {
+  const cx = f.x + f.w / 2;
+  const cy = f.y + f.h / 2;
+  const R = Math.min(f.w, f.h) / 2 - 7;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4 - Math.PI / 2;
+    const l = i % 2 ? R * 0.28 : R;
+    ctx.lineTo(cx + l * Math.cos(a), cy + l * Math.sin(a));
+  }
+  ctx.closePath();
+  ctx.fillStyle = DUNKEL;
+  ctx.fill();
+  ctx.font = fett(5);
+  for (const [t, dx, dy] of [['N', 0, -1], ['E', 1, 0], ['S', 0, 1], ['W', -1, 0]] as const) ctx.fillText(t, cx + dx * (R + 3.5), cy + dy * (R + 3.5) + 0.3);
+}
+
+/** Massstabsbalken: Doppelpfeil über `n` Zellen mit der Länge darin (Vorlage), daneben die Massstabszahl. */
+function massstabsbalken(ctx: CanvasRenderingContext2D, f: Feld, b: Blatt) {
+  const l = f.meter! * b.ptJeM;
+  const x0 = f.x + 2;
+  const x1 = f.x + l - 2;
+  const cy = f.y + f.h / 2;
+  const s = f.h * 0.18;
+  const k = Math.min(f.h * 0.45, (x1 - x0) / 3);
+  ctx.beginPath();
+  ctx.moveTo(x0, cy);
+  for (const [x, y] of [[x0 + k, cy - 2 * s], [x0 + k, cy - s], [x1 - k, cy - s], [x1 - k, cy - 2 * s], [x1, cy], [x1 - k, cy + 2 * s], [x1 - k, cy + s], [x0 + k, cy + s], [x0 + k, cy + 2 * s]]) ctx.lineTo(x, y);
+  ctx.closePath();
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.strokeStyle = DUNKEL;
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+  ctx.fillStyle = DUNKEL;
+  ctx.font = fett(Math.min(7, s * 1.8));
+  ctx.fillText(`${f.meter} m`, (x0 + x1) / 2, cy + 0.3, x1 - x0 - 2 * k);
+  const rest = f.x + f.w - (f.x + l);
+  if (rest < 22) return;
+  ctx.fillStyle = '#fff';
+  ctx.font = fett(9);
+  ctx.fillText(f.text, f.x + l + rest / 2, cy + 0.5, rest - 4);
+}
+
+/** Tabelle rund ums Kartenfeld (druck.blattFelder), Rahmen kräftig. */
+function zeichneFelder(ctx: CanvasRenderingContext2D, r: Raster, b: Blatt, felder: Feld[], lage: string, datum: Date) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  for (const k of blattKoepfe(r, b)) {
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(k.x, k.y, k.w, k.h);
+  for (const f of felder) {
+    ctx.fillStyle = f.stil === 'hell' ? '#fff' : GRAU;
+    ctx.fillRect(f.x, f.y, f.w, f.h);
     ctx.strokeStyle = DUNKEL;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(k.x, k.y, k.w, k.h);
-    ctx.fillStyle = DUNKEL;
-    ctx.fillText(k.text, k.x + k.w / 2, k.y + k.h / 2 + 0.5);
+    ctx.lineWidth = 0.8;
+    ctx.strokeRect(f.x, f.y, f.w, f.h);
+    ctx.fillStyle = f.stil === 'hell' ? DUNKEL : '#fff';
+    const cy = f.y + f.h / 2 + 0.5;
+    if (f.art === 'nord') nordrose(ctx, f);
+    else if (f.art === 'massstab') massstabsbalken(ctx, f, b);
+    else if (f.art === 'lage') {
+      ctx.fillStyle = DUNKEL;
+      ctx.font = fett(12);
+      ctx.fillText(lage, f.x + f.w / 2, cy, f.w * 0.5);
+      ctx.font = fett(8);
+      ctx.textAlign = 'left';
+      ctx.fillText(`Zelle ${r.zellM} m · ${r.spalten} × ${r.zeilen}`, f.x + 6, cy, f.w * 0.22);
+      ctx.textAlign = 'right';
+      ctx.fillText(datum.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' }), f.x + f.w - 6, cy, f.w * 0.22);
+      ctx.textAlign = 'center';
+    } else if (f.text) {
+      ctx.font = fett(Math.min(12, f.h * 0.6));
+      ctx.fillText(f.text, f.mitte ?? f.x + f.w / 2, cy, f.w - 2);
+    }
   }
+  const { tabelle: t, rahmen: k } = b;
+  ctx.strokeStyle = DUNKEL;
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(k.x, k.y, k.w, k.h);
+  ctx.lineWidth = 1.8;
+  ctx.strokeRect(t.x, t.y, t.w, t.h);
 }
 
 // --- SpotMap ---------------------------------------------------------------------------------------------
@@ -142,6 +199,7 @@ function zeichneTaufen(ctx: CanvasRenderingContext2D, taufen: Taufe[], b: Blatt)
         }
       }
     } else if (rolle === 'linie') {
+      if (familie === 'strasse') continue; // Vorlage: Strassen nur als rote Schrift entlang der Achse
       const teile = g.type === 'LineString' ? [g.coordinates as Pos[]] : (g as GeoJSON.MultiLineString).coordinates as Pos[][];
       for (const t of teile) {
         linie(ctx, t.map(p), DUNKEL, 3.2, 0.35);
@@ -167,19 +225,20 @@ function zeichneTaufen(ctx: CanvasRenderingContext2D, taufen: Taufe[], b: Blatt)
   }
 }
 
-/** Namen wie auf der Karte (darstellung.platziere): Zielobjekte zuerst, Gebäude mit Führungslinie daneben, Strassen entlang der Achse. */
+/**\n * Namen wie auf der Karte (darstellung.platziere): Zielobjekte zuerst, Gebäude mit Führungslinie daneben, Strassen entlang\n * der Achse. Schreibweise und Kästchen wie in der Vorlage: Grossbuchstaben, Gebäude braun mit weisser Schrift.\n */
 function zeichneNamen(ctx: CanvasRenderingContext2D, taufen: Taufe[], b: Blatt) {
   const p = ([lon, lat]: Pos): Xy => b.zu(zuLv95({ lat, lon }));
-  const k = b.karte;
+  const k = b.rahmen;
   const schrift = (t: Taufe) => `${t.familie === 'gewaesser' && !t.ziel ? 'italic ' : ''}800 ${t.familie === 'strasse' ? 7.5 : 7}px ${SCHRIFT}`;
   const liste = [...taufen].sort((a, c) => Number(c.ziel) - Number(a.ziel) || LABEL_RANG[a.familie] - LABEL_RANG[c.familie]);
   const wuensche: (LabelWunsch & { t: Taufe; winkel: number; tw: number })[] = [];
+  const text = (t: Taufe) => t.name.toUpperCase();
   for (const t of liste) {
     const anker = labelAnker(t.geometrie);
     const a = p(anker.punkt);
     if (a.x < k.x || a.y < k.y || a.x > k.x + k.w || a.y > k.y + k.h) continue;
     ctx.font = schrift(t);
-    const tw = ctx.measureText(t.name).width;
+    const tw = ctx.measureText(text(t)).width;
     const w = tw + 6;
     const h = 10;
     let winkel = 0;
@@ -227,63 +286,24 @@ function zeichneNamen(ctx: CanvasRenderingContext2D, taufen: Taufe[], b: Blatt) 
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 2.4;
       ctx.lineJoin = 'round';
-      ctx.strokeText(t.name, 0, 0.5);
+      ctx.strokeText(text(t), 0, 0.5);
       ctx.fillStyle = farbe;
     };
     if (t.ziel) (box(ZIEL_FARBE, DUNKEL), (ctx.fillStyle = '#111'));
-    else if (t.familie === 'gebaeude') (box('#fff', DUNKEL), (ctx.fillStyle = '#111'));
+    else if (t.familie === 'gebaeude') (box('rgba(140,98,66,0.92)', DUNKEL), (ctx.fillStyle = '#fff'));
     else if (t.familie === 'wald') (box('rgba(93,58,26,0.88)'), (ctx.fillStyle = '#fff'));
     else if (t.familie === 'flaeche') (box('rgba(255,243,196,0.88)', '#8a6d00'), (ctx.fillStyle = '#3e3000'));
     else halo(t.familie === 'strasse' ? '#e53935' : '#0277bd');
-    ctx.fillText(t.name, 0, 0.5);
+    ctx.fillText(text(t), 0, 0.5);
     ctx.restore();
   });
 }
 
-// --- Titelzeile ------------------------------------------------------------------------------------------
+// --- Seiten ---------------------------------------------------------------------------------------------
 
-function zeichneTitel(ctx: CanvasRenderingContext2D, r: Raster, b: Blatt, lage: string, seite: string, datum: Date) {
-  const y = RAND + TITEL_H / 2 - 2;
-  const rechts = b.format.w - RAND;
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = DUNKEL;
-  ctx.textAlign = 'left';
-  ctx.font = `800 15px ${SCHRIFT}`;
-  const kopf = `${RASTER_NAME[r.art].toUpperCase()} · ${seite}`;
-  ctx.fillText(kopf, RAND, y);
-  const x = RAND + ctx.measureText(kopf).width + 12;
-  ctx.font = `600 11px ${SCHRIFT}`;
-  ctx.fillText(lage, x, y);
+type Karte = { plan: KachelPlan; kacheln: Kacheln };
 
-  // rechts: Nordpfeil, Quadranten-Legende A B / C D, Massstab · Zelle · Grösse · Datum
-  const nx = rechts - 6;
-  ctx.beginPath();
-  ctx.moveTo(nx, y - 11);
-  ctx.lineTo(nx + 5, y + 4);
-  ctx.lineTo(nx, y + 1);
-  ctx.lineTo(nx - 5, y + 4);
-  ctx.closePath();
-  ctx.fill();
-  ctx.font = `800 7px ${SCHRIFT}`;
-  ctx.textAlign = 'center';
-  ctx.fillText('N', nx, y + 10);
-  const q = 9;
-  const lx = nx - 16 - 2 * q;
-  ctx.lineWidth = 0.7;
-  ctx.strokeStyle = DUNKEL;
-  ['A', 'B', 'C', 'D'].forEach((t, i) => {
-    const qx = lx + (i % 2) * q;
-    const qy = y - q + Math.floor(i / 2) * q;
-    ctx.strokeRect(qx, qy, q, q);
-    ctx.fillText(t, qx + q / 2, qy + q / 2 + 0.5);
-  });
-  ctx.textAlign = 'right';
-  ctx.font = `600 10px ${SCHRIFT}`;
-  const dat = datum.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  ctx.fillText(`${massstabText(b.massstab)} (A4) · Zelle ${r.zellM} m · ${r.spalten} × ${r.zeilen} · ${dat}`, lx - 10, y);
-}
-
-async function seite(r: Raster, b: Blatt, plan: KachelPlan, kacheln: Kacheln, lage: string, titel: string, taufen: Taufe[] | null, datum: Date): Promise<Uint8Array> {
+async function seite(r: Raster, b: Blatt, karte: Karte, art: SeitenArt, lage: string, taufen: Taufe[], datum: Date): Promise<Uint8Array> {
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(b.format.w * PX_JE_PT);
   canvas.height = Math.round(b.format.h * PX_JE_PT);
@@ -292,44 +312,48 @@ async function seite(r: Raster, b: Blatt, plan: KachelPlan, kacheln: Kacheln, la
   basis();
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, b.format.w, b.format.h);
-  const { x, y, w, h } = b.karte;
+  const { x, y, w, h } = b.rahmen;
   ctx.save();
   ctx.beginPath();
   ctx.rect(x, y, w, h);
   ctx.clip();
-  zeichneLuftbild(ctx, plan, kacheln);
+  zeichneKacheln(ctx, karte.plan, karte.kacheln);
   basis();
-  if (taufen) zeichneTaufen(ctx, taufen, b);
+  if (art === 'spotmap') zeichneTaufen(ctx, taufen, b);
   zeichneRaster(ctx, r, b);
-  if (taufen) zeichneNamen(ctx, taufen, b);
+  if (art === 'spotmap') zeichneNamen(ctx, taufen, b);
   ctx.restore();
   basis();
-  ctx.strokeStyle = DUNKEL;
-  ctx.lineWidth = 0.6;
-  ctx.strokeRect(x, y, w, h);
-  zeichneKoepfe(ctx, r, b);
-  zeichneTitel(ctx, r, b, lage, titel, datum);
+  zeichneFelder(ctx, r, b, blattFelder(r, b, art), lage, datum);
   const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, 'image/jpeg', 0.85));
   if (!blob) throw new Error('Bild konnte nicht erzeugt werden');
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-/** PDF mit zwei Seiten (Luftbild, SpotMap). `fehlen`: Luftbild-Kacheln, die weder offline noch im Netz da waren. */
+/** Seiten je Basiskarte in der Reihenfolge der Vorlage; die Kacheln einer Karte liegen nur so lange im Speicher, wie ihre Seiten brauchen. */
+const SEITEN: [Basiskarte, SeitenArt[]][] = [
+  ['luftbild', ['luftbild', 'spotmap']],
+  ['farbe', ['landeskarte']],
+];
+
+/** PDF mit drei Seiten (Luftbild, SpotMap, Landeskarte). `fehlen`: Kacheln, die weder offline noch im Netz da waren. */
 export async function rasterPdf(r: Raster, lage: string, taufen: Taufe[], datum = new Date()): Promise<{ blob: Blob; name: string; fehlen: number }> {
   const b = blatt(r);
   const plan = kachelPlan(b, PX_JE_PT);
-  const { kacheln, fehlen } = await ladeKacheln(plan);
-  try {
-    const px = { pxW: Math.round(b.format.w * PX_JE_PT), pxH: Math.round(b.format.h * PX_JE_PT) };
-    const seiten = [
-      { ...px, jpeg: await seite(r, b, plan, kacheln, lage, 'Luftbild', null, datum) },
-      { ...px, jpeg: await seite(r, b, plan, kacheln, lage, 'SpotMap', taufen, datum) },
-    ];
-    const pdf = pdfAusJpegs(seiten, b.format.w, b.format.h, `${lage} · ${RASTER_NAME[r.art]}`);
-    return { blob: new Blob([pdf as BlobPart], { type: 'application/pdf' }), name: dateiName(lage, r.art, datum), fehlen };
-  } finally {
-    for (const k of kacheln.values()) k.close();
+  const px = { pxW: Math.round(b.format.w * PX_JE_PT), pxH: Math.round(b.format.h * PX_JE_PT) };
+  const seiten = [];
+  let fehlen = 0;
+  for (const [basiskarte, arten] of SEITEN) {
+    const { kacheln, fehlen: f } = await ladeKacheln(plan, basiskarte);
+    fehlen += f;
+    try {
+      for (const art of arten) seiten.push({ ...px, jpeg: await seite(r, b, { plan, kacheln }, art, lage, taufen, datum) });
+    } finally {
+      for (const k of kacheln.values()) k.close();
+    }
   }
+  const pdf = pdfAusJpegs(seiten, b.format.w, b.format.h, `${lage} · ${RASTER_NAME[r.art]}`);
+  return { blob: new Blob([pdf as BlobPart], { type: 'application/pdf' }), name: dateiName(lage, r.art, datum), fehlen };
 }
 
 /** Android-App: native Brücke aus MainActivity (Teilen-Dialog: speichern, senden, drucken). */

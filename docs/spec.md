@@ -199,15 +199,20 @@ Zweck: ein für die Aktion fixiertes Gitter, damit auch Leute nur mit Funk präz
 
 ### PDF-Ausdruck (`features/raster/ausdruck.ts`, Logik in `druck.ts`, `pdf.ts`)
 - Panel «Führungsraster» › je Raster «Als PDF» (ein Tipp, für alle, die das Raster sehen; auch eine Vorschau). Während es entsteht: «PDF entsteht …».
-- Ein PDF je Raster, A4 quer, zwei Seiten: **Luftbild** mit Raster und **SpotMap** (Luftbild mit Taufen, Fassadenlinien, Stosspfeilen und Namen wie auf der Karte) mit Raster. Keine Einstufung.
-- Blatt nordausgerichtet in LV95: Raster achsparallel, mittig, im kleinsten runden Massstab (Mantisse auf 0,5 gerundet, z.B. Grande 21 × 15 à 80 m → 1:7'000, Piccolo à 10 m → 1:900), Luftbild bis zum Blattrand. Zelllinien dünn, Viertel gestrichelt ab ca. 8 mm Zellgrösse, Rahmen kräftig, alles mit weissem Saum, ohne Seitenfarben. Köpfe rundum wie auf der Karte (`koepfe()` aus `beschriftung.ts`).
-- Titelzeile: «PICCOLO · SpotMap», Lagename; rechts Massstab, Zellgrösse, Spalten × Zeilen, Datum, Quadranten-Legende A B / C D, Nordpfeil.
-- Gezeichnet auf ein Canvas (200 dpi), keine zweite Karte: Luftbild-Kacheln (Web-Mercator, Stufe passend zur Auflösung, höchstens z19) per affiner Abbildung aufs LV95-Blatt. Kacheln zuerst aus den Offline-Gebieten, sonst aus dem Netz mit der Drossel der Offline-Gebiete (in der PWA über den Kachel-Cache). Fehlende Kacheln bleiben grau, Hinweis «… Luftbild-Kacheln fehlen».
+- Ein PDF je Raster, A4 quer, drei Seiten in der Reihenfolge der Vorlage: **Luftbild**, **SpotMap** (Luftbild mit Taufen, Fassadenlinien, Stosspfeilen und Namen) und **Landeskarte**, je mit Raster. Keine Einstufung.
+- Aufbau wie Juans Vorlage (31.10. abgeglichen): das Raster ist eine Tabelle, die Karte füllt genau den Rahmen (nichts ausserhalb). Rundum Felder (`blattFelder()` in `druck.ts`):
+  - oben links Quadranten-Legende A B / C D (2 × 2 Felder), oben rechts Nordpfeil (Windrose N/E/S/W);
+  - Titelzeile über den Spalten in Dritteln: Massstabsbalken (Doppelpfeil über 5 von 7 Spalten, z.B. «50 m» beim Piccolo, «400 m» beim Grande, daneben «1:900») | Seitenart («LUFTBILD», «SPOTMAP», «LANDESKARTE») | Rastername («PICCOLO»). Wo die Vorlage die Einstufung hat, steht die Seitenart;
+  - Spaltenköpfe oben weiss, unten grau, je eine Zelle breit; Zeilenköpfe links und rechts grau mit weisser Schrift (bei schmalen Zellen jede k-te, das Feld deckt k Zellen). Ohne Seitenfarben (die Vorlage hat beim Piccolo rote/grüne Zeilenköpfe und schwarze Spaltenköpfe unten);
+  - Fusszeile: Lagename mittig, links Zelle und Spalten × Zeilen, rechts Datum.
+- Blatt nordausgerichtet in LV95: Raster achsparallel, Tabelle mittig, Rand 12 pt (≈ 4 mm), Kopfzeilen 20 pt, Zeilenköpfe 32 pt; kleinster runder Massstab (Mantisse auf 0,5 gerundet, z.B. Grande 21 × 15 à 80 m → 1:7'000, Piccolo à 10 m → 1:900). Zelllinien dünn schwarz ohne Saum und ohne Viertellinien (wie die Vorlage), Rahmen und Tabelle kräftig.
+- SpotMap wie die Vorlage beschriftet: Namen in Grossbuchstaben, Gebäude im braunen Kästchen mit weisser Schrift und Führungslinie, Zielobjekte gelb, Wald dunkelbraun, Strassen nur als rote Schrift entlang der Achse (ohne Linie). Fassaden und Stosspfeile wie auf der Karte (nicht in der Vorlage, Entscheid «Stossrichtung/Fassaden»).
+- Gezeichnet auf ein Canvas (200 dpi), keine zweite Karte: Kacheln von Luftbild bzw. Landeskarte (Web-Mercator, Stufe passend zur Auflösung, höchstens z19) per affiner Abbildung aufs LV95-Blatt. Kacheln zuerst aus den Offline-Gebieten, sonst aus dem Netz mit der Drossel der Offline-Gebiete (in der PWA über den Kachel-Cache); je Karte nur so lange im Speicher, wie ihre Seiten brauchen. Fehlende Kacheln bleiben grau, Hinweis «… Kartenkacheln fehlen».
 - PDF selbst geschrieben (je Seite ein JPEG, keine neue Abhängigkeit). Dateiname `<lage>-<art>-<datum>.pdf`.
 - Browser/PWA: Download. Android-App: `window.LagebildDatei.teile()` aus `MainActivity` legt die Datei in den Cache und öffnet den Teilen-Dialog (speichern, senden, drucken); der WebView selbst kennt weder Downloads noch `window.print()`. Ältere App ohne diese Brücke: Hinweis, im Browser zu öffnen.
 
 ### Später
-A3 im PDF (in `druck.ts` nur ein anderes Format, bräuchte eine Auswahl); Landeskarte als dritte Seite (Vorlage hat je ein Blatt Luftbild und Landeskarte). Offline-Gebiet aus dem Raster: erledigt (30.10.), Raster-Detail › «Offline-Gebiet …» belegt das Aufziehen mit dem Rahmen + 10 % Rand vor.
+A3 im PDF (in `druck.ts` nur ein anderes Format, bräuchte eine Auswahl); SpotMap ohne Raster als Übersicht (letzte Seite der Vorlage); Landeskarte als dritte Seite: erledigt (31.10.). Offline-Gebiet aus dem Raster: erledigt (30.10.), Raster-Detail › «Offline-Gebiet …» belegt das Aufziehen mit dem Rahmen + 10 % Rand vor.
 
 ## Geländetaufe (30.10.2026, Entscheide im README «Geländetaufe & Führungsraster», «Stossrichtung/Fassaden», «Taufe-Details»)
 
