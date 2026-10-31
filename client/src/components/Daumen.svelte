@@ -265,6 +265,7 @@
   /* bei grosser Schrift weicht zuerst «verbunden», die Lampe bleibt */
   .verbindung {
     min-width: 8px; /* die Lampe */
+    flex-shrink: 20; /* quer neben offenem Panel wurde «Übung Aare» zu «Übu…», während «ver…» blieb */
   }
   .vtext {
     min-width: 0;
