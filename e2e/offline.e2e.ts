@@ -2,7 +2,7 @@
 // Alle Kachel-Anfragen gehen an page.route (Farbkacheln), nichts an swisstopo. Service Worker aus, sonst sieht route nichts.
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { crc32, deflateSync } from 'node:zlib';
-import { beitreten, dokuBild, HOCH, indieMission, neueMission, wische } from './hilfen.ts';
+import { beitreten, dokuBild, HOCH, indieMission, kartenMitte, neueMission, wische } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const GRUEN = [40, 170, 60] as const;
@@ -75,10 +75,7 @@ async function oeffneVerwaltung() {
 }
 
 /** Mitte der Karte: hoch randlos der ganze Bildschirm, quer rechts neben dem offenen Panel. */
-const mitte = async () => {
-  const b = (await page.locator('.maplibregl-canvas').boundingBox())!;
-  return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
-};
+const mitte = () => kartenMitte(page);
 
 /** Rechteck mit dem Finger aufziehen, symmetrisch um die Kartenmitte. */
 async function ziehe(dx: number, dy: number) {

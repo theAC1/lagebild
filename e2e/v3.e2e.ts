@@ -120,8 +120,6 @@ test('Mehr-Menü: übrige Werkzeuge, Panels zwischen linkem Rand und Karte', asy
   const panel = (await sheets(leitung).boundingBox())!;
   const links = await box(leitung, /^Eigener Status/);
   expect(panel.x).toBeGreaterThanOrEqual(links.x + links.width); // Melde-Rand bleibt frei
-  const karte = (await leitung.locator('.maplibregl-canvas').boundingBox())!;
-  expect(karte.x).toBeGreaterThanOrEqual(panel.x + panel.width - 1);
   await leitung.keyboard.press('Escape');
   await expect(sheets(leitung)).toHaveCount(0);
   // Esc schliesst auch das Menü selbst

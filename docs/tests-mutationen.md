@@ -1,7 +1,7 @@
 # Mutationsnachweis der Unit-Tests
 
 Je Zeile: eine gezielte Änderung am Produktivcode (Bedingung umgedreht, Prüfung entfernt, Grenzwert verschoben), der danach rote Test, Mutation zurückgenommen.
-Stand 2026-11-01: 286 von 286 Mutationen rot (37 aus Gerätekennung und Rollen, 10 aus den Gate-Auflagen Rollen, 17 aus dem Menü, 8 E2E-Mutationen aus den Nachbesserungen Menü, 01.11.); Stand 2026-10-31: 214 von 214 Mutationen rot (davon 7 aus der Taufe-Überarbeitung 31.10., von Hand). Erzeugt mit einem Runner-Skript (exakte Textersetzung, Testdatei laufen lassen, Datei wiederherstellen).
+Stand 2026-11-01: 317 von 318 Mutationen rot (37 aus Gerätekennung und Rollen, 10 aus den Gate-Auflagen Rollen, 17 aus dem Menü, 8 E2E-Mutationen aus den Nachbesserungen Menü, 4 aus Panels quer, 28 aus MilX/KML – davon eine bewusst grün, siehe dort); Stand 2026-10-31: 214 von 214 Mutationen rot (davon 7 aus der Taufe-Überarbeitung 31.10., von Hand). Erzeugt mit einem Runner-Skript (exakte Textersetzung, Testdatei laufen lassen, Datei wiederherstellen).
 
 ## client/src/features/alarm/logik.test.ts
 
@@ -583,3 +583,17 @@ Ohne Test (kein Verhalten, das klein prüfbar ist, Projektregel «kein Test-Bloa
 | `zeichnen/darstellung.ts` (`STUFE`) | C `●●` → `●` | Darstellung: Grenze | rot |
 
 Ohne Unit-Test (Oberfläche, E2E `e2e/austausch.e2e.ts`): Vorschau, Sperre der Leitungs-Ebene in der Liste, Beschriftungen auf der Karte, Download KML/MilX mit unverändertem Originalcode. Ohne Test: Fit auf das Importierte neben dem Panel, Knöpfe ins Bild scrollen, `accept` nur im Browser.
+## Panels quer (01.11., Juan: «das kreuz oben rechts funktioniert in 6 von 10 fällen nicht»)
+
+E2E `e2e/quer-layout.e2e.ts` «Panel: Kopf und ✕ ganz sichtbar, ✕ schliesst» (@layout; Projekt `quer` mit 851×393 und Juans
+Handy 891×411 bei DPR 3.5, Bediengrösse Klein; Projekt `quer-gross` mit 780×360; je Klassisch und Daumen, Panels Status und
+Führungsraster; Safe-Area oben 30, links 40, unten 15 per CDP `Emulation.setSafeAreaInsetsOverride`). Vor dem Fix rot
+(«851×393 klassisch Status oben: Kopf 0,74,319,128 ausserhalb des sicheren Bereichs»; Daumen: Kopf ab y = 0 unter der
+Statusleiste). 4 von 4 Mutationen rot (Runner wie oben, `playwright test e2e/quer-layout.e2e.ts -g "Kopf und ✕" --project quer`):
+
+| Produktivcode | Mutation | roter Test (erste Meldung) | Ergebnis |
+|---|---|---|---|
+| `client/src/app.css:102` | `top: calc(var(--safe-top) + 8px + var(--banner-h, 0px))` → `top: calc(8px + var(--banner-h, 0px))` | «851×393 daumen Status oben: Kopf 125,9,443,63 ausserhalb des sicheren Bereichs» | rot |
+| `client/src/app.css:82` | `--rand-l: env(safe-area-inset-left, 0px);` → `(entfernt)` | «851×393 klassisch Status oben: Kopf 9,83,327,137 ausserhalb des sicheren Bereichs» | rot |
+| `client/src/components/Sheet.svelte:111` | `width/min-height: max(44px, calc(48 * var(--u)))` → `(entfernt)` | «Juan 891×411 Klein klassisch Status: ✕ 41×41» | rot |
+| `client/src/components/Sheet.svelte:14` | `const left = offen ? Math.round(panels.getBoundingClientRect().right) : 0;` → `const left = 0;` | «851×393 klassisch Status: Kartenmitte neben dem Panel» | rot |
