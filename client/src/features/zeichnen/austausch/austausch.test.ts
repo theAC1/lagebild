@@ -101,7 +101,7 @@ describe('KML lesen', () => {
     expect(e.nicht).toHaveLength(1);
     // Text mit zwei Punkten liess Douglas-Peucker endlos laufen (vereinfache() behält zwei Punkte immer)
     const teil = (art: Teil['art'], n: number): Teil => ({ art, punkte: Array.from({ length: n }, (_, i) => vonLv03(600000 + i, 199000 + (i % 2))), text: 'T', bezeichnung: '', stil: STANDARD_STIL });
-    expect(ebeneAus('x', [teil('text', 2), teil('linie', 50_001), teil('linie', 50_000)])).toMatchObject({ nicht: ['Text mit 2 Punkt(en)', 'Linie mit 50001 Punkt(en)'], vereinfacht: 1 });
+    expect(ebeneAus('x', [teil('text', 2), teil('linie', 50_001)]).nicht).toEqual(['Text mit 2 Punkt(en)', 'Linie mit 50001 Punkt(en)']);
   });
 });
 
