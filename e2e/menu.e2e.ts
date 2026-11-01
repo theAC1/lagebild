@@ -1,13 +1,24 @@
 // Menü (Spec v7, Layout V4 «Karte als Menü»): Meine Missionen als Fähnchen, wechseln, Menü über der laufenden Mission,
 // unbekannte Missionen fallen heraus; Token-Haltung nach Wiederbeitritt (Close 4005) und «beendet» (Gate 01.11.).
-import { expect, test, type Browser, type Page, type WebSocketRoute } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Page, type WebSocketRoute } from '@playwright/test';
 import { beitreten, neueMission } from './hilfen.ts';
+
+// Geräte schliessen: offene Seiten liefen sonst mit Karte und Verbindung in die folgenden Testdateien hinein
+const offen: BrowserContext[] = [];
+test.afterEach(async () => {
+  await Promise.all(offen.splice(0).map((c) => c.close()));
+});
+const neuerKontext = async (browser: Browser, o = {}) => {
+  const c = await browser.newContext(o);
+  offen.push(c);
+  return c;
+};
 
 type Eintrag = { lageId: string; token: string; name: string; ansicht?: { mitte: [number, number]; zoom: number } };
 
 /** Gerät mit diesen Missionen (Stand vom letzten Besuch) und WebSocket-Mitschnitt: hallo-Tokens, Verbindungen, Abbrüche. */
 async function geraet(browser: Browser, missionen: Eintrag[], offen?: string) {
-  const ctx = await browser.newContext({ geolocation: { latitude: 46.948, longitude: 7.4474 } });
+  const ctx = await neuerKontext(browser, { geolocation: { latitude: 46.948, longitude: 7.4474 } });
   await ctx.addInitScript(
     ([m, t]) => {
       if (localStorage.getItem('lagebild.missionen')) return; // nur beim ersten Laden
@@ -43,8 +54,9 @@ const panel = (p: Page) => p.locator('section.panel');
 const boxen = (p: Page, sel: string) => p.locator(sel).evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON() as DOMRect));
 
 test('Meine Missionen: Fähnchen aufgefächert in der freien Karte, wechseln; Menü über der Mission hält die Verbindung; gelöschte fällt heraus @layout', async ({ browser }) => {
-  const aare = await neueMission((await browser.newContext()).request, 'Übung Aare', 'lv');
-  const wabern = await neueMission((await browser.newContext()).request, 'Häuserkampf Wabern', 'lv');
+  const { request } = await neuerKontext(browser);
+  const aare = await neueMission(request, 'Übung Aare', 'lv');
+  const wabern = await neueMission(request, 'Häuserkampf Wabern', 'lv');
   const bern = { mitte: [7.4474, 46.948] as [number, number], zoom: 14 };
   const { page, ws } = await geraet(browser, [
     { lageId: aare.lageId, token: aare.token, name: 'Übung Aare', ansicht: bern },
@@ -94,7 +106,7 @@ test('Meine Missionen: Fähnchen aufgefächert in der freien Karte, wechseln; Me
 });
 
 test('Token-Regel: nach 4005 erst mit dem neuen Token aus dem Speicher verbinden; «beendet» für ein altes Token meldet nicht ab', async ({ browser }) => {
-  const ctx = await browser.newContext();
+  const ctx = await neuerKontext(browser);
   const m = await neueMission(ctx.request, 'Übung Token', 'lv');
   const [alpha, bravo, charlie] = [await beitreten(ctx.request, m.teilnehmerCode, { rufname: 'Alpha' }), await beitreten(ctx.request, m.teilnehmerCode, { rufname: 'Bravo' }), await beitreten(ctx.request, m.teilnehmerCode, { rufname: 'Charlie' })];
   const { page, ws } = await geraet(browser, [{ lageId: m.lageId, token: alpha.token, name: 'Übung Token' }], alpha.token);
@@ -125,7 +137,7 @@ test('Token-Regel: nach 4005 erst mit dem neuen Token aus dem Speicher verbinden
 });
 
 test('Beitreten mit dem Code der offenen Mission (gleiches Gerät): 4005 kommt vor der Antwort, die Mission bleibt offen', async ({ browser }) => {
-  const m = await neueMission((await browser.newContext()).request, 'Übung Wieder', 'lv');
+  const m = await neueMission((await neuerKontext(browser)).request, 'Übung Wieder', 'lv');
   const { page, ws } = await geraet(browser, []);
   const beitreten = async () => {
     const form = page.locator('section.panel form');
