@@ -5,7 +5,7 @@
   import { store } from '../../lib/store.svelte.ts';
   import { toast } from '../../lib/ui.svelte.ts';
   import { aendere, kopiere, loesche } from './aktionen.ts';
-  import { GRENZE_TRENNER, grenzNamen, STUFE } from './darstellung.ts';
+  import { grenzBezeichnung, grenzNamen, STUFE } from './darstellung.ts';
   import { artLabel, FARBEN, mitStil, zuInhalt } from './logik.ts';
   import { darf, zn } from './zustand.svelte.ts';
 
@@ -44,8 +44,8 @@
   /** Grenze: Namen links/rechts in `bezeichnung`, Stufe (Spec v8). */
   function setzeGrenze(seite: 0 | 1, name: string) {
     const namen = grenzNamen(eine!.bezeichnung);
-    namen[seite] = name.replaceAll(GRENZE_TRENNER.trim(), '/').trim();
-    setzeFeld('bezeichnung', namen[1] ? namen.join(GRENZE_TRENNER) : namen[0]);
+    namen[seite] = name;
+    setzeFeld('bezeichnung', grenzBezeichnung(...namen));
   }
   function setzeStufe(stufe: string) {
     const { stufe: _, ...ohne } = zuInhalt(eine!);

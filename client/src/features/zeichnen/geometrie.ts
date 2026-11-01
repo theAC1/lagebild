@@ -194,17 +194,30 @@ export function mitteQuer(linie: Xy[], d: number): { mitte: Xy; links: Xy; recht
   return { mitte: p, links: add(p, n), rechts: sub(p, n), drehung: Math.abs(w) > 90 ? w - Math.sign(w) * 180 : w };
 }
 
-/** Polylinie vom Anfang bis zum Abstand `s` entlang der Linie. */
-function bis(linie: Xy[], s: number): Xy[] {
-  const aus: Xy[] = [linie[0]];
+/** Stück der Polylinie zwischen den Abständen `a` und `b` entlang der Linie. */
+function zwischen(linie: Xy[], a: number, b: number): Xy[] {
+  const aus: Xy[] = [entlang(linie, a).p];
   let t = 0;
   for (let i = 1; i < linie.length; i++) {
     t += Math.hypot(linie[i][0] - linie[i - 1][0], linie[i][1] - linie[i - 1][1]);
-    if (t >= s) break;
-    aus.push(linie[i]);
+    if (t >= b) break;
+    if (t > a) aus.push(linie[i]);
   }
-  aus.push(entlang(linie, s).p);
+  aus.push(entlang(linie, b).p);
   return aus;
+}
+
+/**
+ * Linie mit `n` gleich verteilten Lücken der Länge `luecke` (n = Länge/`abstand` gerundet, mindestens 1): die Stücke
+ * dazwischen und Mitte und Richtung jeder Lücke. Kürzer als zwei Lücken → ganze Linie ohne Lücke.
+ */
+export function unterbrochen(linie: Xy[], abstand: number, luecke: number): { stuecke: Xy[][]; luecken: { p: Xy; r: Xy }[] } {
+  const l = gesamtLaenge(linie);
+  if (l < 2 * luecke) return { stuecke: [linie], luecken: [] };
+  const n = Math.max(1, Math.round(l / abstand));
+  const mitten = Array.from({ length: n }, (_, i) => ((i + 0.5) * l) / n);
+  const kanten = [0, ...mitten.flatMap((m) => [m - luecke / 2, m + luecke / 2]), l];
+  return { stuecke: Array.from({ length: n + 1 }, (_, i) => zwischen(linie, kanten[2 * i], kanten[2 * i + 1])), luecken: mitten.map((m) => entlang(linie, m)) };
 }
 
 /**
@@ -221,7 +234,7 @@ export function pfeil(achse: Xy[], l: number, b: number): { schaft: Xy[]; kopf: 
   const r = norm(sub(ende, entlang(achse, gesamt - k).p));
   const fuss = sub(ende, mul(r, k));
   const n = mul(links(r), (b * k) / l);
-  return { schaft: bis(achse, gesamt - k / 2), kopf: [add(fuss, n), ende, sub(fuss, n), add(fuss, n)] };
+  return { schaft: zwischen(achse, 0, gesamt - k / 2), kopf: [add(fuss, n), ende, sub(fuss, n), add(fuss, n)] };
 }
 
 /**
@@ -251,7 +264,7 @@ export function stosspfeil(achse: Xy[], b: number): Xy[] {
   const l = gesamtLaenge(achse);
   const kopf = Math.min(1.5 * b, l * 0.6);
   const ansatz = entlang(achse, l - kopf);
-  const schaft = bis(achse, l - kopf); // Schaft endet am Kopfansatz
+  const schaft = zwischen(achse, 0, l - kopf); // Schaft endet am Kopfansatz
   const li = versatz(schaft, b / 2);
   const re = versatz(schaft, -b / 2);
   const n = links(ansatz.r);

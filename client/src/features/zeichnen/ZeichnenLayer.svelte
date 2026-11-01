@@ -32,7 +32,6 @@
     ['voll', null, 'round'],
     ['gestrichelt', [3, 2], 'butt'],
     ['gepunktet', [0.1, 2], 'round'],
-    ['strichpunkt', [5, 1.6, 1, 1.6], 'butt'],
   ];
   const fuellLayer = (q: string): LayerSpecification[] => [
     { id: `${q}-fuellung`, type: 'fill', source: q, filter: ['has', 'fuellung'], paint: { 'fill-color': ['get', 'fuellung'], 'fill-opacity': ['get', 'deckkraft'] } },
@@ -371,7 +370,7 @@
     font-size: calc(16px * var(--karte));
     text-shadow: 0 0 2px #161b1f, 0 0 2px #161b1f, 0 0 4px #161b1f;
   }
-  /* Grenze: Namen entlang der Linie, klein in Versalien in der Linienfarbe; Stufe im weissen Kästchen auf der Linie */
+  /* Grenze: Namen entlang der Linie, klein in Versalien in der Linienfarbe (Verbandszeichen zeichnet darstellung.ts) */
   :global(.zn-label.zn-grenze) {
     background: none;
     border: 0;
@@ -381,16 +380,6 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff;
-  }
-  :global(.zn-label.zn-stufe) {
-    padding: 0 4px;
-    border-radius: 2px;
-    background: #fff;
-    border-width: 1px;
-    color: var(--zn-farbe);
-    font-size: calc(9px * var(--karte));
-    line-height: 1.2;
-    letter-spacing: 0.05em;
   }
   :global(.zn-label.gewaehlt) {
     outline: 2px solid #4fc3f7;

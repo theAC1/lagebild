@@ -13,9 +13,9 @@ const MPP = 2;
 const norm = ([x, y]: Xy): Xy => [x / Math.hypot(x, y), y / Math.hypot(x, y)];
 
 describe('Darstellung', () => {
-  it('Linienarten: Phasenlinie beschriftet beide Enden, Grenze Strich-Punkt, Sperre mit Zacken, Pfeil und Stossrichtung gefüllt', () => {
+  it('Linienarten: Phasenlinie beschriftet beide Enden, Grenze ohne Stufe durchgezogen, Sperre mit Zacken, Pfeil und Stossrichtung gefüllt', () => {
     expect(darstelle(form({ art: 'phasenlinie', bezeichnung: 'Adler' }), MPP).beschriftungen.map((b) => [b.text, b.punkt])).toEqual([['PL Adler', A], ['PL Adler', B]]);
-    expect(darstelle(form({ art: 'grenze' }), MPP).features[0].properties!.strich).toBe('strichpunkt');
+    expect(darstelle(form({ art: 'grenze' }), MPP).features.map((f) => f.properties!.strich)).toEqual(['voll']);
     const s = darstelle(form({ art: 'sperre' }), MPP).features;
     expect(s).toHaveLength(2);
     expect((s[1].geometry as GeoJSON.LineString).coordinates).toHaveLength(55); // 1000 m / (18 px · 2 m/px) = 27 Zacken → 2·27+1
@@ -26,17 +26,33 @@ describe('Darstellung', () => {
     expect(darstelle(form({ art: 'stossrichtung' }), MPP).features[0].properties!.fuellung).toBe(STANDARD_STIL.farbe);
   });
 
-  it('Grenze (Spec v8): Stufe im Kästchen auf der Mitte, Namen links/rechts der Zeichenrichtung, Schrift entlang und nie kopfüber', () => {
-    const d = (punkte = [A, B]) => darstelle(form({ art: 'grenze', bezeichnung: 'NORD | SÜD', stufe: 'C', punkte }), MPP).beschriftungen;
-    const [stufe, links, rechts] = d(); // nach Osten gezeichnet: links = Norden
-    expect([stufe.text, stufe.art, links.text, rechts.text]).toEqual(['●●', 'stufe', 'NORD', 'SÜD']);
-    const ebene = lokal(stufe.punkt);
-    expect(ebene.hin(links.punkt)[1]).toBeCloseTo(PX.grenzName * MPP, 0);
-    expect(ebene.hin(rechts.punkt)[1]).toBeCloseTo(-PX.grenzName * MPP, 0);
-    expect(stufe.punkt.lon).toBeCloseTo((A.lon + B.lon) / 2, 6);
-    expect(d([B, A]).map((b) => b.drehung)).toEqual(Array(3).fill(expect.closeTo(0, 1))); // nach Westen: nicht kopfüber
+  it('Grenze (Spec v8, Juan 01.11.): je ~160 px eine Lücke mit dem Verbandszeichen ohne Kästchen, Namen links/rechts der Zeichenrichtung, nie kopfüber', () => {
+    const ebene = lokal(A);
+    // 1000 m bei 2 m/px = 500 px → 3 Lücken; Stufe C = ●●: zwei gefüllte Punkte je Lücke, quer genau auf der Linie
+    const { features } = darstelle(form({ art: 'grenze', stufe: 'C' }), MPP);
+    const x = (f: GeoJSON.Feature) => (f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : (f.geometry as GeoJSON.LineString).coordinates).map((c) => ebene.hin({ lon: c[0], lat: c[1] }));
+    const punkte = features.filter((f) => f.properties!.breite === 8); // Punkt Ø 8 px: winzige Linie mit runden Enden
+    const stuecke = features.filter((f) => !punkte.includes(f)).map((f) => x(f).map((p) => p[0]));
+    expect(stuecke).toHaveLength(4);
+    expect(punkte).toHaveLength(6);
+    expect(features.every((f) => f.properties!.farbe === STANDARD_STIL.farbe && f.properties!.strich === 'voll')).toBe(true);
+    const mitten = punkte.map((f) => x(f)).map((ps) => [0, 1].map((k) => (Math.min(...ps.map((p) => p[k])) + Math.max(...ps.map((p) => p[k]))) / 2));
+    mitten.forEach(([, y]) => expect(Math.abs(y)).toBeLessThan(0.1));
+    // Lücke und Zeichen passen: kein Punkt (Radius 4 px) näher als 4 px an einem Linienende samt runder Kappe
+    for (const [mx] of mitten) for (const st of stuecke) expect(mx < Math.min(...st) - (4 + 4 + 1.5) * MPP + 0.1 || mx > Math.max(...st) + (4 + 4 + 1.5) * MPP - 0.1, `${mx}`).toBe(true);
+    const l = Math.max(...stuecke.flat()); // Lücken bei 1/6, 3/6, 5/6 der Länge, die Punkte 10 px auseinander
+    expect(mitten.map(([mx]) => mx)).toEqual([1, 3, 5].flatMap((k) => [(k * l) / 6 - 5 * MPP, (k * l) / 6 + 5 * MPP].map((v) => expect.closeTo(v, 2))));
+
+    const d = (punkte = [A, B], bezeichnung = 'NORD | SÜD') => darstelle(form({ art: 'grenze', bezeichnung, punkte }), MPP).beschriftungen;
+    const [links, rechts] = d(); // nach Osten gezeichnet: links = Norden
+    expect([links.text, rechts.text]).toEqual(['NORD', 'SÜD']);
+    const m = lokal({ lat: A.lat, lon: (A.lon + B.lon) / 2 });
+    expect(m.hin(links.punkt)[1]).toBeCloseTo(PX.grenzName * MPP, 0);
+    expect(m.hin(rechts.punkt)[1]).toBeCloseTo(-PX.grenzName * MPP, 0);
+    expect(m.hin(d(undefined, '| SÜD')[0].punkt)[1]).toBeLessThan(0); // nur rechts (Vertrag trimmt « | SÜD»): bleibt rechts
+    expect(d([B, A]).map((b) => b.drehung)).toEqual(Array(2).fill(expect.closeTo(0, 1))); // nach Westen: nicht kopfüber
     expect(d([B, C])[0].drehung).toBeCloseTo(-90, 1); // nach Norden
-    expect(ebene.hin(d([B, A])[1].punkt)[1]).toBeLessThan(0); // nach Westen gezeichnet: links = Süden
+    expect(m.hin(d([B, A])[0].punkt)[1]).toBeLessThan(0); // nach Westen gezeichnet: links = Süden
   });
 
   describe('Pfeilkopf (Rückmeldung 30.10.: «passt nicht wirklich»)', () => {

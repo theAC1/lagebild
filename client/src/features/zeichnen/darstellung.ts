@@ -1,23 +1,29 @@
 // Zeichnung → GeoJSON für die MapLibre-Layer und HTML-Beschriftungen (der Kartenstil hat keine Glyphen).
 // Eigene Umsetzung, angelehnt an APP-6D: Phasenlinie, Grenze, Stossrichtung, Sperre, Räume mit Schraffur.
 import type { Punkt, RaumArt, Stil, Stufe, Zeichnung, ZeichnungArt } from '../../../../shared/protocol.ts';
-import { kreisRing, lokal, linienMitte, mittelpunkt, mitteQuer, pfeil, rechteckRing, stosspfeil, zacken, type Xy } from './geometrie.ts';
+import { kreisRing, lokal, linienMitte, mittelpunkt, mitteQuer, pfeil, rechteckRing, stosspfeil, unterbrochen, zacken, type Xy } from './geometrie.ts';
 
 /** Was gezeichnet wird – Zeichnung, Entwurf oder Vorschau. */
 export type Form = Pick<Zeichnung, 'id' | 'art' | 'punkte' | 'text' | 'bezeichnung' | 'stil'> & Partial<Pick<Zeichnung, 'raumArt' | 'radiusM' | 'stufe'>>;
 
-export type Strich = Stil['strich'] | 'strichpunkt';
+export type Strich = Stil['strich'];
 export type Muster = 'schraeg' | 'kreuz';
 /** `drehung`: Grad im Uhrzeigersinn, dreht mit der Karte (Schrift entlang einer Linie). */
-export type Beschriftung = { id: string; punkt: Punkt; text: string; ueber?: string; art: 'text' | 'pl' | 'raum' | 'linie' | 'grenze' | 'stufe'; drehung?: number };
+export type Beschriftung = { id: string; punkt: Punkt; text: string; ueber?: string; art: 'text' | 'pl' | 'raum' | 'linie' | 'grenze'; drehung?: number };
 
 /** Zwei Namen einer Grenze in `bezeichnung`: links und rechts der Zeichenrichtung (MilX-Attribute T und T1). */
 export const GRENZE_TRENNER = ' | ';
+/** Am ersten «|» getrennt: der Vertrag trimmt, aus « | RECHTS» (nur rechts) wird «| RECHTS». */
 export const grenzNamen = (bez: string): [string, string] => {
-  const [a = '', ...b] = bez.split(GRENZE_TRENNER);
-  return [a.trim(), b.join(GRENZE_TRENNER).trim()];
+  const i = bez.indexOf('|');
+  return i < 0 ? [bez.trim(), ''] : [bez.slice(0, i).trim(), bez.slice(i + 1).trim()];
 };
-/** Führungsstufen nach APP-6A: Zeichen im Kästchen auf der Grenze. */
+/** Zwei Namen → `bezeichnung`; «|» in einem Namen wird «/». */
+export const grenzBezeichnung = (links: string, rechts: string): string => {
+  const [l, r] = [links, rechts].map((n) => n.replaceAll('|', '/').trim());
+  return r ? `${l}${GRENZE_TRENNER}${r}` : l;
+};
+/** Führungsstufen nach APP-6A (Stelle 12): Verbandszeichen in den Lücken der Grenze. */
 export const STUFE: Record<Stufe, { zeichen: string; name: string }> = {
   A: { zeichen: 'Ø', name: 'Trupp' }, B: { zeichen: '●', name: 'Gruppe' }, C: { zeichen: '●●', name: 'Sektion' }, D: { zeichen: '●●●', name: 'Zug' },
   E: { zeichen: 'I', name: 'Kompanie' }, F: { zeichen: 'II', name: 'Bataillon' }, G: { zeichen: 'III', name: 'Regiment' }, H: { zeichen: 'X', name: 'Brigade' },
@@ -54,7 +60,17 @@ const polygon = (ps: Punkt[], p: Props): GeoJSON.Feature => ({ type: 'Feature', 
 export const musterName = (m: Muster, farbe: string): string => `zeichnen-${m}-${farbe.slice(1).toLowerCase()}`;
 
 /** Grössen der Zeichen in Bildschirmpixeln (über `mpp` in Meter umgerechnet → bleiben beim Zoomen lesbar). */
-export const PX = { spitze: 14, zackenAbstand: 18, zackenHoehe: 9, stoss: 26, grenzName: 16 };
+export const PX = { spitze: 14, zackenAbstand: 18, zackenHoehe: 9, stoss: 26, grenzName: 16, verband: 160 };
+
+/** Verbandszeichen je Schriftzeichen in px (x entlang der Linie, y quer): Breite, Striche, Punkt (Ø 8 px). */
+const PUNKT = 8;
+const KREIS = Array.from({ length: 12 }, (_, i): Xy => [4 * Math.cos((i * Math.PI) / 6), 4 * Math.sin((i * Math.PI) / 6)]);
+const GLYPHE: Record<string, { b: number; striche: Xy[][]; punkt?: true }> = {
+  '●': { b: 10, striche: [], punkt: true },
+  'Ø': { b: 12, striche: [[...KREIS, KREIS[0]], [[-5, -5], [5, 5]]] },
+  I: { b: 6, striche: [[[0, -5.5], [0, 5.5]]] },
+  X: { b: 10, striche: [[[-3.5, -5.5], [3.5, 5.5]], [[-3.5, 5.5], [3.5, -5.5]]] },
+};
 
 /**
  * GeoJSON-Features und Beschriftungen einer Form. `mpp` = Meter je Pixel (aktueller Zoom).
@@ -113,15 +129,32 @@ export function darstelle(f: Form, mpp: number): { features: GeoJSON.Feature[]; 
       }
       break;
     case 'grenze': {
-      // wie APP-6: Stufe im Kästchen auf der Linienmitte, die Namen je auf einer Seite entlang der Linie
-      features.push(linie(ps, { ...basis, strich: 'strichpunkt' }));
+      // Juan 01.11.: durchgezogen; mit Stufe in regelmässigen Abständen unterbrochen, in jeder Lücke das Verbandszeichen
+      // in Linienfarbe ohne Kästchen (●● Sektion, ●●● Zug, I Kompanie …); die Namen je auf einer Seite entlang der Linie
+      const voll: Props = { ...basis, strich: 'voll' };
+      const zeichen = f.stufe ? [...STUFE[f.stufe].zeichen].map((c) => GLYPHE[c]) : [];
+      const breite = zeichen.reduce((n, g) => n + g.b, 0);
+      // Lücke: Zeichen + je 4 px Rand + runde Linienenden
+      const { stuecke, luecken } = zeichen.length && ps.length >= 2 ? unterbrochen(achse(), PX.verband * mpp, (breite + 8 + s.breite) * mpp) : { stuecke: [achse()], luecken: [] };
+      for (const st of stuecke) features.push(linie(zurueck(st), voll));
+      for (const { p, r } of luecken) {
+        let u = -breite / 2;
+        for (const g of zeichen) {
+          const c = u + g.b / 2; // Zeichenmitte entlang der Linie (px ab Lückenmitte)
+          const hin = ([x, y]: Xy): Xy => [p[0] + ((c + x) * r[0] - y * r[1]) * mpp, p[1] + ((c + x) * r[1] + y * r[0]) * mpp];
+          for (const st of g.striche) features.push(linie(zurueck(st.map(hin)), { ...voll, breite: 2 }));
+          // Punkt = 1 px kurzes Stück mit runden Enden (kürzere verwirft geojson-vt): liegt wie die Linie über allen
+          // Füllungen und hat ihren Saum
+          if (g.punkt) features.push(linie(zurueck([hin([-0.5, 0]), hin([0.5, 0])]), { ...voll, breite: PUNKT }));
+          u += g.b;
+        }
+      }
       if (ps.length < 2) break;
       const q = mitteQuer(achse(), PX.grenzName * mpp);
       const [l, r] = grenzNamen(bez);
-      const an = (xy: Xy, text: string, art: Beschriftung['art']) => beschriftungen.push({ id: f.id, punkt: ebene.zurueck(xy), text, art, drehung: q.drehung });
-      if (f.stufe) an(q.mitte, STUFE[f.stufe].zeichen, 'stufe');
-      if (l) an(q.links, l, 'grenze');
-      if (r) an(q.rechts, r, 'grenze');
+      const an = (xy: Xy, text: string) => beschriftungen.push({ id: f.id, punkt: ebene.zurueck(xy), text, art: 'grenze', drehung: q.drehung });
+      if (l) an(q.links, l);
+      if (r) an(q.rechts, r);
       break;
     }
     case 'sperre':
