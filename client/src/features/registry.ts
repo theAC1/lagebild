@@ -49,6 +49,8 @@ export interface Feature {
   phasen?: Phase[];
   /** Schalter in der Ebenen-Auswahl unter der Überschrift `label` (pro Gerät gemerkt); wird reaktiv gelesen. */
   ebenen?: () => { label: string; an: boolean; schalten: () => void }[];
+  /** Unter diesen Schaltern in der Ebenen-Auswahl (z.B. Export der Zeichnungs-Ebenen). */
+  EbenenZusatz?: Component;
 }
 
 export const inPhase = (f: Pick<Feature, 'phasen'>, phase: Phase): boolean => !f.phasen || f.phasen.includes(phase);

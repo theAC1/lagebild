@@ -1,14 +1,15 @@
 <script lang="ts">
   // Ebenen: Sichtbarkeit (lokal, alle), aktive Ebene für neue Zeichnungen, Verwalten (nur Leitung, nur Desktop), Import/Export.
+  // Sichtbarkeit und Export gibt es für alle Rollen und Phasen auch unter «Karte und Ebenen» (index.ts, Juan 01.11.).
   import { standardEbeneId, type ClientMsg, type Ebene } from '../../../../shared/protocol.ts';
   import { sendeBestaetigt, send, store } from '../../lib/store.svelte.ts';
   import { toast } from '../../lib/ui.svelte.ts';
   import Austausch from './austausch/Austausch.svelte';
-  import { setzeSichtbar, zielEbene, zn } from './zustand.svelte.ts';
+  import { ebenenListe, setzeSichtbar, zielEbene, zn } from './zustand.svelte.ts';
 
   let { verwalten }: { verwalten: boolean } = $props();
 
-  const liste = $derived([...store.ebenen.values()].sort((a, b) => a.reihenfolge - b.reihenfolge || a.erstelltAm - b.erstelltAm));
+  const liste = $derived(ebenenListe());
   const anzahl = $derived.by(() => {
     const n = new Map<string, number>();
     for (const z of store.zeichnungen.values()) n.set(z.ebeneId, (n.get(z.ebeneId) ?? 0) + 1);
@@ -105,7 +106,7 @@
 {:else if verwalten}
   <p class="leise">Ebenen anlegen, sperren und löschen kann die Leitung.</p>
 {/if}
-<Austausch {liste} />
+<Austausch />
 
 <style>
   .ebenen {

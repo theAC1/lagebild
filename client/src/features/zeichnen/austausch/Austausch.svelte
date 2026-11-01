@@ -1,7 +1,7 @@
 <script lang="ts">
-  // Ebenen importieren (Leitung, Gruppenführer) und exportieren (alle) als MilX oder KML (Spec v8), im Ebenen-Panel.
+  // Ebenen importieren (Leitung, Gruppenführer) und exportieren (alle) als MilX oder KML (Spec v8), im Ebenen-Panel und unter
+  // «Karte und Ebenen» (dort auch für Beobachter und in AN).
   import { LngLatBounds } from 'maplibre-gl';
-  import type { Ebene } from '../../../../../shared/protocol.ts';
   import { darfImportieren } from '../../../../../shared/regeln/index.ts';
   import { speichere } from '../../../lib/datei.ts';
   import { getMap } from '../../../lib/map.ts';
@@ -9,11 +9,11 @@
   import { toast } from '../../../lib/ui.svelte.ts';
   import { istApp } from '../../../lib/umgebung.ts';
   import { artLabel } from '../logik.ts';
-  import { zn } from '../zustand.svelte.ts';
+  import { ebenenListe, zn } from '../zustand.svelte.ts';
   import { arten, ENDUNGEN, exportEbenen, exportiere, importiere, lies, plane, zaehle } from './austausch.ts';
   import { ohneMilxCode, type DateiEbene } from './milx.ts';
 
-  let { liste }: { liste: Ebene[] } = $props();
+  const liste = $derived(ebenenListe());
 
   const darfImport = $derived(!!store.ichSelbst && darfImportieren(store.ichSelbst.rolle));
   let eingabe = $state<HTMLInputElement>();

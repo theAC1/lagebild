@@ -30,6 +30,7 @@
     {#each liste as e (e.label)}
       <button class="ebene" aria-pressed={e.an} onclick={e.schalten}><span class="haken" aria-hidden="true"></span>{e.label}</button>
     {/each}
+    {#if f.EbenenZusatz}<f.EbenenZusatz />{/if}
   {/if}
 {/each}
 

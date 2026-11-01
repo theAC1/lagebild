@@ -1,6 +1,6 @@
 // Gemeinsamer Zustand des Zeichnen-Features (Layer, Palette, Panels). Lebensdauer = ZeichnenLayer.
 import { MediaQuery, SvelteMap, SvelteSet } from 'svelte/reactivity';
-import { STANDARD_STIL, standardEbeneId, type Punkt, type Stil, type Zeichnung } from '../../../../shared/protocol.ts';
+import { STANDARD_STIL, standardEbeneId, type Ebene, type Punkt, type Stil, type Zeichnung } from '../../../../shared/protocol.ts';
 import { darfAendern as darfVon, store } from '../../lib/store.svelte.ts';
 import { lies, schreibe } from '../../lib/ui.svelte.ts';
 import type { Fang, Px } from './geometrie.ts';
@@ -77,6 +77,9 @@ export function anzeige(): Zeichnung[] {
 }
 
 export const darf = (z: Pick<Zeichnung, 'von' | 'ebeneId'>): boolean => darfAendern(z, darfVon(z.von), store.istLeitung, store.ebenen);
+
+/** Ebenen der Mission in ihrer Reihenfolge. */
+export const ebenenListe = (): Ebene[] => [...store.ebenen.values()].sort((a, b) => a.reihenfolge - b.reihenfolge || a.erstelltAm - b.erstelltAm);
 
 /** Ebene, in die neue Zeichnungen kommen: die gewählte, falls vorhanden und beschreibbar, sonst «Allgemein». */
 export function zielEbene(): string {
