@@ -55,7 +55,8 @@ export async function entpackeEine(zip: Uint8Array, endung: string, max: number)
     }
     throw new Error(`Keine ${endung}-Datei im ZIP`);
   } catch (e) {
-    throw e instanceof RangeError ? new Error('ZIP-Datei beschädigt') : e;
+    // RangeError: Verweis ausserhalb der Datei; TypeError: DecompressionStream an kaputten Daten (Meldung englisch oder leer)
+    throw e instanceof RangeError || e instanceof TypeError ? new Error('Datei beschädigt oder kein gültiges ZIP') : e;
   }
 }
 

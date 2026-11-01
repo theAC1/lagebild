@@ -86,7 +86,7 @@ export function wendeZeichnen(z: Zustand, e: Ereignis & { msg: ZeichnenBefehl })
       return l.fertig();
     }
     case 'ebene.neu': {
-      if (!(m.import ? darfImportieren(t.rolle) : leitung)) return nein('Nur für die Leitung');
+      if (!(m.import ? darfImportieren(t.rolle) : leitung)) return nein(m.import ? 'Nur für Leitung und Gruppenführer' : 'Nur für die Leitung');
       const ebenen = z.ebenen();
       if (ebenen.length >= MAX_EBENEN_JE_LAGE) return nein('Zu viele Ebenen in dieser Lage');
       if (ebenen.some((x) => x.name === m.name)) return nein('Ebenen-Name bereits vergeben');

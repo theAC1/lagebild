@@ -29,7 +29,7 @@ export async function lies(datei: File): Promise<DateiEbene[]> {
     case 'kmz':
       return [leseKml(text(await entpackeEine(roh, '.kml', MAX_DATEI)), datei.name)];
     default:
-      throw new Error('Unbekanntes Format – erwartet .milxlyz, .milxly oder .kml');
+      throw new Error('Unbekanntes Format – erwartet .milxlyz, .milxly, .kml oder .kmz');
   }
 }
 
@@ -70,7 +70,8 @@ export function plane(ebenen: DateiEbene[]): { ebenen: DateiEbene[]; fehler: str
 
 /**
  * Je Ebene `ebene.neu {import}` (ID vom Gerät), dann die Zeichnungen in Stücken. Ablehnungen zeigt der Kern als Toast.
- * ponytail: nicht als Ganzes rückgängig; bricht ein späteres Stück ab, bleibt das Bisherige (Ebene löschen räumt auf).
+ * ponytail: nicht als Ganzes rückgängig; bricht ein späteres Stück ab, bleibt das Bisherige. Aufräumen kann nur die Leitung
+ * (Ebene löschen); ein Gruppenführer kann seine halb importierte Ebene nicht löschen, nur ihre Zeichnungen.
  */
 export async function importiere(ebenen: DateiEbene[]): Promise<{ ids: string[]; ok: boolean }> {
   const ids: string[] = [];

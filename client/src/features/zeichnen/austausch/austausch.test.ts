@@ -1,10 +1,11 @@
 // MilX/KML-Import und -Export (Spec v8). Fixtures erfunden (Namen, Orte bei Bern); nur die Struktur folgt echten Dateien.
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import { describe, expect, it } from 'vitest';
-import type { Punkt, Zeichnung } from '../../../../../shared/protocol.ts';
+import { STANDARD_STIL, type Punkt, type Zeichnung } from '../../../../../shared/protocol.ts';
 import { distanz, vonLv03 } from '../../../lib/coords.ts';
+import { grenzNamen } from '../darstellung.ts';
 import { leseKml, schreibeKml } from './kml.ts';
-import { FARBE_ZUSATZ, leseMilx, ohneMilxCode, schreibeMilx, type DateiEbene, type Teil } from './milx.ts';
+import { ebeneAus, FARBE_ZUSATZ, leseMilx, ohneMilxCode, schreibeMilx, type DateiEbene, type Teil } from './milx.ts';
 import { crc32, entpackeEine, packe } from './zip.ts';
 
 Object.assign(globalThis, { DOMParser, XMLSerializer }); // im Browser eingebaut
@@ -18,7 +19,7 @@ const dok = (...ls: string[]) => `<?xml version="1.0" encoding="UTF-8"?>\r\n<Mil
 
 const PL = '<Symbol ID="GFGPGLP--------"><Attribute ID="T">ALPHA</Attribute></Symbol>';
 const GRENZE = '<Symbol ID="GFGPGLB----D---"><Attribute ID="T">LINKS</Attribute><Attribute ID="T1">RECHTS</Attribute></Symbol>';
-const FLAECHE = '<Symbol ID="G.9.AP---------"><Attribute ID="XM"><Line Width="20" Color="$00000000"/><Fill Color="$9640A0C0" Transparency="59" /></Attribute></Symbol>';
+const FLAECHE = '<Symbol ID="G.9.AP---------"><Attribute ID="XM"><Line Width="20" Color="$00000000"/><Fill Color="$9640A0C0" Transparency="59"/></Attribute></Symbol>';
 const linie: [number, number][] = [[600100, 199900], [600500, 199950], [600900, 199800]];
 const ring: [number, number][] = [[600200, 199500], [600600, 199500], [600600, 199200], [600200, 199200]];
 const MILX = dok(
@@ -65,6 +66,9 @@ describe('MilX lesen', () => {
     expect(abschnitte.zeichnungen[1].stil).toEqual({ farbe: '#c0a040', breite: 1, strich: 'keiner', deckkraft: 0.41, fuellung: '#c0a040' });
     expect(fremd).toMatchObject({ zeichnungen: [], nicht: ['Koordinatensystem «Wgs84» nicht unterstützt'] });
     expect(() => leseMilx(`<!DOCTYPE x [<!ENTITY a "b">]>${MILX.slice(MILX.indexOf('<MilX'))}`)).toThrow('DTD');
+    // Grenze nur mit T1: der Name bleibt rechts, auch nachdem der Vertrag die Bezeichnung trimmt
+    const [nurRechts] = leseMilx(dok(layer('x', [grafik('<Symbol ID="GFGPGLB--------"><Attribute ID="T1">RECHTS</Attribute></Symbol>', linie)])))[0].zeichnungen;
+    expect(grenzNamen(nurRechts.bezeichnung.trim())).toEqual(['', 'RECHTS']);
   });
 });
 
@@ -85,12 +89,19 @@ describe('KML lesen', () => {
     expect(e.zeichnungen[2]).toMatchObject({ art: 'linie', bezeichnung: 'Linie Rot', stil: { farbe: '#d32f2f', breite: 4 } });
   });
 
-  it('zu viele Punkte werden vereinfacht, Koordinaten ausserhalb sind nicht abbildbar', () => {
+  it('zu viele Punkte werden vereinfacht; Koordinaten ausserhalb, Text mit 2 und Linien über 50 000 Punkten nicht abbildbar; Point nimmt das erste Tupel', () => {
     const zickzack = Array.from({ length: 2500 }, (_, i): [number, number] => [600000 + i * 2, 199000 + (i % 2) * 0.1]);
-    const e = leseKml(kml(`<Placemark><LineString><coordinates>${coords(zickzack)}</coordinates></LineString></Placemark><Placemark><Point><coordinates>200,10</coordinates></Point><name>X</name></Placemark>`), 'a.kml');
+    const e = leseKml(
+      kml(`<Placemark><LineString><coordinates>${coords(zickzack)}</coordinates></LineString></Placemark><Placemark><Point><coordinates>200,10</coordinates></Point><name>X</name></Placemark><Placemark><Point><coordinates>${coords(linie.slice(0, 2))}</coordinates></Point><name>Y</name></Placemark>`),
+      'a.kml',
+    );
     expect(e.vereinfacht).toBe(1);
     expect(e.zeichnungen[0].punkte.length).toBeLessThanOrEqual(500);
+    expect(e.zeichnungen[1]).toMatchObject({ art: 'text', text: 'Y', punkte: [vonLv03(...linie[0])] });
     expect(e.nicht).toHaveLength(1);
+    // Text mit zwei Punkten liess Douglas-Peucker endlos laufen (vereinfache() behält zwei Punkte immer)
+    const teil = (art: Teil['art'], n: number): Teil => ({ art, punkte: Array.from({ length: n }, (_, i) => vonLv03(600000 + i, 199000 + (i % 2))), text: 'T', bezeichnung: '', stil: STANDARD_STIL });
+    expect(ebeneAus('x', [teil('text', 2), teil('linie', 50_001), teil('linie', 50_000)])).toMatchObject({ nicht: ['Text mit 2 Punkt(en)', 'Linie mit 50001 Punkt(en)'], vereinfacht: 1 });
   });
 });
 
@@ -104,9 +115,15 @@ describe('Export', () => {
     gleich(abschnitte.zeichnungen, zurueck[1].zeichnungen);
     for (const e of [planung, abschnitte]) gleich(e.zeichnungen, leseKml(schreibeKml({ name: e.name, zeichnungen: alsZeichnungen(e) }), `${e.name}.kml`).zeichnungen);
 
-    const grenze = { ...alsZeichnungen(abschnitte)[0], bezeichnung: 'NEU | RECHTS', stufe: 'E' as const };
-    const [neu] = leseMilx(schreibeMilx([{ name: 'x', zeichnungen: [grenze] }]))[0].zeichnungen;
-    expect(neu).toMatchObject({ bezeichnung: 'NEU | RECHTS', stufe: 'E', milx: expect.stringContaining('ID="GFGPGLB----E---"') });
+    const [grenze0, flaeche] = alsZeichnungen(abschnitte);
+    const grenze = { ...grenze0, bezeichnung: 'NEU | RECHTS', stufe: 'E' as const };
+    // Export baut die Symbol-XML aus der Whitelist neu: Kommentar, PI, fremde Elemente und Attribute fallen weg; Steuerzeichen auch
+    const fremd = { ...flaeche, milx: FLAECHE.replace('---">', '---" x="1"><!--k--><?p q?><Fremd>t</Fremd>').replace('/><Fill', ' Dash="1"/><Fill') };
+    const dateien = [schreibeMilx([{ name: 'x\u0001', zeichnungen: [grenze, fremd] }]), schreibeKml({ name: 'x', zeichnungen: [{ ...fremd, bezeichnung: 'a\u0007b' }] })];
+    for (const d of dateien) expect(d).not.toMatch(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/);
+    const [neu, sauber] = leseMilx(dateien[0])[0].zeichnungen;
+    expect(neu).toMatchObject({ bezeichnung: 'NEU | RECHTS', stufe: 'E', milx: '<Symbol ID="GFGPGLB----E---"><Attribute ID="T">NEU</Attribute><Attribute ID="T1">RECHTS</Attribute></Symbol>' });
+    expect(sauber.milx).toBe(FLAECHE);
   });
 
   it('eigene Zeichnungen: Code für Phasenlinie, Grenze, Bereitstellungsraum, Fläche; ohne Code fehlt im MilX', () => {
@@ -136,5 +153,8 @@ describe('Export', () => {
     const zip = await packe([{ name: 'x.kml', daten: new Uint8Array([1]) }, { name: 'Layer.milxly', daten }]);
     expect(await entpackeEine(zip, '.milxly', daten.length)).toEqual(daten);
     await expect(entpackeEine(zip, '.milxly', daten.length - 1)).rejects.toThrow('zu gross');
+    const kaputt = await packe([{ name: 'Layer.milxly', daten }]);
+    kaputt[30 + 'Layer.milxly'.length] = 0xff; // Deflate-Block mit ungültigem Typ
+    await expect(entpackeEine(kaputt, '.milxly', 1e6)).rejects.toThrow('Datei beschädigt oder kein gültiges ZIP');
   });
 });

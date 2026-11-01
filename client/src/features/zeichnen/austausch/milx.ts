@@ -1,10 +1,10 @@
 // MilX (gs-soft, .milxly/.milxlyz) ↔ Zeichnungen (Spec v8). Ein MilX-Zeichen ist eine Symbol-XML
 // `<Symbol ID="15-stelliger APP-6A-Code"><Attribute ID="T">…</Attribute>…</Symbol>` mit Punkten in LV03; dieselbe Symbol-XML
-// steht im KML in `App6aXmlTxt`. Importierte Zeichnungen behalten sie in `milx`, der Export gibt sie unverändert zurück.
+// steht im KML in `App6aXmlTxt`. Importierte Zeichnungen behalten sie in `milx`; der Export baut sie daraus neu auf (Whitelist).
 import { PUNKTE_JE_ART, STANDARD_STIL, Stufe, ZeichnungInput, type Punkt, type Stil, type Zeichnung, type ZeichnungArt } from '../../../../../shared/protocol.ts';
 import { vonLv03, zuLv03 } from '../../../lib/coords.ts';
 import { vereinfache } from '../../taufe/geo.ts';
-import { GRENZE_TRENNER, grenzNamen } from '../darstellung.ts';
+import { grenzBezeichnung, grenzNamen } from '../darstellung.ts';
 import { lokal } from '../geometrie.ts';
 import { artLabel } from '../logik.ts';
 
@@ -39,10 +39,12 @@ export const kinder = (el: Element | undefined, name: string): Element[] =>
   el ? Array.from(el.childNodes).filter((n): n is Element => n.nodeType === 1 && (n as Element).localName === name) : [];
 export const kind = (el: Element | undefined, name: string): Element | undefined => kinder(el, name)[0];
 export const wert = (el: Element | undefined, name: string): string => kind(el, name)?.textContent?.trim() ?? '';
-export const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/** Für Text und Attribute in XML; Steuerzeichen, die XML 1.0 nicht erlaubt, fallen weg (sonst ist die Datei ungültig). */
+export const esc = (s: string): string =>
+  s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-const klemme = (x: number, min: number, max: number): number => Math.min(max, Math.max(min, x));
-const rund2 = (x: number): number => Math.round(x * 100) / 100;
+export const klemme = (x: number, min: number, max: number): number => Math.min(max, Math.max(min, x));
+export const rund2 = (x: number): number => Math.round(x * 100) / 100;
 
 // --- Symbol ↔ Zeichnung -------------------------------------------------------------------
 
@@ -93,7 +95,7 @@ export function ausSymbol(milx: string, punkte: Punkt[]): Teil | string {
   if (/^G.GPGLP/.test(code)) return { ...basis, art: 'phasenlinie' };
   if (/^G.GPGLB/.test(code)) {
     const stufe = Stufe.safeParse(code[11]);
-    return { ...basis, art: 'grenze', bezeichnung: [t('T'), t('T1')].filter(Boolean).join(GRENZE_TRENNER).slice(0, 200), ...(stufe.success ? { stufe: stufe.data } : {}) };
+    return { ...basis, art: 'grenze', bezeichnung: grenzBezeichnung(t('T'), t('T1')).slice(0, 200), ...(stufe.success ? { stufe: stufe.data } : {}) };
   }
   if (/^G.GPGAA/.test(code)) return { ...basis, art: 'raum', raumArt: 'bereitstellung' };
   if (/^G\.9\.AP/.test(code)) return { ...basis, art: 'flaeche', stil: stilAusXm(attr('XM')) };
@@ -131,48 +133,56 @@ function symbolFuer(z: Zeichnung): string | null {
   }
 }
 
-/** Symbol-XML mit neuen Namen (T, bei Grenzen auch T1) und Stufe; übrige Attribute und Code bleiben. */
-function angepasst(milx: string, z: Zeichnung): string {
-  const d = xml(milx);
-  const s = d.documentElement;
-  const namen = z.art === 'grenze' ? grenzNamen(z.bezeichnung) : [z.bezeichnung.trim()];
-  if (z.art === 'grenze') s.setAttribute('ID', (s.getAttribute('ID') ?? '').padEnd(15, '-').replace(/^(.{11})./, `$1${z.stufe ?? '-'}`));
-  namen.forEach((wert, i) => {
-    const id = ['T', 'T1'][i];
-    const alt = kinder(s, 'Attribute').find((a) => a.getAttribute('ID') === id);
-    if (!wert) {
-      if (alt) s.removeChild(alt);
-      return;
-    }
-    const a = alt ?? s.appendChild(d.createElement('Attribute'));
-    a.setAttribute('ID', id);
-    a.textContent = wert;
-  });
-  return new XMLSerializer().serializeToString(d);
-}
+const ZAHL = /^\d{1,5}$/;
+const DOLLAR = /^\$[0-9a-f]{8}$/i;
+/** Was der Export aus `XM` übernimmt: Elemente und ihre Attribute mit erlaubtem Wert. */
+const XM: [string, Record<string, RegExp>][] = [['Line', { Width: ZAHL, Color: DOLLAR }], ['Fill', { Color: DOLLAR, Transparency: ZAHL }]];
 
 /**
- * Symbol-XML für den Export: die importierte unverändert, solange Art, Namen und Stufe gleich sind (geänderte werden
- * eingesetzt), sonst der bekannte Code der Art; null = kein Code bekannt.
+ * Symbol-XML für den Export. Importierte Zeichen werden aus einer Whitelist neu aufgebaut (Code, Attribute mit Text, XM mit
+ * Line/Fill): Kommentare, PIs, fremde Elemente und Attribute fallen weg, denn `milx` kann jedes Mitglied setzen. Geänderte
+ * Namen und Stufe gehen in den Code ein. Sonst (eigene oder umgezeichnete) der bekannte Code der Art; null = keiner bekannt.
  */
 export function symbolExport(z: Zeichnung): string | null {
   const aus = z.milx ? ausSymbol(z.milx, z.punkte) : null;
-  if (z.milx && aus && typeof aus !== 'string' && aus.art === z.art && aus.raumArt === z.raumArt) {
-    return aus.bezeichnung === z.bezeichnung && aus.stufe === z.stufe ? z.milx : angepasst(z.milx, z);
-  }
-  return symbolFuer(z);
+  if (!aus || typeof aus === 'string' || aus.art !== z.art || aus.raumArt !== z.raumArt) return symbolFuer(z);
+  const s = xml(z.milx!).documentElement;
+  let code = (s.getAttribute('ID') ?? '').toUpperCase();
+  if (!/^[A-Z0-9*.-]{15}$/.test(code)) return symbolFuer(z);
+  if (aus.stufe !== z.stufe) code = `${code.slice(0, 11)}${z.stufe ?? '-'}${code.slice(12)}`;
+  const namen = aus.bezeichnung === z.bezeichnung ? [] : z.art === 'grenze' ? grenzNamen(z.bezeichnung) : [z.bezeichnung.trim()];
+  const neu = new Map(namen.map((v, i) => [['T', 'T1'][i], v]));
+  const attribute = kinder(s, 'Attribute').flatMap((a): [string, string][] => {
+    const id = a.getAttribute('ID') ?? '';
+    return /^[A-Z][A-Z0-9]{0,9}$/i.test(id) && id !== 'XM' && !neu.has(id) ? [[id, a.textContent ?? '']] : [];
+  });
+  const xm = kinder(s, 'Attribute').find((a) => a.getAttribute('ID') === 'XM');
+  const teile = XM.flatMap(([name, erlaubt]) => {
+    const el = kind(xm, name);
+    const werte = Object.entries(erlaubt).flatMap(([k, re]) => (re.test(el?.getAttribute(k) ?? '') ? [` ${k}="${el!.getAttribute(k)}"`] : []));
+    return el ? [`<${name}${werte.join('')}/>`] : [];
+  });
+  return sym(code, [...neu, ...attribute], xm ? `<Attribute ID="XM">${teile.join('')}</Attribute>` : '');
 }
 
 // --- Punkte und Grenzen -------------------------------------------------------------------
 
-/** Punkte an die Art anpassen: Ring ohne Schlusspunkt, zu viele vereinfacht (Douglas-Peucker in Metern), zu wenige → Grund. */
+/** Mehr Punkte in einer Linie der Datei gelten als nicht abbildbar (Douglas-Peucker wäre zu langsam). */
+const MAX_PUNKTE_DATEI = 50_000;
+
+/**
+ * Punkte an die Art anpassen: Ring ohne Schlusspunkt, zu viele vereinfacht (Douglas-Peucker in Metern), zu wenige → Grund.
+ * Arten mit höchstens zwei Punkten (Text) und Riesenlinien lassen sich nicht vereinfachen → Grund.
+ */
 function passe(t: Teil): { teil: Teil; vereinfacht: boolean } | string {
   const [min, max] = PUNKTE_JE_ART[t.art];
   const ring = (t.art === 'flaeche' || t.art === 'raum') && t.punkte.length > 1;
   const [a, b] = [t.punkte[0], t.punkte.at(-1)];
   const ps = ring && a.lat === b?.lat && a.lon === b.lon ? t.punkte.slice(0, -1) : t.punkte;
-  if (ps.length < min) return [artLabel(t), t.bezeichnung && `«${t.bezeichnung}»`, `mit ${ps.length} Punkt(en)`].filter(Boolean).join(' ');
+  const grund = () => [artLabel(t), t.bezeichnung && `«${t.bezeichnung}»`, `mit ${ps.length} Punkt(en)`].filter(Boolean).join(' ');
+  if (ps.length < min) return grund();
   if (ps.length <= max) return { teil: { ...t, punkte: ps }, vereinfacht: false };
+  if (max < 3 || ps.length > MAX_PUNKTE_DATEI) return grund(); // vereinfache() lässt zwei Punkte immer stehen
   const ebene = lokal(ps[0]);
   const xy = ps.map(ebene.hin);
   for (let tol = 0.5; ; tol *= 2) {

@@ -103,7 +103,7 @@ describe('Zeichnen und Ebenen', () => {
 
   it('Import (Spec v8): Leitung (gesperrt) und Gruppenführer (offen) legen Ebenen an, Teilnehmer nicht; ID nicht doppelt', () => {
     const w = welt(leereLage(LAGE, [tn('ltg', 'leitung'), tn('a'), tn('gf', 'gruppenfuehrer')]));
-    expect(grund(w.tu('a', { typ: 'ebene.neu', name: 'X', import: true }))).toBe('Nur für die Leitung');
+    expect(grund(w.tu('a', { typ: 'ebene.neu', name: 'X', import: true }))).toBe('Nur für Leitung und Gruppenführer');
     expect(grund(w.tu('ltg', { typ: 'ebene.neu', id: 'e1', name: 'Stab', gesperrt: false, import: true }))).toBeUndefined();
     expect(grund(w.tu('gf', { typ: 'ebene.neu', id: 'e2', name: 'Zug', gesperrt: true, import: true }))).toBeUndefined();
     expect(w.daten.eintraege.ebene!.filter((e) => e.id !== STD).map((e) => [e.id, e.gesperrt])).toEqual([['e1', true], ['e2', false]]);

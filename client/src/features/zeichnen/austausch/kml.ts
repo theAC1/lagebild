@@ -2,11 +2,9 @@
 // MilX-Symbol-XML in ExtendedData `App6aXmlTxt` (FeatureTypeCode MILSYM), freie Zeichnungen (DRWING) ihre Farben als rgba.
 import { STANDARD_STIL, type Punkt, type Stil, type Zeichnung, type ZeichnungArt } from '../../../../../shared/protocol.ts';
 import { umriss, istGeschlossen } from '../darstellung.ts';
-import { ausSymbol, ebeneAus, esc, kind, ohneUmriss, symbolExport, wert, xml, type DateiEbene, type ExportEbene, type Teil } from './milx.ts';
+import { ausSymbol, ebeneAus, esc, kind, klemme, ohneUmriss, rund2, symbolExport, wert, xml, type DateiEbene, type ExportEbene, type Teil } from './milx.ts';
 
 const alle = (el: Element, name: string): Element[] => Array.from(el.getElementsByTagNameNS('*', name));
-const klemme = (x: number, min: number, max: number): number => Math.min(max, Math.max(min, x));
-const rund2 = (x: number): number => Math.round(x * 100) / 100;
 type Farbe = { farbe: string; a: number };
 
 /** «rgba(189, 100, 100, 0.42)» */
@@ -46,7 +44,7 @@ const koordinaten = (s: string): Punkt[] =>
     return { lat, lon };
   });
 
-/** Ein Placemark → Zeichnungen (je LineString, Polygon-Aussenring, Point eine, auch in MultiGeometry). */
+/** Ein Placemark → Zeichnungen (je LineString, Polygon-Aussenring, Point eine, auch in MultiGeometry; Point nur das erste Tupel). */
 function placemark(pm: Element): (Teil | string)[] {
   const daten = new Map(alle(pm, 'Data').map((d) => [d.getAttribute('name') ?? '', wert(d, 'value')]));
   const name = wert(pm, 'name').slice(0, 200);
@@ -58,7 +56,7 @@ function placemark(pm: Element): (Teil | string)[] {
   ];
   if (!geo.length) return [`${name || 'Placemark'} ohne Linie oder Fläche`];
   return geo.map(([art, k]): Teil | string => {
-    const punkte = koordinaten(k?.textContent ?? '');
+    const punkte = koordinaten(k?.textContent ?? '').slice(0, art === 'text' ? 1 : undefined);
     if (symbol) return ausSymbol(symbol, punkte);
     const stil = stilVon(pm, daten, art === 'flaeche');
     if (art === 'text') return name ? { art, punkte, text: name, bezeichnung: '', stil } : 'Punkt ohne Namen';
