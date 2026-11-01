@@ -12,6 +12,7 @@ import {
   kurzKennung,
   LageErstellen,
   MAX_PROTOKOLL_SEITE,
+  MissionenAbfrage,
   phaseVon,
   STANDARD_STATUS,
   type Beigetreten,
@@ -19,6 +20,7 @@ import {
   type GeraetNachweis,
   type Lage,
   type LageErstellt,
+  type MissionenStand,
   type ProtokollEintrag,
   type ProtokollSeite,
   type Rolle,
@@ -170,6 +172,8 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
   // Protokoll: je Teilnehmer 6 Wiedergaben (erste Seite) und 60 Seiten je Minute; eine volle Lage (50 MB) hat rund 35 Seiten
   const limitProtokoll = rateLimiter(6, 60_000);
   const limitSeiten = rateLimiter(60, 60_000);
+  // Menü «Meine Missionen»: eine Abfrage je Öffnen des Menüs; 60/min für 30 Geräte hinter einem NAT
+  const limitMissionen = rateLimiter(60, 60_000);
   let uploads = 0;
 
   function auth(req: IncomingMessage, nurLeitung = false): { lage: Lage; teilnehmer: Teilnehmer } {
@@ -317,6 +321,16 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
       const daten = await readFile(join(fotoDir, lage.id, `${foto[1]}.${f.ext}`));
       res.writeHead(200, { 'Content-Type': MIME[`.${f.ext}`], 'Cache-Control': 'private, max-age=86400' }).end(daten);
       return;
+    }
+    if (route === 'POST /api/missionen') {
+      if (!limitMissionen(ip(req))) throw new HttpFehler(429, 'Zu viele Anfragen – bitte kurz warten');
+      const { tokens } = await jsonBody(req, MissionenAbfrage);
+      const missionen = tokens.map((token) => {
+        const g = db.teilnehmerNachToken(sha256(token));
+        const lage = g && db.lage(g.lageId);
+        return lage ? { lageId: lage.id, name: lage.name, phase: phaseVon(lage), rolle: g.teilnehmer.rolle } : null;
+      });
+      return antwort(res, 200, { missionen } satisfies MissionenStand);
     }
     if (route === 'GET /api/spuren') {
       const { lage } = auth(req);

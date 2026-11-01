@@ -530,6 +530,15 @@ export type Beigetreten = { token: string; teilnehmerId: string; lageId: string;
 /** Das eröffnende Gerät ist sofort Leitung; die Codes zeigt danach Leitung › Zugang. */
 export type LageErstellt = Beigetreten & { teilnehmerCode: string; gruppenfuehrerCode: string; beobachterCode: string };
 
+/**
+ * POST /api/missionen (Menü «Meine Missionen»): Stand der Missionen dieses Geräts, je Token in derselben Reihenfolge;
+ * null = Token unbekannt (Mission gelöscht oder Gerät entfernt).
+ */
+export const MAX_MISSIONEN_JE_ABFRAGE = 50;
+export const MissionenAbfrage = z.object({ tokens: z.array(z.string().min(20).max(200)).max(MAX_MISSIONEN_JE_ABFRAGE) });
+export type MissionStand = { lageId: string; name: string; phase: Phase; rolle: Rolle };
+export type MissionenStand = { missionen: (MissionStand | null)[] };
+
 /** GET /api/spuren?seit=<ms> (Bearer): gespeicherte Positionen je Teilnehmer, zeitlich aufsteigend. */
 export type Spuren = Record<string, Position[]>;
 

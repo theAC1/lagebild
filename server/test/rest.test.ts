@@ -168,6 +168,28 @@ describe('Zugriff', () => {
     expect(bildFormat(Buffer.from('<svg'))).toBeUndefined();
   });
 
+  it('Meine Missionen: Stand je Token, entfernt oder gelöscht → null; Limit je IP', async () => {
+    const a = await s.lage('Aare', 'ap');
+    const b = await s.lage('Bern');
+    const tn = await s.beitreten(b.gruppenfuehrerCode, 'Adler');
+    const weg = await s.beitreten(b.teilnehmerCode, 'Weg');
+    const ltg = await verbinde(s.url, b.token);
+    ltg.senden({ typ: 'teilnehmer.entfernen', id: weg.teilnehmerId });
+    await ltg.warte('teilnehmer.weg');
+    ltg.zu();
+    const geloescht = await s.lage('Gelöscht');
+    expect((await s.api('/api/lage', { method: 'DELETE', token: geloescht.token })).status).toBe(204);
+    const abfrage = (tokens: string[], ip?: string) => post('/api/missionen', JSON.stringify({ tokens }), ip);
+    const r = await abfrage([a.token, tn.token, weg.token, geloescht.token, 'x'.repeat(43)]);
+    expect(await r.json()).toEqual({
+      missionen: [{ lageId: a.lageId, name: 'Aare', phase: 'ap', rolle: 'leitung' }, { lageId: b.lageId, name: 'Bern', phase: 'lv', rolle: 'gruppenfuehrer' }, null, null, null],
+    });
+    const status: number[] = [];
+    for (let i = 0; i < 61; i++) status.push((await abfrage([], '192.0.2.70')).status);
+    expect(status.slice(0, 60).every((x) => x === 200)).toBe(true);
+    expect(status.at(-1)).toBe(429);
+  });
+
   it('Sicherheits-Header, fehlender Client 404, kein Pfad aus dem Client-Verzeichnis heraus', async () => {
     const r = await s.api('/irgendwo');
     expect(r.headers.get('x-content-type-options')).toBe('nosniff');
