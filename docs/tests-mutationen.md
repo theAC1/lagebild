@@ -1,7 +1,7 @@
 # Mutationsnachweis der Unit-Tests
 
 Je Zeile: eine gezielte Änderung am Produktivcode (Bedingung umgedreht, Prüfung entfernt, Grenzwert verschoben), der danach rote Test, Mutation zurückgenommen.
-Stand 2026-11-01: 317 von 318 Mutationen rot (37 aus Gerätekennung und Rollen, 10 aus den Gate-Auflagen Rollen, 17 aus dem Menü, 8 E2E-Mutationen aus den Nachbesserungen Menü, 4 aus Panels quer, 28 aus MilX/KML – davon eine bewusst grün, siehe dort); Stand 2026-10-31: 214 von 214 Mutationen rot (davon 7 aus der Taufe-Überarbeitung 31.10., von Hand). Erzeugt mit einem Runner-Skript (exakte Textersetzung, Testdatei laufen lassen, Datei wiederherstellen).
+Stand 2026-11-01: 331 von 332 Mutationen rot (37 aus Gerätekennung und Rollen, 10 aus den Gate-Auflagen Rollen, 17 aus dem Menü, 8 E2E-Mutationen aus den Nachbesserungen Menü, 4 aus Panels quer, 28 aus MilX/KML – davon eine bewusst grün, siehe dort –, 14 aus den MilX-Nachbesserungen nach dem Gate, eine davon «hängt»); Stand 2026-10-31: 214 von 214 Mutationen rot (davon 7 aus der Taufe-Überarbeitung 31.10., von Hand). Erzeugt mit einem Runner-Skript (exakte Textersetzung, Testdatei laufen lassen, Datei wiederherstellen).
 
 ## client/src/features/alarm/logik.test.ts
 
@@ -176,7 +176,7 @@ Stand 2026-11-01: 317 von 318 Mutationen rot (37 aus Gerätekennung und Rollen, 
 
 | Produktivcode | Mutation | roter Test | Ergebnis |
 |---|---|---|---|
-| `client/src/features/zeichnen/darstellung.ts:101` | `features.push(linie(ps, { ...basis, strich: 'strichpunkt' }));` → `features.push(linie(ps, { ...basis, stri` | Linienarten | rot |
+| `client/src/features/zeichnen/darstellung.ts` (Grenze) | `const voll: Props = { ...basis, strich: 'voll' };` → `strich: 'gestrichelt'` (seit 01.11. durchgezogen statt Strich-Punkt) | Linienarten (Grenze ohne Stufe durchgezogen) | rot |
 | `client/src/features/zeichnen/darstellung.ts:87` | `pfeil(achse(), l, 0.45 * l)` → `pfeil(achse(), l, 0)` | Spitze am letzten Punkt | rot |
 | `client/src/features/zeichnen/darstellung.ts:129` | `data.set([r, g, b, 200], i);` → `data.set([r, g, b, 255], i);` | Räume | rot |
 | `client/src/features/zeichnen/logik.ts:50` | `if (teil.farbe && s.fuellung === s.farbe) x.fuellung = teil.farbe;` → `if (false) x.fuellung = teil.farbe;` | Stil ändern | rot |
@@ -570,8 +570,8 @@ Ohne Test (kein Verhalten, das klein prüfbar ist, Projektregel «kein Test-Bloa
 | `austausch/kml.ts` (`vonKml`) | `aabbggrr` → als `aarrggbb` gelesen | KML = MilX (Linie Rot) | rot |
 | `austausch/milx.ts` (`passe`) | Vereinfachen aus (`if (true) return`) | Punktgrenzen | rot |
 | `austausch/milx.ts` (`ebeneAus`) | Vertragsprüfung `if (false) nicht.push` | Punktgrenzen (Koordinate ausserhalb) | rot |
-| `austausch/milx.ts` (`symbolExport`) | immer `z.milx` (Änderungen nicht eingesetzt) | Rundreise | rot |
-| `austausch/milx.ts` (`angepasst`) | Stufe nicht in den Code (`if (false) s.setAttribute`) | Rundreise | rot |
+| `austausch/milx.ts` (`symbolExport`) | unverändertes `z.milx` durchreichen (`if (!namen.length && aus.stufe === z.stufe) return z.milx!`, seit 01.11. Whitelist) | Rundreise (Kommentar, PI, fremdes Element bleiben) | rot |
+| `austausch/milx.ts` (`symbolExport`) | Stufe nicht in den Code (`if (aus.stufe !== z.stufe) code =` → `if (false) code =`) | Rundreise | rot |
 | `austausch/milx.ts` (`symbolFuer`) | `GFGPGLB----${stufe}---` → `GFGPGLB--------` | eigene Zeichnungen | rot |
 | `austausch/milx.ts` (`zuDollar`) | `$AABBGGRR` → `$AARRGGBB` | eigene Zeichnungen | rot |
 | `austausch/milx.ts` (`symbolFuer`) | `default: return null` → ein Code | eigene Zeichnungen (ohne Code fehlt) | rot |
@@ -580,9 +580,32 @@ Ohne Test (kein Verhalten, das klein prüfbar ist, Projektregel «kein Test-Bloa
 | `austausch/zip.ts` (`entpackeEine`) | Datenbeginn ohne Extrafeld-Länge des lokalen Kopfs | – | **grün**: weder eigene ZIPs noch Juans Beispiel haben ein Extrafeld. Bewusst kein Test (bräuchte ein fremdes ZIP als Fixture); die Länge wird gelesen, weil andere Packer (z.B. mit Zeitstempel-Feld) eines schreiben. |
 | `zeichnen/darstellung.ts` (Grenze) | Namen links/rechts vertauscht | Darstellung: Grenze | rot |
 | `zeichnen/geometrie.ts` (`mitteQuer`) | Schrift nicht aufgerichtet (`drehung: w`) | Darstellung: Grenze | rot |
-| `zeichnen/darstellung.ts` (`STUFE`) | C `●●` → `●` | Darstellung: Grenze | rot |
+| `zeichnen/darstellung.ts` (`STUFE`) | C `●●` → `●` | Darstellung: Grenze («6 Punkte erwartet, 3») | rot |
 
 Ohne Unit-Test (Oberfläche, E2E `e2e/austausch.e2e.ts`): Vorschau, Sperre der Leitungs-Ebene in der Liste, Beschriftungen auf der Karte, Download KML/MilX mit unverändertem Originalcode. Ohne Test: Fit auf das Importierte neben dem Panel, Knöpfe ins Bild scrollen, `accept` nur im Browser.
+
+### Nachbesserungen nach dem Gate (01.11.: R1, O1–O4, Nits, Juans Entscheide Grenzlinie und Ebenen für alle)
+
+Unit-Tests erweitert statt neu (220 Tests bleiben): «zu viele Punkte …», «Rundreise …», «MilX lesen», «ZIP», «Darstellung: Linienarten», «Darstellung: Grenze», «rechte: Import». E2E +1 in `e2e/austausch.e2e.ts` («Beobachter auf Juans Handy …», 891×411 @3.5, Klein). Runner wie oben (Unit: `timeout 40 npx vitest run <datei>`; E2E: `PW_PORT=8911 npx playwright test e2e/austausch.e2e.ts --project quer -g Beobachter`). 14 von 14 rot, dazu drei Zeilen oben neu belegt (Grenze durchgezogen, `symbolExport` zweimal, `STUFE`).
+
+| Produktivcode | Mutation | roter Test (erste Meldung) | Ergebnis |
+|---|---|---|---|
+| `austausch/milx.ts` (`passe`) | `if (max < 3 \|\| ps.length > MAX_PUNKTE_DATEI)` → `if (ps.length > MAX_PUNKTE_DATEI)` (R1) | «zu viele Punkte …»: Text mit 2 Punkten, Douglas-Peucker läuft endlos | **hängt** (Abbruch nach 40 s) = rot |
+| `austausch/milx.ts` (`passe`) | `\|\| ps.length > MAX_PUNKTE_DATEI` entfernt (O4) | «zu viele Punkte …»: `nicht` ohne «Linie mit 50001 Punkt(en)» | rot |
+| `austausch/kml.ts` (`placemark`) | `.slice(0, art === 'text' ? 1 : undefined)` entfernt | «zu viele Punkte …»: Point «Y» fehlt | rot |
+| `austausch/milx.ts` (`esc`) | Filter der Steuerzeichen entfernt (O2) | Rundreise: MilX enthält U+0001 | rot |
+| `austausch/milx.ts` (`symbolExport`) | `Line`/`Fill` ungefiltert serialisiert (O3) | Rundreise: `Dash="1"` bleibt | rot |
+| `austausch/milx.ts` (`ausSymbol`) | `grenzBezeichnung(t('T'), t('T1'))` → `[t('T'), t('T1')].filter(Boolean).join(' \| ')` | MilX lesen: `['RECHTS', '']` statt `['', 'RECHTS']` | rot |
+| `zeichnen/darstellung.ts` (`grenzNamen`) | am ersten «\|» → wieder `split(' \| ')` | Darstellung: Grenze (nur rechts landet links) | rot |
+| `austausch/zip.ts` (`entpackeEine`) | `\|\| e instanceof TypeError` entfernt | ZIP: Meldung leer statt «Datei beschädigt oder kein gültiges ZIP» | rot |
+| `zeichnen/darstellung.ts` (Grenze) | Lücke `(breite + 8 + s.breite)` → `(breite + s.breite)` | Darstellung: Grenze (Punkt zu nah am Linienende) | rot |
+| `zeichnen/darstellung.ts` (`PX`) | `verband: 160` → `250` | Darstellung: Grenze (3 statt 4 Stücke) | rot |
+| `zeichnen/darstellung.ts` (Grenze) | Punkte quer um 3 px versetzt | Darstellung: Grenze (Punkt nicht auf der Linie) | rot |
+| `shared/regeln/zeichnen.ts` (`ebene.neu`) | Meldung beim Import → wieder «Nur für die Leitung» | rechte: Import | rot |
+| `client/src/features/zeichnen/index.ts` | `ebenen:` → `ebenen2:` (keine Schalter unter «Karte und Ebenen») | E2E Beobachter: Schalter «Allgemein» fehlt | rot |
+| `client/src/components/EbenenListe.svelte` | `{#if f.EbenenZusatz}<f.EbenenZusatz />{/if}` entfernt | E2E Beobachter: «Exportieren …» fehlt | rot |
+
+Ohne Test: Lazy-Loading des PDF-Moduls (O1, belegt durch den Build ohne `INEFFECTIVE_DYNAMIC_IMPORT`), Kommentar in `importiere`, `.kmz` in der Meldung, Bildvergleich der Verbandszeichen (Unit-Test prüft Lücken, Lage und Anzahl; Aussehen per Bild `v8-grenze-*.png`).
 ## Panels quer (01.11., Juan: «das kreuz oben rechts funktioniert in 6 von 10 fällen nicht»)
 
 E2E `e2e/quer-layout.e2e.ts` «Panel: Kopf und ✕ ganz sichtbar, ✕ schliesst» (@layout; Projekt `quer` mit 851×393 und Juans

@@ -766,8 +766,8 @@ Ebenen aus dem Führungssystem (gs-soft MilX) und aus KML übernehmen und wieder
 - **Vorschau:** vor dem Übernehmen je Layer die Zeichen nach Art («3 × Phasenlinie · 4 × Grenze»), nicht abbildbare benannt (Code, Kürzel, Name), vereinfachte Linien gezählt; dann «Importieren». Danach zeigt die Karte das Importierte (neben dem offenen Panel).
 - **Export gleich mit:** jedes Mitglied (wie Ereignisliste, O15), Auswahl der Ebenen (Vorgabe: alle sichtbaren), Knopf «MilX» oder «KML». MilX: alle gewählten Ebenen in einer `.milxlyz`, LV03 wie die Quelle. KML: eine Datei je Ebene (Name = Ebene), mehrere als ZIP.
 - **Zusatzzeichen** (`XE` = «9SCHT…»): Juan: «weiss nicht was es umfasst..»; ein öffentlicher Katalog fehlt (Recherche) → als Linie bzw. Fläche in ruhigem Blaugrau, beschriftet mit `T`, sonst dem Kürzel.
-- **Originalcode bleibt:** jede importierte Zeichnung trägt ihre Symbol-XML unverändert in `milx`; der Export gibt sie zurück, eine spätere echte Darstellung braucht keinen Neuimport.
-- **Ort:** Import/Export unten im Ebenen-Panel (Zeichnen › Ebenen; am Handy unter den Ebenen). Android: Dateiauswahl über `<input type="file">` (Capacitor-Dateiwahl, in der App ohne `accept`, weil Android `.milxly` nicht kennt und sonst alle MilX-Dateien ausblendet), Speichern/Teilen über die bestehende Brücke `LagebildDatei.teile` wie das Raster-PDF. Keine neue APK nötig.
+- **Originalcode bleibt:** jede importierte Zeichnung trägt ihre Symbol-XML unverändert in `milx`, eine spätere echte Darstellung braucht keinen Neuimport. Der Export baut daraus die Symbol-XML aus einer Whitelist neu auf (Code mit 15 erlaubten Zeichen, `Attribute` mit Text, `XM` nur mit `Line` Width/Color und `Fill` Color/Transparency): Kommentare, PIs, fremde Elemente und Attribute fallen weg, denn `milx` kann jedes Mitglied setzen.
+- **Ort:** Import/Export unten im Ebenen-Panel (Zeichnen › Ebenen; am Handy unter den Ebenen) und unter «Karte und Ebenen» (Gruppe «Zeichnen», für alle Rollen und Phasen, siehe Nachbesserungen). Android: Dateiauswahl über `<input type="file">` (Capacitor-Dateiwahl, in der App ohne `accept`, weil Android `.milxly` nicht kennt und sonst alle MilX-Dateien ausblendet), Speichern/Teilen über die bestehende Brücke `LagebildDatei.teile` wie das Raster-PDF. Keine neue APK nötig.
 
 ### Zuordnung (`client/src/features/zeichnen/austausch/milx.ts`)
 | MilX-Code (`?` = Zugehörigkeit) | App | Import | Export eigener Zeichnungen |
@@ -782,7 +782,7 @@ Ebenen aus dem Führungssystem (gs-soft MilX) und aus KML übernehmen und wieder
 | übrige Arten (Linie, Pfeil, Kreis …) ohne `milx` | – | – | fehlen im MilX (Dialog nennt sie), im KML enthalten |
 
 - **Farbe nach Zugehörigkeit** (2. Stelle): Feind (H, S, J, K) rot, neutral grün, unbekannt gelb, sonst (eigene) blau.
-- **Grenze wie im Quell-Tool:** Stufe (APP-6A, z.B. C = ●●) im weissen Kästchen auf der Linienmitte, die beiden Namen je auf einer Seite entlang der Linie, klein in Versalien in Linienfarbe; gilt auch für eigene Grenzen (Eigenschaften: «Name links», «Name rechts», «Stufe»).
+- **Grenze wie im Quell-Tool (Juan, Nachbesserungen):** durchgezogen, mit Stufe alle ~160 px (zoomunabhängig, Bildschirm-px) unterbrochen; in jeder Lücke das Verbandszeichen der Stufe (APP-6A Stelle 12: A Ø, B ●, C ●●, D ●●●, E I, F II, G III, H X …) in Linienfarbe ohne Kästchen, gezeichnet als Geometrie (Punkte Ø 8 px, Striche), Lücke = Zeichen + je 4 px Rand. Ohne Stufe einfach durchgezogen (vorher Strich-Punkt). Die beiden Namen je auf einer Seite entlang der Linie, klein in Versalien in Linienfarbe; nur «rechts» bleibt rechts. Gilt auch für eigene Grenzen (Eigenschaften: «Name links», «Name rechts», «Stufe»).
 - **Flächen ohne Umriss:** neue Strichart `keiner` (nur mit Füllung wählbar, «Ohne»).
 - **KML:** militärische Zeichen über ExtendedData `App6aXmlTxt` (FeatureTypeCode MILSYM) mit derselben Zuordnung; freie Zeichnungen (DRWING) mit `ColorCode`/`CanvasFillColorCode` (rgba) und `WidthQty`; sonst `<Style>` (aabbggrr). Export schreibt beides, dazu `App6aXmlTxt`, wo ein Code bekannt ist; Text als Punkt, Kreis/Rechteck als Polygon.
 - **Rundreise:** Import → Export → Import ergibt dieselben Zeichnungen (MilX und KML, Test). Geänderte Namen und Stufe einer importierten Zeichnung gehen in ihren Originalcode ein, alles andere daran bleibt.
@@ -791,9 +791,10 @@ Ebenen aus dem Führungssystem (gs-soft MilX) und aus KML übernehmen und wieder
 - Datei höchstens 10 MB, auch entpackt (ZIP-Bombe bricht ab); ZIP nur Deflate/Stored, über die native `DecompressionStream`/`CompressionStream` (keine Abhängigkeit).
 - XML per `DOMParser`; Dateien mit DTD (`<!DOCTYPE`/`<!ENTITY`) werden abgelehnt.
 - Nur LV03 (`CoordSystemType` `SwissLv03`); anderes Koordinatensystem → Zeichen nicht abbildbar. Umrechnung mit proj4 (dieselbe LV03-Definition wie die Koordinatenanzeige, hin und zurück < 1 cm).
-- Punkte je Art wie beim Zeichnen (`PUNKTE_JE_ART`): mehr → Douglas-Peucker bis zur Grenze (Vorschau zählt «vereinfacht»), weniger → nicht abbildbar. Schlusspunkt von Ringen fällt weg, Zeichnungen (`G.9.*`) bekommen ihn im Export zurück.
+- Punkte je Art wie beim Zeichnen (`PUNKTE_JE_ART`): mehr → Douglas-Peucker bis zur Grenze (Vorschau zählt «vereinfacht»), weniger → nicht abbildbar. Linien über 50 000 Punkte und Arten mit höchstens zwei Punkten (Text) werden nicht vereinfacht, sondern sind nicht abbildbar; ein KML-`<Point>` nimmt nur das erste Tupel. Schlusspunkt von Ringen fällt weg, Zeichnungen (`G.9.*`) bekommen ihn im Export zurück.
+- Export: Steuerzeichen, die XML 1.0 nicht erlaubt (U+0000–U+0008, U+000B, U+000C, U+000E–U+001F, U+FFFE, U+FFFF), fallen weg. Kaputte ZIP-Daten melden «Datei beschädigt oder kein gültiges ZIP».
 - Was der Vertrag nicht annimmt (Koordinaten ausserhalb, zu lange Symbol-XML > 2000 Zeichen), ist nicht abbildbar.
-- Die Mission muss alles fassen (50 Ebenen, 5000 Zeichnungen, 10 MB Zeichnungsdaten): sonst kein Import, Grund in der Vorschau. Gesendet wird je Layer `ebene.neu {id, name, import: true}`, dann `zeichnung.neu` in Stücken; bricht ein Stück ab, bleibt das Bisherige («Import unvollständig»).
+- Die Mission muss alles fassen (50 Ebenen, 5000 Zeichnungen, 10 MB Zeichnungsdaten): sonst kein Import, Grund in der Vorschau. Gesendet wird je Layer `ebene.neu {id, name, import: true}`, dann `zeichnung.neu` in Stücken; bricht ein Stück ab, bleibt das Bisherige («Import unvollständig»). Teilnehmer und Beobachter lehnt der Server mit «Nur für Leitung und Gruppenführer» ab.
 
 ### Vertrag (`shared/protocol.ts`)
 - `Zeichnung.milx?` (Symbol-XML, ≤ 2000 Zeichen, beginnt mit `<Symbol`), `Zeichnung.stufe?` (`Stufe` A–M), `Stil.strich` + `keiner`.
@@ -801,11 +802,14 @@ Ebenen aus dem Führungssystem (gs-soft MilX) und aus KML übernehmen und wieder
 - `PROTOKOLL_VERSION` bleibt 2: ältere Stände ignorieren die neuen Felder; eine Zeichnung, die ein älterer Stand ändert, verliert `milx`/`stufe`.
 
 ### Offene Punkte
-- **Grenzlinie:** Das Quell-Tool zeichnet Grenzen durchgezogen, die App seit Spec v2 Strich-Punkt. Umstellen ist eine Zeile (`darstellung.ts`), betrifft aber alle Grenzen → Juan fragen.
 - **MilX-Export ungeprüft in MilX:** kein MilX hier. `SourceSystemRef` lässt der Export weg; `MssLibraryVersionTag` wie in der Quelle. Erst ein Import in MilX zeigt, ob das reicht.
-- **Beobachter und Phase AN** sehen das Zeichnen-Panel nicht und können darum nicht exportieren (Entscheid «jedes Mitglied»): bei Bedarf Export zusätzlich in die Wiedergabe (AN) legen.
 - Stiländerungen an importierten `G.9.AP`-Flächen gehen nicht in den MilX-Originalcode (nur Namen und Stufe); KML hat sie.
 - Eigene schwarze Umrisse mit Füllung kommen nach MilX/KML und zurück ohne Umriss an (Regel «schwarz + Füllung = ohne Umriss»).
 - Deckkraft derselben Fläche: aus MilX 0.41, aus KML 0.42 (Quelle rechnet anders); unsichtbar.
-- Rückgängig gibt es für den Import nicht; die Leitung löscht eine falsch importierte Ebene samt Zeichnungen.
-- Bilder (erfundene Daten): `docs/screens/v8-import-vorschau.png`, `v8-import-ebene.png`, `v8-export.png`.
+- Rückgängig gibt es für den Import nicht; die Leitung löscht eine falsch importierte Ebene samt Zeichnungen. Ein Gruppenführer kann eine (halb) importierte Ebene nicht löschen, nur ihre Zeichnungen (Regel «Ebenen löschen nur Leitung» bleibt).
+- Bilder (erfundene Daten): `docs/screens/v8-import-vorschau.png`, `v8-import-ebene.png`, `v8-export.png`, Grenzen mit ●● und ●●● `v8-grenze-quer.png` (851×393) und `v8-grenze-juan.png` (891×411 @3.5, Klein), Beobachter unter «Karte und Ebenen» `v8-ebenen-beobachter.png`.
+- ponytail: Die Verbandszeichen haben feste Grössen (Punkt Ø 8 px), unabhängig von der Strichstärke; bei sehr dicken Grenzen bei Bedarf mitwachsen lassen.
+
+### Nachbesserungen nach dem Gate (01.11., Entscheide Juan)
+- **Grenzlinie.** Juan: «die Linien logik ist gezogen, die darstellung enthält die Verbandzeichen, eine grenzlinie zwischen zügen zeigt das Zugsymbol. (3 punkte) etc. das ist aber dann eine form von gestrichelter linie nicht ein symboly mit hintergrund». Umgesetzt wie oben unter «Grenze wie im Quell-Tool»: Lücken mit dem Verbandszeichen statt Kästchen, ohne Stufe durchgezogen; für importierte und eigene Grenzen (`darstellung.ts`, `geometrie.ts` `unterbrochen`).
+- **Ebenen für alle.** Juan: «Alle Layer sind für alle Sichtbar und ein und ausschaltbar. wenn einer ein LAyer ergänzt ist es automatisch für alle ergänzt. es ist an die mission gekoppelt». Umgesetzt: unter «Karte und Ebenen» die Gruppe «Zeichnen» mit einem Schalter je Ebene der Mission (pro Gerät gemerkt, wie im Zeichnen-Panel) und Import/Export darunter – für alle Rollen in allen Phasen (Feature-Haken `ebenen` und `EbenenZusatz`). Import bleibt Leitung + Gruppenführer, Ebenen anlegen/sperren/löschen unverändert. Neue Ebenen anderer kamen schon per Delta (`ebene`) bei allen an, auch beim Beobachter (E2E bestätigt).
