@@ -1,10 +1,11 @@
 <script lang="ts">
   // Desktop: Stil und Eigenschaften der Auswahl (auch Mehrfachauswahl) bzw. Stil für neue Zeichnungen.
   import { onMount } from 'svelte';
-  import type { Stil, Zeichnung } from '../../../../shared/protocol.ts';
+  import type { Stil, Stufe, Zeichnung } from '../../../../shared/protocol.ts';
   import { store } from '../../lib/store.svelte.ts';
   import { toast } from '../../lib/ui.svelte.ts';
   import { aendere, kopiere, loesche } from './aktionen.ts';
+  import { GRENZE_TRENNER, grenzNamen, STUFE } from './darstellung.ts';
   import { artLabel, FARBEN, mitStil, zuInhalt } from './logik.ts';
   import { darf, zn } from './zustand.svelte.ts';
 
@@ -38,6 +39,17 @@
     if (feld === 'text' && !v) return toast('Text darf nicht leer sein.');
     const neu = ziel.filter((z) => z[feld] !== v).map((z) => ({ ...zuInhalt(z), [feld]: v }));
     if (neu.length) void aendere(neu);
+  }
+
+  /** Grenze: Namen links/rechts in `bezeichnung`, Stufe (Spec v8). */
+  function setzeGrenze(seite: 0 | 1, name: string) {
+    const namen = grenzNamen(eine!.bezeichnung);
+    namen[seite] = name.replaceAll(GRENZE_TRENNER.trim(), '/').trim();
+    setzeFeld('bezeichnung', namen[1] ? namen.join(GRENZE_TRENNER) : namen[0]);
+  }
+  function setzeStufe(stufe: string) {
+    const { stufe: _, ...ohne } = zuInhalt(eine!);
+    void aendere([stufe ? { ...ohne, stufe: stufe as Stufe } : ohne]);
   }
 
   let ebeneFeld = $state<HTMLSelectElement>();
@@ -78,7 +90,7 @@
   <div class="feld-gruppe">
     <span class="titel">Strichart</span>
     <div class="segmente" role="group" aria-label="Strichart">
-      {#each STRICHE as s (s.id)}
+      {#each stil.fuellung ? [...STRICHE, { id: 'keiner' as const, label: 'Ohne' }] : STRICHE as s (s.id)}
         <button aria-pressed={stil.strich === s.id} onclick={() => setzeStil({ strich: s.id })}>{s.label}</button>
       {/each}
     </div>
@@ -99,7 +111,20 @@
     {#if eine.art === 'text'}
       <label class="feld">Text<input value={eine.text} maxlength="200" onchange={(e) => setzeFeld('text', (e.target as HTMLInputElement).value)} /></label>
     {/if}
-    <label class="feld">Bezeichnung<input value={eine.bezeichnung} maxlength="200" placeholder="z. B. «Adler»" onchange={(e) => setzeFeld('bezeichnung', (e.target as HTMLInputElement).value)} /></label>
+    {#if eine.art === 'grenze'}
+      {@const [links, rechts] = grenzNamen(eine.bezeichnung)}
+      <label class="feld">Name links<input value={links} maxlength="98" onchange={(e) => setzeGrenze(0, (e.target as HTMLInputElement).value)} /></label>
+      <label class="feld">Name rechts<input value={rechts} maxlength="98" onchange={(e) => setzeGrenze(1, (e.target as HTMLInputElement).value)} /></label>
+      <label class="feld">
+        Stufe
+        <select value={eine.stufe ?? ''} onchange={(e) => setzeStufe((e.target as HTMLSelectElement).value)}>
+          <option value="">– keine –</option>
+          {#each Object.entries(STUFE) as [k, s] (k)}<option value={k}>{s.zeichen} {s.name}</option>{/each}
+        </select>
+      </label>
+    {:else}
+      <label class="feld">Bezeichnung<input value={eine.bezeichnung} maxlength="200" placeholder="z. B. «Adler»" onchange={(e) => setzeFeld('bezeichnung', (e.target as HTMLInputElement).value)} /></label>
+    {/if}
   {/if}
   {#if aenderbar.length}
     <label class="feld">

@@ -1,14 +1,29 @@
 // Zeichnung → GeoJSON für die MapLibre-Layer und HTML-Beschriftungen (der Kartenstil hat keine Glyphen).
 // Eigene Umsetzung, angelehnt an APP-6D: Phasenlinie, Grenze, Stossrichtung, Sperre, Räume mit Schraffur.
-import type { Punkt, RaumArt, Stil, Zeichnung, ZeichnungArt } from '../../../../shared/protocol.ts';
-import { kreisRing, lokal, linienMitte, mittelpunkt, pfeil, rechteckRing, stosspfeil, zacken, type Xy } from './geometrie.ts';
+import type { Punkt, RaumArt, Stil, Stufe, Zeichnung, ZeichnungArt } from '../../../../shared/protocol.ts';
+import { kreisRing, lokal, linienMitte, mittelpunkt, mitteQuer, pfeil, rechteckRing, stosspfeil, zacken, type Xy } from './geometrie.ts';
 
 /** Was gezeichnet wird – Zeichnung, Entwurf oder Vorschau. */
-export type Form = Pick<Zeichnung, 'id' | 'art' | 'punkte' | 'text' | 'bezeichnung' | 'stil'> & Partial<Pick<Zeichnung, 'raumArt' | 'radiusM'>>;
+export type Form = Pick<Zeichnung, 'id' | 'art' | 'punkte' | 'text' | 'bezeichnung' | 'stil'> & Partial<Pick<Zeichnung, 'raumArt' | 'radiusM' | 'stufe'>>;
 
 export type Strich = Stil['strich'] | 'strichpunkt';
 export type Muster = 'schraeg' | 'kreuz';
-export type Beschriftung = { id: string; punkt: Punkt; text: string; ueber?: string; art: 'text' | 'pl' | 'raum' | 'linie' };
+/** `drehung`: Grad im Uhrzeigersinn, dreht mit der Karte (Schrift entlang einer Linie). */
+export type Beschriftung = { id: string; punkt: Punkt; text: string; ueber?: string; art: 'text' | 'pl' | 'raum' | 'linie' | 'grenze' | 'stufe'; drehung?: number };
+
+/** Zwei Namen einer Grenze in `bezeichnung`: links und rechts der Zeichenrichtung (MilX-Attribute T und T1). */
+export const GRENZE_TRENNER = ' | ';
+export const grenzNamen = (bez: string): [string, string] => {
+  const [a = '', ...b] = bez.split(GRENZE_TRENNER);
+  return [a.trim(), b.join(GRENZE_TRENNER).trim()];
+};
+/** Führungsstufen nach APP-6A: Zeichen im Kästchen auf der Grenze. */
+export const STUFE: Record<Stufe, { zeichen: string; name: string }> = {
+  A: { zeichen: 'Ø', name: 'Trupp' }, B: { zeichen: '●', name: 'Gruppe' }, C: { zeichen: '●●', name: 'Sektion' }, D: { zeichen: '●●●', name: 'Zug' },
+  E: { zeichen: 'I', name: 'Kompanie' }, F: { zeichen: 'II', name: 'Bataillon' }, G: { zeichen: 'III', name: 'Regiment' }, H: { zeichen: 'X', name: 'Brigade' },
+  I: { zeichen: 'XX', name: 'Division' }, J: { zeichen: 'XXX', name: 'Korps' }, K: { zeichen: 'XXXX', name: 'Armee' }, L: { zeichen: 'XXXXX', name: 'Heeresgruppe' },
+  M: { zeichen: 'XXXXXX', name: 'Region' },
+};
 
 export const RAUM: Record<RaumArt, { label: string; kurz: string; muster?: Muster; strich: Strich }> = {
   bereitstellung: { label: 'Bereitstellungsraum', kurz: 'BR', muster: 'schraeg', strich: 'voll' },
@@ -39,7 +54,7 @@ const polygon = (ps: Punkt[], p: Props): GeoJSON.Feature => ({ type: 'Feature', 
 export const musterName = (m: Muster, farbe: string): string => `zeichnen-${m}-${farbe.slice(1).toLowerCase()}`;
 
 /** Grössen der Zeichen in Bildschirmpixeln (über `mpp` in Meter umgerechnet → bleiben beim Zoomen lesbar). */
-export const PX = { spitze: 14, zackenAbstand: 18, zackenHoehe: 9, stoss: 26 };
+export const PX = { spitze: 14, zackenAbstand: 18, zackenHoehe: 9, stoss: 26, grenzName: 13 };
 
 /**
  * GeoJSON-Features und Beschriftungen einer Form. `mpp` = Meter je Pixel (aktueller Zoom).
@@ -97,10 +112,18 @@ export function darstelle(f: Form, mpp: number): { features: GeoJSON.Feature[]; 
         beschriftungen.push({ id: f.id, punkt: ps[0], text: t, art: 'pl' }, { id: f.id, punkt: ps.at(-1)!, text: t, art: 'pl' });
       }
       break;
-    case 'grenze':
+    case 'grenze': {
+      // wie APP-6: Stufe im Kästchen auf der Linienmitte, die Namen je auf einer Seite entlang der Linie
       features.push(linie(ps, { ...basis, strich: 'strichpunkt' }));
-      mitBez(linienMitte(ps));
+      if (ps.length < 2) break;
+      const q = mitteQuer(achse(), PX.grenzName * mpp);
+      const [l, r] = grenzNamen(bez);
+      const an = (xy: Xy, text: string, art: Beschriftung['art']) => beschriftungen.push({ id: f.id, punkt: ebene.zurueck(xy), text, art, drehung: q.drehung });
+      if (f.stufe) an(q.mitte, STUFE[f.stufe].zeichen, 'stufe');
+      if (l) an(q.links, l, 'grenze');
+      if (r) an(q.rechts, r, 'grenze');
       break;
+    }
     case 'sperre':
       features.push(linie(ps, basis));
       if (ps.length >= 2) features.push(linie(zurueck(zacken(achse(), PX.zackenAbstand * mpp, PX.zackenHoehe * mpp)), { ...basis, strich: 'voll' }));

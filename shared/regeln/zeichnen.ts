@@ -1,5 +1,6 @@
-// Zeichnungen und Ebenen: alle zeichnen; ändern/löschen wer «darf ändern» (rollen.ts); gesperrte Ebene nur Leitung; Ebenen nur Leitung.
-import { standardEbeneId, type Ebene, type Zeichnung } from '../protocol.ts';
+// Zeichnungen und Ebenen: alle zeichnen; ändern/löschen wer «darf ändern» (rollen.ts); gesperrte Ebene nur Leitung; Ebenen nur
+// Leitung, ausser beim Import (Spec v8: auch Gruppenführer).
+import { standardEbeneId, type Ebene, type Rolle, type Zeichnung } from '../protocol.ts';
 import { darfAendern, einheiten } from './rollen.ts';
 import { lauf, nein, type Befehl, type Ereignis, type Ergebnis, type Zustand } from './typen.ts';
 
@@ -13,6 +14,9 @@ const ZEICHNUNG_NAME: Record<string, string> = {
   linie: 'Linie', pfeil: 'Pfeil', flaeche: 'Fläche', rechteck: 'Rechteck', kreis: 'Kreis', freihand: 'Freihand', text: 'Text',
   phasenlinie: 'Phasenlinie', grenze: 'Grenze', stossrichtung: 'Stossrichtung', sperre: 'Sperre', raum: 'Raum',
 };
+
+/** Ebenen aus MilX/KML importieren (Spec v8): Leitung und Gruppenführer. */
+export const darfImportieren = (rolle: Rolle): boolean => rolle === 'leitung' || rolle === 'gruppenfuehrer';
 
 export const ZEICHNEN_TYPEN = ['zeichnung.neu', 'zeichnung.aendern', 'zeichnung.loeschen', 'ebene.neu', 'ebene.aendern', 'ebene.loeschen'] as const;
 type ZeichnenBefehl = Extract<Befehl, { typ: (typeof ZEICHNEN_TYPEN)[number] }>;
@@ -82,14 +86,17 @@ export function wendeZeichnen(z: Zustand, e: Ereignis & { msg: ZeichnenBefehl })
       return l.fertig();
     }
     case 'ebene.neu': {
-      if (!leitung) return nein('Nur für die Leitung');
+      if (!(m.import ? darfImportieren(t.rolle) : leitung)) return nein('Nur für die Leitung');
       const ebenen = z.ebenen();
       if (ebenen.length >= MAX_EBENEN_JE_LAGE) return nein('Zu viele Ebenen in dieser Lage');
       if (ebenen.some((x) => x.name === m.name)) return nein('Ebenen-Name bereits vergeben');
+      if (m.id && z.idVergeben('ebene', m.id)) return nein('Ebenen-ID bereits vergeben');
       const reihenfolge = Math.min(1000, Math.max(...ebenen.map((x) => x.reihenfolge)) + 1);
-      const ebene: Ebene = { id: e.neueId(), name: m.name, gesperrt: m.gesperrt ?? false, reihenfolge, erstelltVon: t.id, erstelltAm: jetzt };
+      // Import: Ebene der Leitung gesperrt (nur sie ändert), die eines Gruppenführers offen
+      const gesperrt = m.import ? leitung : (m.gesperrt ?? false);
+      const ebene: Ebene = { id: m.id ?? e.neueId(), name: m.name, gesperrt, reihenfolge, erstelltVon: t.id, erstelltAm: jetzt };
       l.tu({ was: 'speichern', art: 'ebene', obj: ebene, t: jetzt }, { typ: 'ebene', ebene });
-      l.meldung(`Ebene angelegt: ${ebene.name}`);
+      l.meldung(`Ebene ${m.import ? 'importiert' : 'angelegt'}: ${ebene.name}`);
       return l.fertig();
     }
     case 'ebene.aendern': {

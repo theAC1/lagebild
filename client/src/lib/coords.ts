@@ -53,9 +53,20 @@ export function formatWgs84(p: Punkt): string {
   return `${ns} ${Math.abs(p.lat).toFixed(5)}° ${eo} ${Math.abs(p.lon).toFixed(5)}°`;
 }
 
+export function zuLv03(p: Punkt): { e: number; n: number } {
+  const [e, n] = proj4('WGS84', LV03, [p.lon, p.lat]);
+  return { e, n };
+}
+
+/** LV03 (Ost, Nord in m) → WGS84, z.B. für MilX-Dateien. */
+export function vonLv03(e: number, n: number): Punkt {
+  const [lon, lat] = proj4(LV03, 'WGS84', [e, n]);
+  return { lat, lon };
+}
+
 /** «600'435 / 199'506» */
 export function formatLv03(p: Punkt): string {
-  const [e, n] = proj4('WGS84', LV03, [p.lon, p.lat]);
+  const { e, n } = zuLv03(p);
   return `${tausender(e)} / ${tausender(n)}`;
 }
 

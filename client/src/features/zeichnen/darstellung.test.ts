@@ -26,6 +26,19 @@ describe('Darstellung', () => {
     expect(darstelle(form({ art: 'stossrichtung' }), MPP).features[0].properties!.fuellung).toBe(STANDARD_STIL.farbe);
   });
 
+  it('Grenze (Spec v8): Stufe im Kästchen auf der Mitte, Namen links/rechts der Zeichenrichtung, Schrift entlang und nie kopfüber', () => {
+    const d = (punkte = [A, B]) => darstelle(form({ art: 'grenze', bezeichnung: 'NORD | SÜD', stufe: 'C', punkte }), MPP).beschriftungen;
+    const [stufe, links, rechts] = d(); // nach Osten gezeichnet: links = Norden
+    expect([stufe.text, stufe.art, links.text, rechts.text]).toEqual(['●●', 'stufe', 'NORD', 'SÜD']);
+    const ebene = lokal(stufe.punkt);
+    expect(ebene.hin(links.punkt)[1]).toBeCloseTo(13 * MPP, 0);
+    expect(ebene.hin(rechts.punkt)[1]).toBeCloseTo(-13 * MPP, 0);
+    expect(stufe.punkt.lon).toBeCloseTo((A.lon + B.lon) / 2, 6);
+    expect(d([B, A]).map((b) => b.drehung)).toEqual(Array(3).fill(expect.closeTo(0, 1))); // nach Westen: nicht kopfüber
+    expect(d([B, C])[0].drehung).toBeCloseTo(-90, 1); // nach Norden
+    expect(ebene.hin(d([B, A])[1].punkt)[1]).toBeLessThan(0); // nach Westen gezeichnet: links = Süden
+  });
+
   describe('Pfeilkopf (Rückmeldung 30.10.: «passt nicht wirklich»)', () => {
     const ebene = lokal(B);
     /** Kopf in Metern um die Spitze B, Achse = Richtung A→B; Schaft-Ende ebenso. */

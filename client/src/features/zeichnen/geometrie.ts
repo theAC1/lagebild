@@ -186,6 +186,14 @@ function entlang(linie: Xy[], s: number): { p: Xy; r: Xy } {
 
 const gesamtLaenge = (linie: Xy[]): number => linie.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - linie[i][0], p[1] - linie[i][1]), 0);
 
+/** Mitte der Polylinie, Punkte im Abstand `d` links/rechts davon und die Drehung der Schrift (Grad im Uhrzeigersinn, nie kopfüber). */
+export function mitteQuer(linie: Xy[], d: number): { mitte: Xy; links: Xy; rechts: Xy; drehung: number } {
+  const { p, r } = entlang(linie, gesamtLaenge(linie) / 2);
+  const n = mul(links(r), d);
+  const w = (-Math.atan2(r[1], r[0]) * 180) / Math.PI;
+  return { mitte: p, links: add(p, n), rechts: sub(p, n), drehung: Math.abs(w) > 90 ? w - Math.sign(w) * 180 : w };
+}
+
 /** Polylinie vom Anfang bis zum Abstand `s` entlang der Linie. */
 function bis(linie: Xy[], s: number): Xy[] {
   const aus: Xy[] = [linie[0]];

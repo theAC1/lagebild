@@ -13,7 +13,7 @@ export * from './typen.ts';
 export { MAX_AUFTRAEGE_JE_LAGE, offen } from './bloodhound.ts';
 export { MAX_MARKER_JE_LAGE, MAX_SICHTUNGEN_JE_LAGE, POS_MIN_ABSTAND_MS } from './lage.ts';
 export { doppelterListenName, MAX_TAUFEN_JE_LAGE, MAX_TAUFEN_ZEICHEN_JE_LAGE, nameFrei } from './taufe.ts';
-export { MAX_EBENEN_JE_LAGE, MAX_ZEICHNUNGEN_JE_LAGE, MAX_ZEICHNUNGEN_ZEICHEN_JE_LAGE } from './zeichnen.ts';
+export { darfImportieren, MAX_EBENEN_JE_LAGE, MAX_ZEICHNUNGEN_JE_LAGE, MAX_ZEICHNUNGEN_ZEICHEN_JE_LAGE } from './zeichnen.ts';
 export { PHASE_NAME, WECHSEL } from './phase.ts';
 export { empfaengt, meldungSichtbar, sichtbar } from './sichtbar.ts';
 export { darfAendern, darfAuftrag, ROLLE_NAME, wiederbeitritt, type EinheitVon } from './rollen.ts';

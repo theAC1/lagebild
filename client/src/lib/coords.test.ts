@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { azimut, distanz, formatDistanz, formatLv95, formatMgrs, formatRichtung, formatWgs84, kreis, promille, versetze, zuLv95 } from './coords.ts';
+import { azimut, distanz, formatDistanz, formatLv95, formatMgrs, formatRichtung, formatWgs84, kreis, promille, versetze, vonLv03, zuLv03, zuLv95 } from './coords.ts';
 import { frischeAus, sollSenden } from './senden.ts';
 import { OFFLINE_MS, STALE_MS, staleNachFuer } from '../../../shared/protocol.ts';
 import { TEAM_FARBEN, teamFarbe, teamIndex } from './team.ts';
@@ -17,6 +17,13 @@ describe('Koordinaten', () => {
     expect(formatMgrs({ lat: 89, lon: 0 })).toBe('–');
     expect(formatWgs84(bundeshaus)).toBe('N 46.94664° E 7.44434°');
     expect(formatWgs84({ lat: -1.5, lon: -2.25 })).toBe('S 1.50000° W 2.25000°');
+  });
+
+  it('LV03 → WGS84 (MilX): Bundeshaus = swisstopo REFRAME auf < 1 m, hin und zurück auf 1 cm', () => {
+    const p = vonLv03(600434.52, 199506.09);
+    expect(distanz(p, bundeshaus)).toBeLessThan(1);
+    const { e, n } = zuLv03(p);
+    expect(Math.hypot(e - 600434.52, n - 199506.09)).toBeLessThan(0.01);
   });
 });
 

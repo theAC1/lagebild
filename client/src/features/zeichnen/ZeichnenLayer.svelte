@@ -40,7 +40,7 @@
   ];
   const linienLayer = (q: string): LayerSpecification[] => [
     // dunkler Saum: Linien bleiben auf Landeskarte und Luftbild lesbar
-    { id: `${q}-saum`, type: 'line', source: q, layout: { 'line-join': 'round' }, paint: { 'line-color': '#161b1f', 'line-width': ['+', ['get', 'breite'], 3], 'line-opacity': 0.35 } },
+    { id: `${q}-saum`, type: 'line', source: q, filter: ['!=', ['get', 'strich'], 'keiner'], layout: { 'line-join': 'round' }, paint: { 'line-color': '#161b1f', 'line-width': ['+', ['get', 'breite'], 3], 'line-opacity': 0.35 } },
     ...STRICHE.map(([s, dash, cap]): LayerSpecification => ({
       id: `${q}-${s}`,
       type: 'line',
@@ -121,7 +121,8 @@
       const n = zaehler.get(b.id) ?? 0;
       zaehler.set(b.id, n + 1);
       const key = `${b.id}:${n}`;
-      const schluessel = `${b.art}|${b.ueber ?? ''}|${b.text}|${farbe}`;
+      const drehung = Math.round(b.drehung ?? 0);
+      const schluessel = `${b.art}|${b.ueber ?? ''}|${b.text}|${farbe}|${drehung}`;
       gesehen.add(key);
       let e = labels.get(key);
       if (e && e.schluessel !== schluessel) {
@@ -129,7 +130,8 @@
         e = undefined;
       }
       if (!e) {
-        e = { marker: new Marker({ element: labelElement(b, farbe), anchor: b.art === 'pl' ? 'bottom' : 'center' }).setLngLat([b.punkt.lon, b.punkt.lat]).addTo(m), schluessel };
+        const marker = new Marker({ element: labelElement(b, farbe), anchor: b.art === 'pl' ? 'bottom' : 'center', rotation: drehung, rotationAlignment: b.drehung === undefined ? 'auto' : 'map' });
+        e = { marker: marker.setLngLat([b.punkt.lon, b.punkt.lat]).addTo(m), schluessel };
         labels.set(key, e);
       } else e.marker.setLngLat([b.punkt.lon, b.punkt.lat]);
       const el = e.marker.getElement();
@@ -368,6 +370,27 @@
     color: var(--zn-farbe);
     font-size: calc(16px * var(--karte));
     text-shadow: 0 0 2px #161b1f, 0 0 2px #161b1f, 0 0 4px #161b1f;
+  }
+  /* Grenze: Namen entlang der Linie, klein in Versalien in der Linienfarbe; Stufe im weissen Kästchen auf der Linie */
+  :global(.zn-label.zn-grenze) {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--zn-farbe);
+    font-size: calc(10px * var(--karte));
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff;
+  }
+  :global(.zn-label.zn-stufe) {
+    padding: 0 4px;
+    border-radius: 2px;
+    background: #fff;
+    border-width: 1px;
+    color: var(--zn-farbe);
+    font-size: calc(9px * var(--karte));
+    line-height: 1.2;
+    letter-spacing: 0.05em;
   }
   :global(.zn-label.gewaehlt) {
     outline: 2px solid #4fc3f7;

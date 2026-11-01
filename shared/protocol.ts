@@ -155,12 +155,15 @@ export const ZeichnungArt = z.enum(['linie', 'pfeil', 'flaeche', 'rechteck', 'kr
 export type ZeichnungArt = z.infer<typeof ZeichnungArt>;
 export const RaumArt = z.enum(['bereitstellung', 'ziel', 'sperr', 'verantwortung']);
 export type RaumArt = z.infer<typeof RaumArt>;
+/** Führungsstufe nach APP-6A (Stelle 12 des Codes), z.B. C = ●● (Spec v8; gezeigt an Grenzen). */
+export const Stufe = z.enum(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M']);
+export type Stufe = z.infer<typeof Stufe>;
 
 export const Farbe = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 export const Stil = z.object({
   farbe: Farbe,
   breite: z.number().min(1).max(12),
-  strich: z.enum(['voll', 'gestrichelt', 'gepunktet']),
+  strich: z.enum(['voll', 'gestrichelt', 'gepunktet', 'keiner']), // keiner: ohne Umriss, nur Füllung (Flächen aus MilX, Spec v8)
   fuellung: Farbe.optional(),
   deckkraft: z.number().min(0).max(1), // Deckkraft der Füllung
 });
@@ -185,6 +188,8 @@ export const PUNKTE_JE_ART: Record<ZeichnungArt, [number, number]> = {
   raum: [3, MAX_PUNKTE],
 };
 export const MAX_RADIUS_M = 2_000_000;
+/** Original-Symbol-XML aus MilX/KML (Spec v8), höchstens so viele Zeichen. */
+export const MAX_MILX = 2000;
 
 const ZeichnungKern = z.object({
   ebeneId: Id,
@@ -195,6 +200,9 @@ const ZeichnungKern = z.object({
   text: Text(200), // Inhalt bei art 'text' (Pflicht), sonst leer lassen
   bezeichnung: Text(200),
   stil: Stil,
+  stufe: Stufe.optional(), // nur bei 'grenze' gezeigt; ihre zwei Namen (Seiten) stehen in bezeichnung, getrennt durch « | »
+  // Import aus MilX/KML (Spec v8): Symbol-XML `<Symbol ID="…">…</Symbol>` unverändert, der Export gibt sie zurück
+  milx: z.string().max(MAX_MILX).regex(/^<Symbol[\s/>]/).optional(),
 });
 
 type ZeichnungPruefbar = z.infer<typeof ZeichnungKern>;
@@ -395,7 +403,8 @@ export const ClientMsg = z.discriminatedUnion('typ', [
   z.object({ typ: z.literal('zeichnung.aendern'), zeichnungen: z.array(ZeichnungAenderung).min(1).max(MAX_ZEICHNUNGEN_JE_MSG) }),
   z.object({ typ: z.literal('zeichnung.loeschen'), ids: z.array(Id).min(1).max(MAX_ZEICHNUNGEN_JE_MSG) }),
   // Ebenen verwalten: nur Leitung. Löschen entfernt auch die Zeichnungen der Ebene; die Standard-Ebene ist nicht löschbar.
-  z.object({ typ: z.literal('ebene.neu'), name: Text(60).min(1), gesperrt: z.boolean().optional() }),
+  // `import` (Spec v8): auch Gruppenführer; gesperrt genau, wenn die Leitung importiert. `id` wählt der Client (danach zeichnung.neu).
+  z.object({ typ: z.literal('ebene.neu'), name: Text(60).min(1), gesperrt: z.boolean().optional(), id: Id.optional(), import: z.literal(true).optional() }),
   z.object({ typ: z.literal('ebene.aendern'), id: Id, name: Text(60).min(1).optional(), gesperrt: z.boolean().optional(), reihenfolge: z.number().int().min(0).max(1000).optional() }),
   z.object({ typ: z.literal('ebene.loeschen'), id: Id }),
   // Geländetaufe: alle dürfen taufen, umbenennen, Stossrichtung/Fassaden ändern, löschen. Namen sind je Lage eindeutig.

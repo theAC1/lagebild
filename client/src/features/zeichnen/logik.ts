@@ -30,6 +30,8 @@ export const zuInhalt = (z: Zeichnung | ZInhalt): ZInhalt => ({
   text: z.text,
   bezeichnung: z.bezeichnung,
   stil: { ...z.stil },
+  ...(z.stufe ? { stufe: z.stufe } : {}),
+  ...(z.milx ? { milx: z.milx } : {}), // Originalcode aus MilX/KML bleibt beim Bearbeiten erhalten (Spec v8)
 });
 
 /** Feste taktische Palette (Desktop-Eigenschaften und mobile Details). */
@@ -48,7 +50,10 @@ export const FARBEN = [
 export function mitStil(s: Stil, teil: Partial<Stil>): Stil {
   const x = { ...s, ...teil };
   if (teil.farbe && s.fuellung === s.farbe) x.fuellung = teil.farbe;
-  if ('fuellung' in teil && !teil.fuellung) delete x.fuellung;
+  if ('fuellung' in teil && !teil.fuellung) {
+    delete x.fuellung;
+    if (x.strich === 'keiner') x.strich = 'voll'; // ohne Füllung und Umriss bliebe nichts sichtbar
+  }
   return x;
 }
 

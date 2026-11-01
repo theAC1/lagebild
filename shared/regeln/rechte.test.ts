@@ -101,6 +101,17 @@ describe('Zeichnen und Ebenen', () => {
     expect(grund(w.tu('ltg', { typ: 'ebene.neu', name: 'Stab' }))).toBe('Ebenen-Name bereits vergeben');
   });
 
+  it('Import (Spec v8): Leitung (gesperrt) und Gruppenführer (offen) legen Ebenen an, Teilnehmer nicht; ID nicht doppelt', () => {
+    const w = welt(leereLage(LAGE, [tn('ltg', 'leitung'), tn('a'), tn('gf', 'gruppenfuehrer')]));
+    expect(grund(w.tu('a', { typ: 'ebene.neu', name: 'X', import: true }))).toBe('Nur für die Leitung');
+    expect(grund(w.tu('ltg', { typ: 'ebene.neu', id: 'e1', name: 'Stab', gesperrt: false, import: true }))).toBeUndefined();
+    expect(grund(w.tu('gf', { typ: 'ebene.neu', id: 'e2', name: 'Zug', gesperrt: true, import: true }))).toBeUndefined();
+    expect(w.daten.eintraege.ebene!.filter((e) => e.id !== STD).map((e) => [e.id, e.gesperrt])).toEqual([['e1', true], ['e2', false]]);
+    expect(grund(w.tu('gf', { typ: 'zeichnung.neu', zeichnungen: [linie({ ebeneId: 'e2' })] }))).toBeUndefined();
+    expect(grund(w.tu('gf', { typ: 'zeichnung.neu', zeichnungen: [linie({ ebeneId: 'e1' })] }))).toBe('Ebene «Stab» ist gesperrt');
+    expect(grund(w.tu('gf', { typ: 'ebene.neu', id: 'e1', name: 'Neu', import: true }))).toBe('Ebenen-ID bereits vergeben');
+  });
+
   it('mehrere auf einmal sind alles oder nichts; Ebene löschen nimmt Zeichnungen mit, Standard-Ebene bleibt', () => {
     const w = welt();
     expect(grund(w.tu('a', { typ: 'zeichnung.neu', zeichnungen: [linie({ id: 'z1' }), linie({ id: 'z1' })] }))).toBe('Zeichnungs-ID bereits vergeben');
