@@ -16,6 +16,8 @@ Client-Verzeichnisses (`..` kodiert, sonst normalisiert die URL), Code-erneuern-
 
 **Zahlen (31.10.2026):** 483 Tests / 45 Dateien / 4639 Zeilen → **191 Tests / 45 Dateien / 3382 Zeilen**; nach der Taufe-Überarbeitung (31.10.) **194 Tests / 45 Dateien / 3415 Zeilen** (+3: Naht geteilter Kacheln, mehrteilige Gebäude, Selbstüberschneidung); nach Gerätekennung und Rollen (01.11.) **205 Tests / 46 Dateien / 3625 Zeilen** (+11: Reducer-Rollen 6, Gerätenachweis, Wiederbeitritt, Challenges, Migration Spec v7, Rollen live). Nach den Gate-Auflagen Rollen (01.11.) **207 Tests / 46 Dateien / 3674 Zeilen** (+2: Herabstufen auf Beobachter beendet Aufträge, Wiederbeitritt schliesst die alte Verbindung; Tabelle Wiederbeitritt und Meldungs-Sichtbarkeit geschärft). Nach dem Menü (01.11.) **211 Tests / 47 Dateien / 3737 Zeilen** (+4: Token-Regel nach 4005/«beendet», Fähnchen-Ort aus Zielobjekten, Auffächern, Missionen-Abgleich; Aufräumen behält alle Missionen des Geräts).
 
+**E2E (Playwright, 01.11.2026, nach den Nachbesserungen Menü):** 115 Läufe in drei Projekten (quer, quer-gross, hoch), alle grün; `menu.e2e.ts` hat 5 Tests (+2 neu: «App-Start immer im Menü», «Missionswechsel setzt die Features zurück»; «Token-Regel» deckt jetzt auch ein unterbrochenes Warten ab, «Beitreten mit dem Code» hält die Antwort per `page.route` zurück). Seit dem App-Start im Menü gehen alle E2E, die per `goto('/')` oder `reload()` in eine Mission wollen, über `indieMission()` (`e2e/hilfen.ts`). Unit-Tests unverändert (211 / 47 Dateien). Mutationen: [tests-mutationen.md](tests-mutationen.md) «Menü».
+
 ## Was wo getestet wird und warum
 
 | Ebene | Dateien | Tests | Warum nötig |
