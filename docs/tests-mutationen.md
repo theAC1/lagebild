@@ -1,7 +1,7 @@
 # Mutationsnachweis der Unit-Tests
 
 Je Zeile: eine gezielte Änderung am Produktivcode (Bedingung umgedreht, Prüfung entfernt, Grenzwert verschoben), der danach rote Test, Mutation zurückgenommen.
-Stand 2026-11-01: 261 von 261 Mutationen rot (37 aus Gerätekennung und Rollen, 10 aus den Gate-Auflagen Rollen, 01.11.); Stand 2026-10-31: 214 von 214 Mutationen rot (davon 7 aus der Taufe-Überarbeitung 31.10., von Hand). Erzeugt mit einem Runner-Skript (exakte Textersetzung, Testdatei laufen lassen, Datei wiederherstellen).
+Stand 2026-11-01: 278 von 278 Mutationen rot (37 aus Gerätekennung und Rollen, 10 aus den Gate-Auflagen Rollen, 17 aus dem Menü, 01.11.); Stand 2026-10-31: 214 von 214 Mutationen rot (davon 7 aus der Taufe-Überarbeitung 31.10., von Hand). Erzeugt mit einem Runner-Skript (exakte Textersetzung, Testdatei laufen lassen, Datei wiederherstellen).
 
 ## client/src/features/alarm/logik.test.ts
 
@@ -504,3 +504,28 @@ angehoben) bildet das alte Verhalten nach: Herabstufen bleibt geschützt, Hochst
 | `server/src/ws.ts:267` | `if (v.id === id) v.ws.close(4005, 'neues Token');` → `if (v.id === id) { senden(v.ws, { typ: 'beendet' }); v.ws.close(4005, 'neues Token'); }` | ws: Wiederbeitritt | rot |
 | `server/src/ws.ts:267` | `v.ws.close(4005, 'neues Token')` → `v.ws.close(4000, 'neues Token')` | ws: Wiederbeitritt | rot |
 | `server/src/ws.ts:125` | `const alt = db.teilnehmerNachId(v.id);` → `const alt = db.teilnehmerNachToken(v.tokenHash)?.teilnehmer;` | ws: Wiederbeitritt | rot |
+
+## Menü (01.11., Spec v7 «Menü», Layout V4)
+
+17 von 17 Mutationen rot (Runner wie oben, `vitest run <datei> -t <test>`). Dazu E2E `e2e/menu.e2e.ts` «Token-Regel»: Mutation in `store.svelte.ts`
+`gespeichertesToken()` liest `store.token` statt des Speichers → nach 4005 kein Wechsel aufs neue Token, Test rot (siehe unten).
+
+| Produktivcode | Mutation | roter Test | Ergebnis |
+|---|---|---|---|
+| `client/src/lib/missionen.ts:37` | `if (gespeichert && gespeichert !== alt) return { token: gespeichert };` → `if (gespeichert) return { token: gespeichert };` | missionen: Token-Regel | rot |
+| `client/src/lib/missionen.ts:39` | `grund === 'neuesToken' && !fristUm ? 'warten'` → `!fristUm ? 'warten'` | missionen: Token-Regel | rot |
+| `client/src/lib/missionen.ts:39` | `grund === 'neuesToken' && !fristUm ? 'warten'` → `grund === 'neuesToken' ? 'warten'` (Frist weg) | missionen: Token-Regel | rot |
+| `client/src/lib/missionen.ts:38` | `if (grund === 'getrennt') return { token: alt };` → `(entfernt)` | missionen: Token-Regel | rot |
+| `client/src/lib/missionen.ts:49` | `if (t.ziel)` → `if (true)` | missionen: Fähnchen | rot |
+| `client/src/lib/missionen.ts:43` | `g.type === 'MultiPolygon' ? g.coordinates.flat(2) : g.coordinates.flat()` → `g.coordinates.flat()` | missionen: Fähnchen | rot |
+| `client/src/lib/missionen.ts:61` | `m.ziele ? [Mitte der Box] : (m.ansicht?.mitte ?? null)` → `m.ansicht?.mitte ?? null` | missionen: Fähnchen | rot |
+| `client/src/lib/missionen.ts:101` | `if (!paar) {` → `if (true) {` | missionen: Auffächern | rot |
+| `client/src/lib/missionen.ts:81` | `for (const i of [...g].sort((a, b) => f[a].x - f[b].x))` → `for (const i of g)` | missionen: Auffächern | rot |
+| `client/src/lib/missionen.ts:87` | `let x = Math.max(grenzen[0], Math.min(grenzen[1] - breite(z), mitte - breite(z) / 2));` → `let x = mitte - breite(z) / 2;` | missionen: Auffächern | rot |
+| `client/src/lib/missionen.ts:83` | `if (z.length && breite([...z, i]) > grenzen[1] - grenzen[0]) zeilen.push([i]);` → `if (false) …` | missionen: Auffächern | rot |
+| `client/src/lib/missionen.ts:91` | `y: y - k * (h + luecke)` → `y` | missionen: Auffächern | rot |
+| `client/src/lib/missionen.ts:98` | `Math.abs(p.y - q.y) < h` → `Math.abs(p.y - q.y) < 0` | missionen: Auffächern | rot |
+| `client/src/lib/speicher.ts:7` | `!lageIds.some((id) => k === p + id)` → `k !== p + lageIds[0]` | speicher: verlassener Lagen | rot |
+| `server/src/http.ts:176` | `rateLimiter(60, 60_000)` (limitMissionen) → `rateLimiter(61, 60_000)` | rest: Meine Missionen | rot |
+| `server/src/http.ts:331` | `phase: phaseVon(lage)` → `phase: 'lv'` | rest: Meine Missionen | rot |
+| `server/src/http.ts:331` | `rolle: g.teilnehmer.rolle` → `rolle: 'teilnehmer'` | rest: Meine Missionen | rot |
