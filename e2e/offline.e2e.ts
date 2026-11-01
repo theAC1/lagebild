@@ -2,7 +2,7 @@
 // Alle Kachel-Anfragen gehen an page.route (Farbkacheln), nichts an swisstopo. Service Worker aus, sonst sieht route nichts.
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { crc32, deflateSync } from 'node:zlib';
-import { beitreten, dokuBild, HOCH, kartenMitte, neueMission, wische } from './hilfen.ts';
+import { beitreten, dokuBild, HOCH, indieMission, kartenMitte, neueMission, wische } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const GRUEN = [40, 170, 60] as const;
@@ -56,6 +56,7 @@ test.beforeAll(async ({ browser }) => {
   });
   page.on('dialog', (d) => d.accept());
   await page.goto('/');
+  await indieMission(page);
   await expect(page.locator('.verbindung.verbunden')).toBeVisible();
 });
 
@@ -197,6 +198,7 @@ test('Pausieren, Fortsetzen und Weiterladen nach Neuladen', async () => {
 
   // Neu laden: bleibt pausiert, Stand bleibt
   await page.reload();
+  await indieMission(page);
   await expect(page.locator('.verbindung.verbunden')).toBeVisible();
   await page.waitForTimeout(1500);
   expect((await gespeichert())[0]).toMatchObject({ status: 'pausiert', erledigt: pausiert });
@@ -210,6 +212,7 @@ test('Pausieren, Fortsetzen und Weiterladen nach Neuladen', async () => {
   await page.waitForTimeout(1200);
   const abgebrochen = (await gespeichert())[0].erledigt;
   await page.reload();
+  await indieMission(page);
   await expect(page.locator('.verbindung.verbunden')).toBeVisible();
   await expect.poll(async () => (await gespeichert())[0].erledigt, { timeout: 15_000 }).toBeGreaterThan(abgebrochen + 5);
 

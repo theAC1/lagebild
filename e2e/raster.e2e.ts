@@ -2,7 +2,7 @@
 // Marker per Rasterposition. Bedienung «Daumen-Ränder» (Vorgabe), beide Handys quer.
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { ansprache, zelleVon, zellMitte, type RasterGeo } from '../shared/raster.ts';
-import { beitreten, dokuBild, leereStelle, neueMission } from './hilfen.ts';
+import { beitreten, dokuBild, indieMission, leereStelle, neueMission } from './hilfen.ts';
 import type { Beigetreten, LageErstellt } from '../shared/protocol.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
@@ -30,6 +30,7 @@ async function sitzung(browser: Browser, code: string | Beigetreten, rufname: st
     throw e;
   });
   await page.goto('/');
+  await indieMission(page);
   await expect(page.locator('.verbindung.verbunden')).toBeVisible();
   return { page, token };
 }
@@ -187,6 +188,7 @@ test('Ebene «Führungsraster»: Grande pro Gerät aus- und wieder einschalten',
   await expect(schalter).toHaveAttribute('aria-pressed', 'false');
   await expect(koepfe(p)).toHaveCount(0);
   await p.reload();
+  await indieMission(p);
   await expect(p.locator('.verbindung.verbunden')).toBeVisible();
   await expect(koepfe(p)).toHaveCount(0); // gemerkt
   await knopf(p, 'Karte und Ebenen wählen').click();

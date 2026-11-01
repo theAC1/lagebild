@@ -1,7 +1,7 @@
 // Spec v3: Bedienung «Daumen-Ränder» (Vorgabe) – Querformat Handy/Tablet, Hochformat, Meldungen mit wenig Tipps,
 // Marker per Fadenkreuz, Alarm halten, Tag/Nacht nach Sonnenstand.
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
-import { beitreten, dokuBild, HOCH, menue, neueMission, QUER } from './hilfen.ts';
+import { beitreten, dokuBild, HOCH, indieMission, menue, neueMission, QUER } from './hilfen.ts';
 import type { Beigetreten, LageErstellt } from '../shared/protocol.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
@@ -27,6 +27,7 @@ async function seite(browser: Browser, code: string | Beigetreten, rufname: stri
     throw e;
   });
   await page.goto('/');
+  await indieMission(page);
   await expect(page.locator('.verbindung.verbunden')).toBeVisible();
   return page;
 }
@@ -345,6 +346,7 @@ test('Klassisch bleibt wählbar und gilt nach Neuladen', async () => {
   await knopf(bravo, /^Zurück zur Mission/).click();
   await expect(bravo.locator('nav.werkzeuge')).toBeVisible();
   await bravo.reload();
+  await indieMission(bravo);
   await expect(bravo.locator('nav.werkzeuge')).toBeVisible();
   await expect(bravo.getByRole('navigation', { name: 'Hauptaktionen' })).toHaveCount(0);
   await menue(bravo, 'Einstellungen');

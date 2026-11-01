@@ -1,7 +1,7 @@
 # Mutationsnachweis der Unit-Tests
 
 Je Zeile: eine gezielte Änderung am Produktivcode (Bedingung umgedreht, Prüfung entfernt, Grenzwert verschoben), der danach rote Test, Mutation zurückgenommen.
-Stand 2026-11-01: 278 von 278 Mutationen rot (37 aus Gerätekennung und Rollen, 10 aus den Gate-Auflagen Rollen, 17 aus dem Menü, 01.11.); Stand 2026-10-31: 214 von 214 Mutationen rot (davon 7 aus der Taufe-Überarbeitung 31.10., von Hand). Erzeugt mit einem Runner-Skript (exakte Textersetzung, Testdatei laufen lassen, Datei wiederherstellen).
+Stand 2026-11-01: 286 von 286 Mutationen rot (37 aus Gerätekennung und Rollen, 10 aus den Gate-Auflagen Rollen, 17 aus dem Menü, 8 E2E-Mutationen aus den Nachbesserungen Menü, 01.11.); Stand 2026-10-31: 214 von 214 Mutationen rot (davon 7 aus der Taufe-Überarbeitung 31.10., von Hand). Erzeugt mit einem Runner-Skript (exakte Textersetzung, Testdatei laufen lassen, Datei wiederherstellen).
 
 ## client/src/features/alarm/logik.test.ts
 
@@ -509,6 +509,24 @@ angehoben) bildet das alte Verhalten nach: Herabstufen bleibt geschützt, Hochst
 
 17 von 17 Mutationen rot (Runner wie oben, `vitest run <datei> -t <test>`). Dazu E2E `e2e/menu.e2e.ts` «Token-Regel»: Mutation in `store.svelte.ts`
 `gespeichertesToken()` liest `store.token` statt des Speichers → nach 4005 kein Wechsel aufs neue Token, Test rot (siehe unten).
+
+**Nachbesserungen nach dem Review-Gate (01.11., E2E `e2e/menu.e2e.ts`, Projekt «quer», Runner wie oben mit `playwright test -g <test>`):**
+8 von 8 Mutationen rot, dazu die bisherige (`gespeichertesToken()` liest `store.token`) erneut rot im geschärften «Token-Regel».
+
+| Produktivcode | Mutation | roter Test | Ergebnis |
+|---|---|---|---|
+| `client/src/lib/store.svelte.ts` (`trenne`) | `wartetSeit = 0;` → `(entfernt)` | Token-Regel (unterbrochenes Warten, 4005 nach > 10 s darf nicht abmelden) | rot |
+| `client/src/App.svelte` (`abbau`) | `abbau = true;` → `(entfernt)` (Features bleiben beim Missionswechsel stehen) | Missionswechsel setzt die Features zurück (Spuren aus A, «Keine» in B gesperrt) | rot |
+| `client/src/components/menu/kamera.ts` (`merkeStand`) | `if (!store.lage) return;` → `(entfernt)` | App-Start immer im Menü (gemerkter Ausschnitt bleibt) | rot |
+| `client/src/lib/store.svelte.ts` (`teilnehmer`-Delta) | `if (m.teilnehmer.id === store.ich) merkeMission(` → `if (false) merkeMission(` | App-Start immer im Menü (Rufname live in Meine Missionen) | rot |
+| `client/src/components/menu/Menue.svelte` | Regel `.nah .m-pin.laeuft { display: none }` → `(entfernt)` | App-Start immer im Menü (Fähnchen der offenen Mission nah weg) | rot |
+| `client/src/components/EigenePosition.svelte` | `if (!untrack(() => ui.menue)) m.jumpTo(` → `if (true) m.jumpTo(` (erster Fix zentriert auch im Menü) | App-Start immer im Menü (Übersicht bleibt, Fähnchen sichtbar) | rot |
+| `client/src/lib/store.svelte.ts` (Modulende) | `if (store.token) ui.menue = true;` → `(entfernt)` (App-Start direkt in der Mission) | App-Start immer im Menü | rot |
+| `client/src/lib/store.svelte.ts` (`verbinde`, `onclose`) | `weiter(e.code === 4005 ? 'neuesToken' : 'getrennt', token)` → `weiter('getrennt', token)` (neu verbinden mit dem verworfenen Token) | Beitreten mit dem Code der offenen Mission (Antwort 1,5 s zurückgehalten, kein zweiter hallo) | rot |
+| `client/src/lib/store.svelte.ts` (`gespeichertesToken`) | Lesen aus dem Speicher → `store.token` | Token-Regel | rot |
+
+Ohne Test (kein Verhalten, das klein prüfbar ist, Projektregel «kein Test-Bloat»): Esc = `zurueckZurMission` (Kamera nicht beobachtbar), `weg` in `pruefeMissionen` aus der frischen Liste (Wettlauf), Reihenfolge `...alt, ...angaben` in `anmelden` (der Snapshot überschreibt sie ohnehin gleich), `overflow-wrap`.
+
 
 | Produktivcode | Mutation | roter Test | Ergebnis |
 |---|---|---|---|

@@ -1,3 +1,8 @@
+<script module lang="ts">
+  /** Das erste Menü der Sitzung ist der App-Start: die Karte springt zu den Fähnchen, statt dorthin zu fliegen. */
+  let appStart = true;
+</script>
+
 <script lang="ts">
   // Menü (Spec v7, Layout V4 «Karte als Menü»): links die Menüspalte im Stil der Daumen-Ränder, rechts das Panel der Seite,
   // dazwischen die Karte mit den Missionen als Fähnchen. Ohne offene Mission die Startseite der App; in der Mission liegt
@@ -11,7 +16,7 @@
   import { ikon, ui } from '../../lib/ui.svelte.ts';
   import Einstellungen from '../Einstellungen.svelte';
   import Beitritt from './Beitritt.svelte';
-  import { merkeStand, MISSIONS_RAND, zeigeAlle, zeigeMission, type Rand } from './kamera.ts';
+  import { merkeStand, MISSIONS_RAND, zeigeAlle, zeigeMission, zurueckZurMission, type Rand } from './kamera.ts';
   import Mission from './Mission.svelte';
   import Profil from './Profil.svelte';
   import Ueber from './Ueber.svelte';
@@ -72,7 +77,7 @@
   function zeigeSeite(dauer = 900, start = false) {
     const m = karte;
     if (!m) return;
-    if (seite === 'missionen' || (start && !store.token)) zeigeAlle(m, store.missionen.map(faehnchenOrt).filter((o) => o !== null), rand(true), dauer);
+    if (seite === 'missionen' || start) zeigeAlle(m, store.missionen.map(faehnchenOrt).filter((o) => o !== null), rand(true), dauer);
     else if (seite === 'mission' && mission) zeigeMission(m, mission, rand(), dauer);
   }
 
@@ -89,12 +94,10 @@
     oeffneMission(x);
     if (karte) zeigeMission(karte, x, MISSIONS_RAND()); // ohne Stand (nie besucht) bleibt die Karte
   }
-  function zurueck() {
-    ui.menue = false;
-    if (karte && offen?.ansicht) karte.flyTo({ center: offen.ansicht.mitte, zoom: offen.ansicht.zoom, duration: 900 });
-  }
 
   onMount(() => {
+    const start = appStart || !store.token; // App-Start bzw. keine Mission offen: alle Fähnchen, ohne Flug
+    appStart = false;
     // Fadenkreuz, Ring und Koordinaten-Karte der Mission gehören nicht über das Menü
     ui.punktWahl?.fertig(null);
     ui.radial = ui.koordinate = null;
@@ -104,7 +107,7 @@
     onMapReady((m) => {
       if (weg) return;
       karte = m;
-      zeigeSeite(store.token ? 900 : 0, true);
+      zeigeSeite(start ? 0 : 900, start);
     });
     return () => (weg = true);
   });
@@ -138,18 +141,26 @@
       const ort = faehnchenOrt(x);
       if (!ort) return [];
       const el = fahnenElement(x);
+      el.classList.toggle('laeuft', x.token === untrack(() => store.token)); // schon beim ersten Legen, siehe 'nah'
       return [{ x, ort, el, marker: new Marker({ element: el, anchor: 'bottom' }).setLngLat(ort).addTo(m) }];
     });
+    const c = m.getContainer();
     const legen = () => {
+      // Zoomstufen: weit blendet die Zeichen der offenen Mission aus (sie überdecken sonst die Fähnchen), nah das Fähnchen der
+      // offenen Mission selbst (es überdeckt dort das eigene Symbol und das Zielobjekt). Über 13, weil die Übersicht höchstens 13 zeigt.
+      c.classList.toggle('weit', m.getZoom() < 11);
+      c.classList.toggle('nah', m.getZoom() > 13);
       const frei = freiX();
       // zwei Fähnchen passen immer nebeneinander in die freie Karte (Sehr gross auf schmalem Handy)
-      m.getContainer().style.setProperty('--fahne-max', `${(frei[1] - frei[0]) / 2 - 6}px`);
+      c.style.setProperty('--fahne-max', `${(frei[1] - frei[0]) / 2 - 6}px`);
+      // ausgeblendete (offene Mission, nah) haben keine Breite und zählen beim Auffächern nicht
+      const da = liste.filter((f) => f.el.offsetWidth > 0);
       const v = auffaechern(
-        liste.map((f) => ({ ...m.project(f.ort), b: f.el.offsetWidth })),
-        (liste[0]?.el.offsetHeight ?? 0) + 8,
+        da.map((f) => ({ ...m.project(f.ort), b: f.el.offsetWidth })),
+        (da[0]?.el.offsetHeight ?? 0) + 8,
         frei,
       );
-      liste.forEach((f, i) => {
+      da.forEach((f, i) => {
         const { dx, dy } = v[i];
         f.marker.setOffset([dx, dy - 8]); // Spitze 8 px unter dem Fähnchen
         f.el.classList.toggle('versetzt', Math.hypot(dx, dy) > 1);
@@ -157,17 +168,12 @@
         f.el.style.setProperty('--winkel', `${Math.atan2(-dy, -dx)}rad`);
       });
     };
-    // Zeichen der offenen Mission nur nah zeigen, weit weg überdecken sie die Fähnchen
-    const weit = () => m.getContainer().classList.toggle('weit', m.getZoom() < 11);
-    m.on('move', legen);
-    m.on('zoom', weit);
+    m.on('move', legen); // auch jede Zoomfahrt ist ein 'move'
     legen();
-    weit();
     fahnen = liste;
     return () => {
       m.off('move', legen);
-      m.off('zoom', weit);
-      m.getContainer().classList.remove('weit');
+      c.classList.remove('weit', 'nah');
       for (const f of liste) f.marker.remove();
     };
   });
@@ -229,7 +235,7 @@
       {#each FUNKTIONS_VORSCHLAEGE as f (f)}<option value={f}></option>{/each}
     </datalist>
     {#if offen}
-      <button class="primaer zurueck" onclick={zurueck}>
+      <button class="primaer zurueck" onclick={zurueckZurMission}>
         {@html IKON_ZURUECK}
         <span><strong>Zurück zur Mission</strong><small>{offen.name}</small></span>
       </button>
@@ -366,10 +372,12 @@
     flex: 1;
     min-width: 0;
     display: grid;
+    grid-template-columns: minmax(0, 1fr); /* sonst macht das längste Wort die Spalte breiter als die Zeile */
     line-height: 1.2;
   }
   .name strong {
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word; /* nur ein Wort, das allein nicht passt, bricht; sonst am Wortende */
+    hyphens: auto;
     font-size: 0.95rem;
   }
   .name .leise {
@@ -474,6 +482,9 @@
     font-size: calc(12px * var(--karte));
   }
   :global(.weit .bft) {
+    display: none;
+  }
+  :global(.nah .m-pin.laeuft) {
     display: none;
   }
   /* Nordnadel gehört in die Mission; Massstab rechts neben die Menüspalte */
