@@ -1,4 +1,4 @@
-// Wer welches Delta sehen darf: Chat nach Empfänger, Bloodhound-Meldungen nur Leitung und Betroffene, alles andere alle (auch die Bloodhound-Linie).
+// Wer welches Delta sehen darf: Chat nach Empfänger, Bloodhound-Meldungen nur Leitung und Beteiligte (Empfänger, Auftraggeber), alles andere alle (auch die Bloodhound-Linie).
 // Heute filtert der Server beim Verteilen, später filtert die Anzeige auf dem Gerät.
 import type { Chat, Meldung, ServerMsg, Teilnehmer } from '../protocol.ts';
 

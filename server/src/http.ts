@@ -276,8 +276,10 @@ export async function starteServer(o: Optionen): Promise<{ server: Server; url: 
       if ((!bisher || bisher.entfernt) && db.teilnehmerListe(lage.id).length >= MAX_TEILNEHMER_JE_LAGE) throw new HttpFehler(507, 'Teilnehmer-Kontingent der Lage erschöpft');
       const token = neuesToken();
       const t = bisher ? wiederbeitritt(bisher.teilnehmer, bisher.entfernt, e, codeRolle) : neuerTeilnehmer(lage, e, codeRolle, geraet);
-      if (bisher) db.teilnehmerWiederbeitritt(t, sha256(token));
-      else db.teilnehmerErstellen(lage.id, t, sha256(token), geraet);
+      if (bisher) {
+        db.teilnehmerWiederbeitritt(t, sha256(token));
+        ws.neuesToken(lage.id, t.id);
+      } else db.teilnehmerErstellen(lage.id, t, sha256(token), geraet);
       log('info', 'beigetreten', { lageId: lage.id, teilnehmerId: t.id, rolle: t.rolle, wieder: Boolean(bisher) });
       const r: Beigetreten = { token, teilnehmerId: t.id, lageId: lage.id, rolle: t.rolle };
       return antwort(res, 201, r);

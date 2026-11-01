@@ -89,6 +89,16 @@ describe('Leitung', () => {
     expect(grund(w.tu('ltg', { typ: 'teilnehmer.aendern', id: 'ltg', rolle: 'teilnehmer' }))).toBe('Nicht für sich selbst');
   });
 
+  it('Herabstufen auf Beobachter beendet offene Aufträge an ihn (Meldung an Empfänger und Auftraggeber); Aufträge an andere bleiben', () => {
+    const w = rollenWelt();
+    const ziel = (an: string) => w.tu('gf', { typ: 'bloodhound.auftrag', an, ziel: PUNKT });
+    ziel('a');
+    w.tu('ltg', { typ: 'bloodhound.auftrag', an: 'b', ziel: PUNKT });
+    expect(deltas(w.tu('ltg', { typ: 'teilnehmer.aendern', id: 'a', rolle: 'beobachter' }))).toEqual(['teilnehmer', 'meldung', 'bloodhound', 'meldung']);
+    expect(w.daten.eintraege.bloodhound!.map((x) => [x.an, x.ende])).toEqual([['a', 'aufgehoben'], ['b', null]]);
+    expect(w.daten.eintraege.meldung!.at(-1)).toMatchObject({ text: 'Bloodhound-Auftrag aufgehoben (Empfänger ist Beobachter)', nur: ['a', 'gf'] });
+  });
+
   it('Übergabe: nur an verbundene Nicht-Beobachter; danach genau eine Leitung, die bisherige ist Teilnehmer', () => {
     const w = rollenWelt();
     expect(grund(w.tu('ltg', { typ: 'leitung.uebergeben', id: 'a' }))).toBe('A ist nicht verbunden');
@@ -101,11 +111,11 @@ describe('Leitung', () => {
   });
 });
 
-it('Wiederbeitritt: gleicher Eintrag, Rufname/Funktion neu, Rolle nur angehoben; entfernter Eintrag wie neu', () => {
+it('Wiederbeitritt: gleicher Eintrag, Rufname/Funktion neu, Rolle bleibt (Herabstufen nicht aushebelbar); entfernter Eintrag wie neu', () => {
   const faelle: [Rolle, Rolle, boolean, Rolle][] = [
     ['gruppenfuehrer', 'teilnehmer', false, 'gruppenfuehrer'],
-    ['teilnehmer', 'gruppenfuehrer', false, 'gruppenfuehrer'],
-    ['beobachter', 'teilnehmer', false, 'teilnehmer'],
+    ['teilnehmer', 'gruppenfuehrer', false, 'teilnehmer'],
+    ['beobachter', 'teilnehmer', false, 'beobachter'],
     ['leitung', 'beobachter', false, 'leitung'],
     ['gruppenfuehrer', 'teilnehmer', true, 'teilnehmer'],
   ];

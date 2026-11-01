@@ -72,12 +72,15 @@ describe('Position und Alarm', () => {
 });
 
 describe('Folgen über Module hinweg', () => {
-  it('Bloodhound-Meldungen gehen nur an den Empfänger (Leitung sieht alle)', () => {
-    const w = welt();
-    w.tu('ltg', { typ: 'bloodhound.auftrag', an: 'b', ziel: { art: 'teilnehmer', id: 'a' } });
+  it('Bloodhound-Meldungen sehen Leitung, Empfänger und Auftraggeber (Gruppenführer), sonst niemand', () => {
+    const w = welt(leereLage(LAGE, [tn('ltg', 'leitung'), tn('gf', 'gruppenfuehrer'), tn('a'), tn('b', 'teilnehmer', { einheit: 'Zug 2' })]));
+    w.tu('gf', { typ: 'bloodhound.auftrag', an: 'a', ziel: { art: 'teilnehmer', id: 'b' } });
     const id = w.daten.eintraege.bloodhound![0].id;
-    w.tu('b', { typ: 'bloodhound.beendet', id });
-    expect(w.daten.eintraege.meldung!.map((m) => m.nur)).toEqual([['b'], ['b']]);
+    w.tu('a', { typ: 'bloodhound.beendet', id });
+    const log = w.daten.eintraege.meldung!;
+    expect(log.map((m) => m.nur)).toEqual([['a', 'gf'], ['a', 'gf']]);
+    const sieht = log.map((meldung) => w.daten.teilnehmer.map((e) => empfaengt({ typ: 'meldung', meldung }, e)));
+    expect(sieht).toEqual([[true, true, true, false], [true, true, true, false]]); // ltg, gf, a, b
   });
 
   it('Teilnehmer entfernen beendet Aufträge an ihn und auf ihn; teilnehmer.weg zuletzt', () => {

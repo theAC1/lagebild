@@ -121,9 +121,10 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
     const set = lagen.get(v.lageId);
     if (!set?.delete(v)) return;
     if (!set.size) lagen.delete(v.lageId);
-    const gefunden = db.teilnehmerNachToken(v.tokenHash);
-    if (!gefunden) return;
-    const t = { ...gefunden.teilnehmer, zuletzt: Date.now() };
+    // über die ID, nicht das Token: nach einem Wiederbeitritt gilt das Token dieser Verbindung nicht mehr
+    const alt = db.teilnehmerNachId(v.id);
+    if (!alt) return;
+    const t = { ...alt, zuletzt: Date.now() };
     db.teilnehmerSpeichern(t);
     anAlle(v.lageId, { typ: 'teilnehmer', teilnehmer: mitOnline(v.lageId, t) });
   }
@@ -261,6 +262,10 @@ export function starteWs(server: Server, db: Db, clientIp: (req: IncomingMessage
   }, PING_MS);
 
   return {
+    /** Wiederbeitritt mit neuem Token: offene Verbindungen des Eintrags schliessen (4005, ohne 'beendet': der Client verbindet mit dem neuen Token). */
+    neuesToken(lageId: string, id: string): void {
+      for (const v of verbindungen(lageId)) if (v.id === id) v.ws.close(4005, 'neues Token');
+    },
     /** Lage gelöscht: alle Verbindungen erhalten 'beendet'. */
     rauswerfen(lageId: string): void {
       protokollZeichen.delete(lageId);

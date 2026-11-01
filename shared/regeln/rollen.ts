@@ -1,10 +1,10 @@
 // Rollen (Spec v7): wer fremde Objekte ändern darf, Beobachter, eigene Angaben, Rolle/Einheit setzen, Leitung übergeben,
 // Wiederbeitritt desselben Geräts.
 import type { CodeRolle, Rolle, Teilnehmer } from '../protocol.ts';
+import { beendeAuftraege, offen } from './bloodhound.ts';
 import { lauf, nein, type Befehl, type Ereignis, type Ergebnis, type Zustand } from './typen.ts';
 
 export const ROLLE_NAME: Record<Rolle, string> = { leitung: 'Leitung', gruppenfuehrer: 'Gruppenführer', teilnehmer: 'Teilnehmer', beobachter: 'Beobachter' };
-const RANG: Record<Rolle, number> = { beobachter: 0, teilnehmer: 1, gruppenfuehrer: 2, leitung: 3 };
 /** Alle ausser Beobachter: wer Lageinhalt sendet (Oberfläche blendet die übrigen Knöpfe aus). */
 export const OHNE_BEOBACHTER: Rolle[] = ['leitung', 'gruppenfuehrer', 'teilnehmer'];
 
@@ -27,13 +27,14 @@ export function einheiten(z: Zustand): EinheitVon {
 }
 
 /**
- * Wiederbeitritt desselben Geräts: gleicher Eintrag, Rufname und Funktion aus dem Beitritt, die Rolle wird höchstens
- * angehoben (ein Code gibt nie Leitung). Ein entfernter Eintrag kommt wie neu zurück: Angaben und Rolle allein aus dem Beitritt.
+ * Wiederbeitritt desselben Geräts: gleicher Eintrag, Rufname und Funktion aus dem Beitritt, die Rolle bleibt (sonst hebelte
+ * «verlassen und neu beitreten» jede Herabstufung aus). Ein entfernter Eintrag kommt wie neu zurück: Angaben und Rolle allein
+ * aus dem Beitritt (ein Code gibt nie Leitung).
  */
 export function wiederbeitritt(alt: Teilnehmer, entfernt: boolean, neu: Pick<Teilnehmer, 'rufname' | 'funktion' | 'einheit' | 'sidc'>, code: CodeRolle): Teilnehmer {
   const { rufname, funktion, einheit, sidc } = neu;
   if (entfernt) return { ...alt, rufname, funktion, einheit, sidc, rolle: code };
-  return { ...alt, rufname, funktion, rolle: RANG[alt.rolle] > RANG[code] ? alt.rolle : code };
+  return { ...alt, rufname, funktion };
 }
 
 /** Beobachter sehen nur: Positionen still verwerfen, eigene Angaben erlauben, alles andere ablehnen. undefined = weiter prüfen. */
@@ -69,6 +70,8 @@ export function wendeRollen(z: Zustand, e: Ereignis & { msg: RollenBefehl }): Er
     if (neu.rolle === ziel.rolle && neu.einheit === ziel.einheit) return l.fertig();
     speichere(neu);
     if (neu.rolle !== ziel.rolle) l.meldung(`${ziel.rufname} ist jetzt ${ROLLE_NAME[neu.rolle]}`);
+    // Beobachter können Aufträge weder quittieren noch beenden (Sperre): sie blieben sonst offen hängen
+    if (neu.rolle === 'beobachter') beendeAuftraege(l, jetzt, z.eintraege('bloodhound').filter((a) => offen(a) && a.an === ziel.id), 'Empfänger ist Beobachter');
     if (neu.einheit !== ziel.einheit) l.meldung(`${ziel.rufname} ist jetzt in ${neu.einheit}`);
     return l.fertig();
   }

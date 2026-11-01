@@ -76,6 +76,7 @@ export function oeffneDb(pfad: string) {
     tnGeraet: db.prepare('SELECT daten, entfernt FROM teilnehmer WHERE lage_id = ? AND geraet_id = ?'),
     tnWieder: db.prepare('UPDATE teilnehmer SET daten = ?, token_hash = ?, entfernt = 0 WHERE id = ?'),
     tnToken: db.prepare('SELECT lage_id, daten FROM teilnehmer WHERE token_hash = ? AND entfernt = 0'),
+    tnId: db.prepare('SELECT daten FROM teilnehmer WHERE id = ? AND entfernt = 0'),
     tnUpd: db.prepare('UPDATE teilnehmer SET daten = ? WHERE id = ?'),
     tnWeg: db.prepare('UPDATE teilnehmer SET entfernt = 1 WHERE id = ? AND lage_id = ?'),
     tnListe: db.prepare('SELECT daten FROM teilnehmer WHERE lage_id = ? AND entfernt = 0 ORDER BY rowid'),
@@ -146,6 +147,10 @@ export function oeffneDb(pfad: string) {
     teilnehmerNachToken(hash: string): { lageId: string; teilnehmer: Teilnehmer } | undefined {
       const z = q.tnToken.get(hash);
       return z && { lageId: z.lage_id as string, teilnehmer: json<Teilnehmer>(z)! };
+    },
+    teilnehmerNachId(id: string): Teilnehmer | undefined {
+      const z = q.tnId.get(id);
+      return z && json<Teilnehmer>(z);
     },
     teilnehmerSpeichern(t: Teilnehmer): void {
       q.tnUpd.run(JSON.stringify(t), t.id);

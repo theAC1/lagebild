@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { STALE_MAX_MS, STANDARD_STIL, type Position } from '../../shared/protocol.ts';
 import { MAX_PROTOKOLL_ZEICHEN_JE_LAGE } from '../src/ws.ts';
-import { pause, SIDC, testServer, verbinde } from './helfer.ts';
+import { geraet, pause, SIDC, testServer, verbinde } from './helfer.ts';
 
 let s: Awaited<ReturnType<typeof testServer>>;
 beforeAll(async () => (s = await testServer()));
@@ -191,6 +191,23 @@ describe('Verteilen und Speichern', () => {
     await a.warte('lage', (m) => m.lage.phasen.at(-1)?.phase === 'an');
     expect((await s.api('/api/export.geojson', { token: aB.token })).status).toBe(403);
     expect((await s.api('/api/export.geojson', { token: ltgB.token })).status).toBe(200);
+  });
+
+  it('Wiederbeitritt: die alte Verbindung wird mit 4005 geschlossen (ohne beendet) und der Eintrag meldet offline, bis das neue Token verbindet', async () => {
+    const l = await s.lage();
+    const g = geraet();
+    const erst = await s.beitreten(l.teilnehmerCode, 'Adler', 'Zug 1', g);
+    const ltg = await verbinde(s.url, l.token);
+    const alt = await verbinde(s.url, erst.token);
+    await ltg.warte('teilnehmer', (m) => m.teilnehmer.id === erst.teilnehmerId && m.teilnehmer.online);
+    const wieder = await s.beitreten(l.teilnehmerCode, 'Adler', 'Zug 1', g);
+    await ltg.warte('teilnehmer', (m) => m.teilnehmer.id === erst.teilnehmerId && !m.teilnehmer.online);
+    expect(await alt.geschlossen).toBe(4005);
+    expect(alt.empfangen.map((m) => m.typ)).not.toContain('beendet');
+    const neu = await verbinde(s.url, wieder.token); // das neue Token verbindet normal
+    await ltg.warte('teilnehmer', (m) => m.teilnehmer.id === erst.teilnehmerId && m.teilnehmer.online);
+    neu.zu();
+    ltg.zu();
   });
 
   it('AN: alle bleiben verbunden, nur lesen; Beitreten und Fotos 410; Wiederverbinden mit Snapshot; zurück nach LV', async () => {
