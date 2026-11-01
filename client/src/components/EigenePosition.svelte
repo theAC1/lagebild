@@ -60,7 +60,8 @@
     // nur bei neuer Position nachführen; das Einschalten selbst zentriert App.folgen()
     if (!zentriert) {
       zentriert = true;
-      m.jumpTo({ center: [p.lon, p.lat], zoom: Math.max(m.getZoom(), 14) });
+      // App-Start im Menü (Juan 01.11.): die Karte zeigt die Fähnchen, «Zurück zur Mission» fliegt zum gemerkten Ausschnitt
+      if (!untrack(() => ui.menue)) m.jumpTo({ center: [p.lon, p.lat], zoom: Math.max(m.getZoom(), 14) });
     } else if (untrack(() => ui.folgen)) m.easeTo({ center: [p.lon, p.lat], duration: 600 });
   });
 

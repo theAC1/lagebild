@@ -1,7 +1,7 @@
 // Bloodhound: persönliches Bloodhound per Rechtsklick-Radial (Desktop) und Auftrag der Leitung bis «erreicht».
 import { expect, test, type Browser, type BrowserContext, type BrowserContextOptions, type Page } from '@playwright/test';
 import { WebSocket } from 'ws';
-import { bedienung, beitreten, DESKTOP, dokuBild, neueMission } from './hilfen.ts';
+import { bedienung, beitreten, DESKTOP, dokuBild, indieMission, neueMission } from './hilfen.ts';
 import type { Beigetreten } from '../shared/protocol.ts';
 
 const PORT = Number(process.env.PW_PORT ?? 8797);
@@ -29,6 +29,7 @@ async function seite(browser: Browser, code: string | Beigetreten, rufname: stri
     throw e;
   });
   await page.goto('/');
+  await indieMission(page);
   await expect(page.locator('.verbindung.verbunden')).toBeVisible();
   return { page, token: token as string, ctx };
 }
@@ -96,6 +97,7 @@ test('persönliches Bloodhound per Rechtsklick-Radial, überlebt Reload, Beenden
   await bild(leitung, 'persoenlich-desktop');
 
   await leitung.reload();
+  await indieMission(leitung);
   await expect(leiste(leitung)).toContainText('Bravo');
   await leiste(leitung).getByRole('button', { name: 'Bloodhound beenden' }).click();
   await expect(leiste(leitung)).toHaveCount(0);

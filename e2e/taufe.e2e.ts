@@ -2,7 +2,7 @@
 // Gebäude/Strasse taufen, verlängern, Stossrichtung, Layer aus/an, doppelter Name. Gegen den echten Server.
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
 import { kachel, ll, MITTE } from './taufe-kacheln.ts';
-import { beitreten, dokuBild, HOCH, neueMission, QUER, wische } from './hilfen.ts';
+import { beitreten, dokuBild, HOCH, indieMission, neueMission, QUER, wische } from './hilfen.ts';
 import type { Beigetreten } from '../shared/protocol.ts';
 
 const TAG = new Date('2026-10-30T11:00:00+01:00');
@@ -30,6 +30,7 @@ async function sitzung(browser: Browser, code: string | Beigetreten, rufname: st
     throw e;
   });
   await page.goto('/');
+  await indieMission(page);
   await expect(page.locator('.verbindung.verbunden')).toBeVisible();
   return { page, token, kacheln };
 }
@@ -203,6 +204,7 @@ test('SpotMap-Ansicht auf Luftbild, quer und hoch', async () => {
       localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k) ?? '{}'), basiskarte: 'luftbild' }));
     });
     await p.reload();
+    await indieMission(p);
     await expect(p.locator('.verbindung.verbunden')).toBeVisible();
     await expect(p.locator('.tf-anker').first()).toBeAttached(); // Karte geladen (Layer erst danach gemountet)
     await zentriere(p);

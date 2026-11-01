@@ -1,6 +1,6 @@
 // Feldfälle: Funkloch (halb offene Verbindung), GPS-Verlust, verweigerter Standort, schmale Handys und Querformat.
 import { expect, test, type Browser, type BrowserContextOptions, type Page } from '@playwright/test';
-import { bedienung, beitreten, dokuBild, neueMission, QUER } from './hilfen.ts';
+import { bedienung, beitreten, dokuBild, indieMission, neueMission, QUER } from './hilfen.ts';
 import type { Beigetreten, LageErstellt } from '../shared/protocol.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
@@ -38,6 +38,7 @@ async function seite(
   });
   await vorher?.(page);
   await page.goto('/');
+  await indieMission(page);
   await expect(page.locator('.verbindung.verbunden')).toBeVisible();
   return page;
 }

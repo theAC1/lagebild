@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { WebSocket } from 'ws';
 import { rasterUm, RASTER_VORGABE, zuLv95 } from '../shared/raster.ts';
-import { dokuBild, neueMission } from './hilfen.ts';
+import { dokuBild, indieMission, neueMission } from './hilfen.ts';
 
 const PORT = Number(process.env.PW_PORT ?? 8797);
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
@@ -73,6 +73,7 @@ test('Piccolo «Als PDF»: Datei mit Luftbild, SpotMap und Landeskarte', async (
     throw e;
   });
   await p.goto('/');
+  await indieMission(p);
   await expect(p.locator('.verbindung.verbunden')).toBeVisible();
   await p.getByRole('button', { name: 'Mehr', exact: true }).click();
   await p.getByRole('menu', { name: 'Mehr' }).getByRole('menuitem', { name: 'Führungsraster' }).click();

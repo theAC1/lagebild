@@ -4,7 +4,7 @@
 // behält eine nutzbare Fläche. Bildschirm aus dem Projekt (quer 851×393, quer-gross 780×360).
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { WebSocket } from 'ws';
-import { bedienung, beitreten, neueMission } from './hilfen.ts';
+import { bedienung, beitreten, indieMission, neueMission } from './hilfen.ts';
 import type { Beigetreten } from '../shared/protocol.ts';
 
 const PORT = Number(process.env.PW_PORT ?? 8797);
@@ -32,6 +32,7 @@ async function seite(browser: Browser, code: string | Beigetreten, rufname: stri
     throw e;
   });
   await p.goto('/');
+  await indieMission(p);
   await expect(p.locator('.verbindung.verbunden')).toBeVisible();
   return { p, token: token as string };
 }
