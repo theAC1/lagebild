@@ -2,7 +2,7 @@
 // Gebäude/Strasse taufen, verlängern, Stossrichtung, Layer aus/an, doppelter Name. Gegen den echten Server.
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
 import { kachel, ll, MITTE } from './taufe-kacheln.ts';
-import { beitreten, dokuBild, HOCH, neueMission, QUER, wische } from './hilfen.ts';
+import { beitreten, dokuBild, HOCH, kartenMitte, neueMission, QUER, wische } from './hilfen.ts';
 import type { Beigetreten } from '../shared/protocol.ts';
 
 const TAG = new Date('2026-10-30T11:00:00+01:00');
@@ -45,7 +45,7 @@ async function zentriere(p: Page) {
 }
 /** Bildschirmpunkt zu Metern (Ost, Nord) ab MITTE bei Zoom 16 (512-px-Kacheln, wie MapLibre). */
 async function px(p: Page, ost: number, nord: number): Promise<[number, number]> {
-  const b = (await p.locator('.maplibregl-canvas').boundingBox())!;
+  const m = await kartenMitte(p);
   const welt = ([lon, lat]: [number, number]) => {
     const s = Math.sin((lat * Math.PI) / 180);
     const w = 512 * 2 ** 16;
@@ -53,7 +53,7 @@ async function px(p: Page, ost: number, nord: number): Promise<[number, number]>
   };
   const [x0, y0] = welt([MITTE.longitude, MITTE.latitude]);
   const [x, y] = welt(ll(ost, nord));
-  return [b.x + b.width / 2 + (x - x0), b.y + b.height / 2 + (y - y0)];
+  return [m.x + (x - x0), m.y + (y - y0)];
 }
 const tippe = async (p: Page, ost: number, nord: number) => p.mouse.click(...(await px(p, ost, nord)));
 

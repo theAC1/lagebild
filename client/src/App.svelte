@@ -406,7 +406,7 @@
   .panels {
     display: contents;
   }
-  /* Querformat: kompakte Kopfzeile, Werkzeuge als Leiste rechts, Panels als Spalten links neben der Karte */
+  /* Querformat: kompakte Kopfzeile, Werkzeuge als Leiste rechts, Panels als Karten links über der Karte */
   @media (orientation: landscape) {
     .kopf button {
       min-height: min(44px, calc(var(--oben) - var(--safe-top)));
@@ -475,13 +475,15 @@
       color: var(--text);
       box-shadow: 0 2px 8px rgb(0 0 0 / 0.4);
     }
+    /* Panels als schwebende Karten wie das Menü (01.11.): Abstand zu Rändern, Kopf und Safe-Area, die Karte läuft darunter durch */
     .panels {
       position: fixed;
-      top: calc(var(--oben) + var(--banner-h, 0px));
-      left: var(--rand-l);
-      bottom: 0;
+      top: calc(var(--oben) + var(--banner-h, 0px) + 8px);
+      left: calc(var(--rand-l) + 8px);
+      bottom: calc(var(--safe-bottom) + 8px);
       z-index: 20;
       display: flex;
+      gap: 8px;
     }
   }
   .toast {

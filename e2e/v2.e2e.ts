@@ -1,6 +1,6 @@
 // Spec v2: Querformat (Handy, Tablet, Desktop), zwei Panels, Desktop-Bedienung, Radial-Menü.
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { bedienung, beitreten, dokuBild, HOCH, menue, neueMission, QUER } from './hilfen.ts';
+import { bedienung, beitreten, dokuBild, HOCH, kartenMitte, menue, neueMission, QUER } from './hilfen.ts';
 import type { Beigetreten } from '../shared/protocol.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
@@ -45,13 +45,12 @@ async function pruefeQuerLayout(p: Page, breite: number) {
   await ruhig(p);
   const panel = await box(p, 'section.sheet');
   const k = (await karte(p).boundingBox())!;
-  expect(panel.x).toBeLessThanOrEqual(1);
+  // Panel als schwebende Karte mit 8 px Abstand zum Rand (01.11.); die Karte läuft darunter durch bis an die Leiste
+  expect(panel.x).toBeCloseTo(8, 0);
   expect(panel.width).toBeGreaterThanOrEqual(319.5);
-  await expect.poll(async () => (await karte(p).boundingBox())!.x).toBeGreaterThanOrEqual(panel.x + panel.width - 1);
   expect(k.x + k.width).toBeLessThanOrEqual(leiste.x + 1);
-  // Karte bleibt bedienbar, während das Panel offen ist
-  const k2 = (await karte(p).boundingBox())!;
-  await p.mouse.click(k2.x + k2.width * 0.5, k2.y + k2.height * 0.8, { button: 'right' });
+  // Karte rechts neben dem Panel bleibt bedienbar
+  await p.mouse.click((await kartenMitte(p)).x, k.y + k.height * 0.8, { button: 'right' });
   const ring = p.getByRole('menu', { name: 'Aktionen für Punkt' });
   await expect(ring.getByRole('menuitem').first()).toBeVisible(); // der Ring selbst ist 0×0
   await p.keyboard.press('Escape');
@@ -116,13 +115,12 @@ test('Desktop 1440×900: zwei Panels, jedes mit eigenem Schliessen; Karte bleibt
   await ruhig(leitung);
   const [a, b] = [(await sheets(leitung).nth(0).boundingBox())!, (await sheets(leitung).nth(1).boundingBox())!];
   expect(a.x + a.width).toBeLessThanOrEqual(b.x + 1); // nebeneinander, ohne Überlappung
-  await expect.poll(async () => (await karte(leitung).boundingBox())!.x).toBeGreaterThanOrEqual(b.x + b.width - 1);
   const k = (await karte(leitung).boundingBox())!;
-  expect(k.width).toBeGreaterThan(1440 / 3);
+  expect(k.x + k.width - (b.x + b.width)).toBeGreaterThan(1440 / 3); // freie Karte rechts der Panels
   await expect(sheets(leitung).nth(0).getByRole('button', { name: 'Schliessen' })).toBeVisible();
   await expect(sheets(leitung).nth(1).getByRole('button', { name: 'Schliessen' })).toBeVisible();
   // Klick in die Karte schliesst nichts
-  await leitung.mouse.click(k.x + k.width * 0.3, k.y + k.height * 0.8);
+  await leitung.mouse.click((await kartenMitte(leitung)).x, k.y + k.height * 0.8);
   await expect(sheets(leitung)).toHaveCount(2);
   // Azimut dreistellig, Himmelsrichtung getrennt (Bravo liegt östlich: «090° O», nicht «O 90°»)
   const bravoZeile = leitung.getByRole('region', { name: 'Teilnehmende' }).locator('li', { hasText: 'Bravo' });

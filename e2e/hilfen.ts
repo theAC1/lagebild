@@ -88,6 +88,20 @@ export async function wische(p: Page, von: { x: number; y: number }, nach: { x: 
   await cdp.detach();
 }
 
+/**
+ * Kartenmitte in Fensterpixeln. Quer schweben offene Panels über der Karte; MapLibre-Padding (Sheet.svelte) legt die
+ * Mitte in den freien Teil rechts daneben. Ohne Panel (und hoch) ist es die Mitte der Zeichenfläche.
+ */
+export function kartenMitte(p: Page): Promise<{ x: number; y: number }> {
+  return p.evaluate(() => {
+    const k = document.querySelector('.maplibregl-canvas')!.getBoundingClientRect();
+    const panels = document.querySelector('.panels');
+    const quer = matchMedia('(orientation: landscape)').matches;
+    const links = quer && panels?.querySelector('.sheet') ? Math.round(panels.getBoundingClientRect().right) : k.left;
+    return { x: (links + k.right) / 2, y: (k.top + k.bottom) / 2 };
+  });
+}
+
 /** Erster Bildschirmpunkt aus `kandidaten` (Anteile von Breite/Höhe), unter dem nur die Karte liegt. */
 export async function leereStelle(p: Page, kandidaten: [number, number][]): Promise<{ x: number; y: number }> {
   const vp = p.viewportSize()!;

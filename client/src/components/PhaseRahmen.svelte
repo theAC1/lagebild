@@ -9,7 +9,6 @@
   .phase-rahmen {
     position: fixed;
     inset: 0;
-    left: var(--karte-l, 0px);
     right: var(--karte-r, 0px);
     border: 4px solid #000;
     pointer-events: none;

@@ -275,3 +275,68 @@ test('Taufmodus: Leiste lesbar, Knöpfe ganz sichtbar @layout', async () => {
     await expect(p.locator('.tf-modus')).toHaveCount(0);
   }
 });
+
+// Panels quer (01.11., Juan: «das kreuz oben rechts funktioniert in 6 von 10 fällen nicht»): Juans Handy (QHD+ 3120×1440
+// bei DPR 3.5 = 891×411, Bediengrösse Klein) hat quer einen Safe-Area-Einzug oben (Statusleiste) und links (Kamera).
+// Kopf und ✕ müssen ganz im sicheren Bereich liegen, auch nach Scrollen im Panel, und das ✕ schliesst beim ersten Tipp.
+const EINZUG = { top: 30, left: 40, bottom: 15, right: 0 };
+const JUAN = { name: 'Juan 891×411 Klein', viewport: { width: 891, height: 411 }, deviceScaleFactor: 3.5, groesse: 'klein' };
+
+test('Panel: Kopf und ✕ ganz sichtbar, ✕ schliesst @layout', async ({ browser }) => {
+  const projekt = test.info().project.use;
+  const geraete = [
+    { name: `${projekt.viewport!.width}×${projekt.viewport!.height}`, viewport: projekt.viewport!, deviceScaleFactor: projekt.deviceScaleFactor!, groesse: 'normal' },
+    ...(test.info().project.name === 'quer' ? [JUAN] : []),
+  ];
+  for (const g of geraete)
+    for (const bed of ['klassisch', 'daumen'] as const) {
+      const ctx = await browser.newContext({ viewport: g.viewport, deviceScaleFactor: g.deviceScaleFactor, geolocation: ADLER });
+      const codes = await neueMission(ctx.request, 'Eule 27', 'lv');
+      await ctx.addInitScript((t) => localStorage.setItem('lagebild.token', t), codes.token);
+      await ctx.addInitScript(bedienung, bed);
+      await ctx.addInitScript((gr) => localStorage.setItem('lagebild.einstellungen', JSON.stringify({ ...JSON.parse(localStorage.getItem('lagebild.einstellungen') ?? '{}'), groesse: gr })), g.groesse);
+      const p = await ctx.newPage();
+      await (await ctx.newCDPSession(p)).send('Emulation.setSafeAreaInsetsOverride', { insets: EINZUG });
+      await p.goto('/');
+      await expect(p.locator('.verbindung.verbunden')).toBeVisible();
+      for (const panel of ['Status', 'Führungsraster']) {
+        const wo = `${g.name} ${bed} ${panel}`;
+        if (panel === 'Status') await p.getByRole('button', { name: /^Eigener Status/ }).click();
+        else if (bed === 'daumen') {
+          await p.getByRole('button', { name: 'Mehr', exact: true }).click();
+          await p.getByRole('menuitem', { name: panel }).click();
+        } else await p.getByRole('button', { name: panel, exact: true }).click();
+        const sheet = p.getByRole('region', { name: panel });
+        await expect(sheet).toBeVisible();
+        await p.evaluate(() => Promise.all(document.getAnimations().map((x) => x.finished)));
+        // Die Karte läuft unter dem Panel durch; ihre Mitte (hier die eigene Position) liegt mittig im freien Teil daneben
+        const versatz = () =>
+          p.evaluate(() => {
+            const panels = document.querySelector('.panels')!.getBoundingClientRect();
+            const karte = document.querySelector('.maplibregl-canvas')!.getBoundingClientRect();
+            const ich = document.querySelector('.bft.ich')!.closest('.maplibregl-marker')!.getBoundingClientRect();
+            return Math.abs((ich.left + ich.right) / 2 - (panels.right + karte.right) / 2);
+          });
+        await expect.poll(versatz, { message: `${g.name} ${bed} ${panel}: Kartenmitte neben dem Panel` }).toBeLessThanOrEqual(2);
+        for (const zustand of ['oben', 'gescrollt']) {
+          if (zustand === 'gescrollt') await sheet.locator('.inhalt').evaluate((e) => e.scrollTo(0, e.scrollHeight));
+          // Kopf und ✕ im sicheren Bereich; Mitte und alle vier Ecken des ✕ treffen das ✕ selbst
+          const m = await sheet.evaluate((s, ein) => {
+            const sicher = { l: ein.left, t: ein.top, r: innerWidth - ein.right, b: innerHeight - ein.bottom };
+            const kopf = s.querySelector('header')!.getBoundingClientRect();
+            const x = s.querySelector('[aria-label="Schliessen"]')!;
+            const r = x.getBoundingClientRect();
+            const punkte = [[0.5, 0.5], [0.1, 0.1], [0.9, 0.1], [0.1, 0.9], [0.9, 0.9]].map(([fx, fy]) => [r.left + r.width * fx, r.top + r.height * fy]);
+            const ausserhalb = [kopf, r].some((q) => q.left < sicher.l - 0.5 || q.top < sicher.t - 0.5 || q.right > sicher.r + 0.5 || q.bottom > sicher.b + 0.5);
+            return { ausserhalb, kopf: [kopf.left, kopf.top, kopf.right, kopf.bottom].map(Math.round), b: r.width, h: r.height, daneben: punkte.filter(([px, py]) => !x.contains(document.elementFromPoint(px, py))).length };
+          }, EINZUG);
+          expect(m.ausserhalb, `${wo} ${zustand}: Kopf ${m.kopf} ausserhalb des sicheren Bereichs`).toBe(false);
+          expect(Math.min(m.b, m.h), `${wo}: ✕ ${Math.round(m.b)}×${Math.round(m.h)}`).toBeGreaterThanOrEqual(44);
+          expect(m.daneben, `${wo} ${zustand}: Tipps neben das ✕`).toBe(0);
+        }
+        await sheet.getByRole('button', { name: 'Schliessen' }).tap();
+        await expect(p.locator('section.sheet'), `${wo}: ✕ schliesst`).toHaveCount(0);
+      }
+      await ctx.close();
+    }
+});

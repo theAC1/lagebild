@@ -115,8 +115,7 @@
   .karte {
     position: fixed;
     inset: 0;
-    /* Querformat: Platz für Seitenpanels links und Werkzeugleiste rechts (app.css) */
-    left: var(--karte-l, 0px);
+    /* Querformat klassisch: Platz für die Werkzeugleiste rechts (app.css); Panels schweben darüber (Sheet: Padding) */
     right: var(--karte-r, 0px);
     background: #2b3136;
   }

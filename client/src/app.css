@@ -43,10 +43,10 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --oben: calc(52px + var(--safe-top)); /* Höhe Kopfleiste */
   --unten: calc(76px + var(--safe-bottom)); /* Werkzeugleiste (+ Koordinatenzeile, siehe unten) */
-  /* Querformat: --links = Breite offener Seitenpanels (+ linker Rand), --rechts = Werkzeugleiste; die Karte liegt dazwischen */
+  /* Querformat: --links = linker Rand bis hinter offene Seitenpanels, --rechts = Werkzeugleiste; dazwischen ist die Karte frei */
   --links: 0px;
   --rechts: 0px;
-  --rand-l: 0px; /* Daumen-Ränder quer: Melde-Spalte links */
+  --rand-l: 0px; /* quer: Einzug links (Kamera), bei den Daumen-Rändern samt Melde-Spalte */
   --panel-b: min(clamp(320px, 30vw, 420px), 50vw);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 16px;
@@ -79,17 +79,14 @@
 /* Die Variablen folgen dem, was App gerade zeigt (Koordinatenzeile, Panels, eingeklappte Leiste) */
 :root:has(footer.unten .leiste) { --unten: calc(116px + var(--safe-bottom)); }
 @media (orientation: landscape) {
-  :root { --oben: calc(44px + var(--safe-top)); --unten: var(--safe-bottom); }
+  :root { --oben: calc(44px + var(--safe-top)); --unten: var(--safe-bottom); --rand-l: env(safe-area-inset-left, 0px); }
   :root:has(footer.unten .leiste) { --unten: calc(40px + var(--safe-bottom)); }
   :root:has(nav.werkzeuge:not(.zu)) { --rechts: calc(76px + env(safe-area-inset-right, 0px)); }
-  :root:has(.panels > .sheet) { --links: var(--panel-b); }
-  /* zwei Panels: schmaler, damit die Karte auch auf dem Tablet sichtbar bleibt */
-  :root:has(.panels > .sheet + .sheet) { --panel-b: min(clamp(320px, 22vw, 380px), 32vw); --links: calc(2 * var(--panel-b)); }
 }
 /* Daumen-Ränder (components/Daumen): Karte randlos, alles schwebt darüber. --oben/--unten/--links/--rechts halten
-   die schwebenden Knöpfe frei (Toasts, Menüs, Panels); --karte-l/--karte-r rücken nur die Karte ein, nämlich quer neben
-   offene Panels. Hoch: Kopf-Pille oben, Dock unten. Quer: Knopfspalten links und rechts, Panels neben der linken. */
-:root { --karte-l: var(--links); --karte-r: var(--rechts); }
+   die schwebenden Knöpfe frei (Toasts, Menüs, Panels); --karte-r rückt nur die Karte ein (klassisch quer neben der
+   Werkzeugleiste). Hoch: Kopf-Pille oben, Dock unten. Quer: Knopfspalten links und rechts, Panels neben der linken. */
+:root { --karte-r: var(--rechts); }
 :root:has(.daumen) { --oben: calc(64px + var(--safe-top)); --unten: calc(70px + var(--safe-bottom)); }
 :root:has(.daumen footer .leiste) { --unten: calc(112px + var(--safe-bottom)); }
 @media (orientation: landscape) {
@@ -98,16 +95,19 @@
     --rand-l: calc(76px + env(safe-area-inset-left, 0px));
     --links: var(--rand-l);
     --rechts: calc(76px + env(safe-area-inset-right, 0px));
-    --karte-l: 0px;
     --karte-r: 0px;
   }
   :root:has(.daumen footer .leiste) { --unten: calc(52px + var(--safe-bottom)); }
-  :root:has(.daumen):has(.panels > .sheet) { --links: calc(var(--rand-l) + var(--panel-b)); --karte-l: var(--links); }
-  :root:has(.daumen):has(.panels > .sheet + .sheet) { --links: calc(var(--rand-l) + 2 * var(--panel-b)); }
-  /* Panels von ganz oben: die Kopf-Pille rückt rechts daneben */
-  :root:has(.daumen) .panels { top: var(--banner-h, 0px); }
-  :root:has(.daumen) .maplibregl-ctrl-bottom-left { left: calc(var(--links) - var(--karte-l)); }
+  /* Panels von oben (unter der Statusleiste, Rückmeldung 01.11.): die Kopf-Pille rückt rechts daneben */
+  :root:has(.daumen) .panels { top: calc(var(--safe-top) + 8px + var(--banner-h, 0px)); }
   :root:has(.daumen) .maplibregl-ctrl-bottom-right { right: var(--rechts); }
+}
+/* Panels quer (beide Bedienungen): schwebende Karten über der Karte, 8 px vom Rand und voneinander (App .panels) */
+@media (orientation: landscape) {
+  :root:has(.panels > .sheet) { --links: calc(var(--rand-l) + 8px + var(--panel-b)); }
+  /* zwei Panels: schmaler, damit die Karte auch auf dem Tablet sichtbar bleibt */
+  :root:has(.panels > .sheet + .sheet) { --panel-b: min(clamp(320px, 22vw, 380px), 32vw); --links: calc(var(--rand-l) + 16px + 2 * var(--panel-b)); }
+  .maplibregl-ctrl-bottom-left { left: var(--links); }
 }
 /* Niedriges Querformat (Handy quer): Kopfzeile bleibt einzeilig und flach, auch bei grosser Bediengrösse */
 @media (orientation: landscape) and (max-height: 500px) {
