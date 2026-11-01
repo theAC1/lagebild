@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { STANDARD_STIL } from '../../../../shared/protocol.ts';
 import { versetze } from '../../lib/coords.ts';
-import { darstelle, musterBild, musterName, umriss, type Form } from './darstellung.ts';
+import { darstelle, musterBild, musterName, PX, umriss, type Form } from './darstellung.ts';
 import { lokal, type Xy } from './geometrie.ts';
 import { liveMasse, masse, mitStil } from './logik.ts';
 
@@ -31,8 +31,8 @@ describe('Darstellung', () => {
     const [stufe, links, rechts] = d(); // nach Osten gezeichnet: links = Norden
     expect([stufe.text, stufe.art, links.text, rechts.text]).toEqual(['●●', 'stufe', 'NORD', 'SÜD']);
     const ebene = lokal(stufe.punkt);
-    expect(ebene.hin(links.punkt)[1]).toBeCloseTo(13 * MPP, 0);
-    expect(ebene.hin(rechts.punkt)[1]).toBeCloseTo(-13 * MPP, 0);
+    expect(ebene.hin(links.punkt)[1]).toBeCloseTo(PX.grenzName * MPP, 0);
+    expect(ebene.hin(rechts.punkt)[1]).toBeCloseTo(-PX.grenzName * MPP, 0);
     expect(stufe.punkt.lon).toBeCloseTo((A.lon + B.lon) / 2, 6);
     expect(d([B, A]).map((b) => b.drehung)).toEqual(Array(3).fill(expect.closeTo(0, 1))); // nach Westen: nicht kopfüber
     expect(d([B, C])[0].drehung).toBeCloseTo(-90, 1); // nach Norden

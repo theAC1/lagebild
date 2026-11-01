@@ -54,7 +54,7 @@ const polygon = (ps: Punkt[], p: Props): GeoJSON.Feature => ({ type: 'Feature', 
 export const musterName = (m: Muster, farbe: string): string => `zeichnen-${m}-${farbe.slice(1).toLowerCase()}`;
 
 /** Grössen der Zeichen in Bildschirmpixeln (über `mpp` in Meter umgerechnet → bleiben beim Zoomen lesbar). */
-export const PX = { spitze: 14, zackenAbstand: 18, zackenHoehe: 9, stoss: 26, grenzName: 13 };
+export const PX = { spitze: 14, zackenAbstand: 18, zackenHoehe: 9, stoss: 26, grenzName: 16 };
 
 /**
  * GeoJSON-Features und Beschriftungen einer Form. `mpp` = Meter je Pixel (aktueller Zoom).

@@ -547,3 +547,39 @@ Ohne Test (kein Verhalten, das klein prüfbar ist, Projektregel «kein Test-Bloa
 | `server/src/http.ts:176` | `rateLimiter(60, 60_000)` (limitMissionen) → `rateLimiter(61, 60_000)` | rest: Meine Missionen | rot |
 | `server/src/http.ts:331` | `phase: phaseVon(lage)` → `phase: 'lv'` | rest: Meine Missionen | rot |
 | `server/src/http.ts:331` | `rolle: g.teilnehmer.rolle` → `rolle: 'teilnehmer'` | rest: Meine Missionen | rot |
+
+
+## MilX/KML-Import und -Export (01.11., Spec v8)
+
+| Produktivcode | Mutation | roter Test | Ergebnis |
+|---|---|---|---|
+| `shared/regeln/zeichnen.ts` (`ebene.neu`) | `if (!(m.import ? darfImportieren(t.rolle) : leitung))` → `if (!leitung)` | rechte: Import (Spec v8) | rot |
+| `shared/regeln/zeichnen.ts` (`darfImportieren`) | `rolle === 'leitung' \|\| rolle === 'gruppenfuehrer'` → `rolle !== 'beobachter'` | rechte: Import | rot |
+| `shared/regeln/zeichnen.ts` (`ebene.neu`) | `const gesperrt = m.import ? leitung : (m.gesperrt ?? false)` → `m.gesperrt ?? false` | rechte: Import | rot |
+| `shared/regeln/zeichnen.ts` (`ebene.neu`) | Prüfung `idVergeben('ebene', m.id)` → `(entfernt)` | rechte: Import | rot |
+| `client/src/lib/coords.ts` (`vonLv03`) | `proj4(LV03, …, [e, n])` → `proj4(LV95, …, [e + 2e6, n])` (Nord nicht verschoben) | coords: LV03 → WGS84 | rot |
+| `austausch/milx.ts` (`vonDollar`) | `#RR GG BB` aus `$AABBGGRR` → Reihenfolge nicht umgedreht | MilX lesen; KML = MilX | rot |
+| `austausch/milx.ts` (`passe`) | Schlusspunkt von Ringen nicht entfernt | MilX lesen; eigene Zeichnungen | rot |
+| `austausch/milx.ts` (`ZUSATZ`) | `[/^G.8P/, 'flaeche']` → `'linie'` | MilX lesen | rot |
+| `austausch/milx.ts` (`xml`) | DTD-Prüfung `(entfernt)` | MilX lesen (keine DTD) | rot |
+| `austausch/milx.ts` (`farbeFuer`) | `'HSJK'` → `'SJK'` | MilX lesen (Feind rot) | rot |
+| `austausch/milx.ts` (`leseMilx`) | `sys === 'SwissLv03'` → `true` | MilX lesen (nur LV03) | rot |
+| `austausch/milx.ts` (`stilAusXm`) | Deckkraft `1 − Transparency/100` → `Transparency/100` | MilX lesen; KML = MilX | rot |
+| `austausch/kml.ts` (`vonRgba`) | `[r, g, b]` → `[b, g, r]` | KML = MilX | rot |
+| `austausch/kml.ts` (`stilVon`) | `ohneUmriss(…)` → `false` | KML = MilX | rot |
+| `austausch/kml.ts` (`vonKml`) | `aabbggrr` → als `aarrggbb` gelesen | KML = MilX (Linie Rot) | rot |
+| `austausch/milx.ts` (`passe`) | Vereinfachen aus (`if (true) return`) | Punktgrenzen | rot |
+| `austausch/milx.ts` (`ebeneAus`) | Vertragsprüfung `if (false) nicht.push` | Punktgrenzen (Koordinate ausserhalb) | rot |
+| `austausch/milx.ts` (`symbolExport`) | immer `z.milx` (Änderungen nicht eingesetzt) | Rundreise | rot |
+| `austausch/milx.ts` (`angepasst`) | Stufe nicht in den Code (`if (false) s.setAttribute`) | Rundreise | rot |
+| `austausch/milx.ts` (`symbolFuer`) | `GFGPGLB----${stufe}---` → `GFGPGLB--------` | eigene Zeichnungen | rot |
+| `austausch/milx.ts` (`zuDollar`) | `$AABBGGRR` → `$AARRGGBB` | eigene Zeichnungen | rot |
+| `austausch/milx.ts` (`symbolFuer`) | `default: return null` → ein Code | eigene Zeichnungen (ohne Code fehlt) | rot |
+| `austausch/zip.ts` (`CRC`) | Polynom `0xedb88320` → `0xedb88321` | ZIP | rot |
+| `austausch/zip.ts` (`strom`) | Grenze `n > max` → `false` | ZIP (Bombe) | rot |
+| `austausch/zip.ts` (`entpackeEine`) | Datenbeginn ohne Extrafeld-Länge des lokalen Kopfs | – | **grün**: weder eigene ZIPs noch Juans Beispiel haben ein Extrafeld. Bewusst kein Test (bräuchte ein fremdes ZIP als Fixture); die Länge wird gelesen, weil andere Packer (z.B. mit Zeitstempel-Feld) eines schreiben. |
+| `zeichnen/darstellung.ts` (Grenze) | Namen links/rechts vertauscht | Darstellung: Grenze | rot |
+| `zeichnen/geometrie.ts` (`mitteQuer`) | Schrift nicht aufgerichtet (`drehung: w`) | Darstellung: Grenze | rot |
+| `zeichnen/darstellung.ts` (`STUFE`) | C `●●` → `●` | Darstellung: Grenze | rot |
+
+Ohne Unit-Test (Oberfläche, E2E `e2e/austausch.e2e.ts`): Vorschau, Sperre der Leitungs-Ebene in der Liste, Beschriftungen auf der Karte, Download KML/MilX mit unverändertem Originalcode. Ohne Test: Fit auf das Importierte neben dem Panel, Knöpfe ins Bild scrollen, `accept` nur im Browser.

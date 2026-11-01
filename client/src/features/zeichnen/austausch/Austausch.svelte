@@ -45,7 +45,7 @@
     const b = new LngLatBounds();
     for (const e of vorschau.ebenen) for (const z of e.zeichnungen) for (const p of z.punkte) b.extend([p.lon, p.lat]);
     vorschau = null;
-    if (!b.isEmpty()) getMap().fitBounds(b, { padding: 60, maxZoom: 16 });
+    if (!b.isEmpty()) getMap().fitBounds(b, { padding: 60, maxZoom: 16 }); // quer liegt das Panel neben der Karte
   }
 
   async function exportieren(format: 'milx' | 'kml') {
@@ -60,6 +60,8 @@
       laeuft = false;
     }
   }
+  /** Knöpfe der Vorschau bzw. des Exports ins Bild holen (quer liegen sie sonst unter dem Panelrand). */
+  const insBild = (el: HTMLElement) => el.scrollIntoView({ block: 'nearest' });
   function waehle(id: string, an: boolean) {
     const neu = new Set(auswahl);
     if (an) neu.add(id);
@@ -83,7 +85,7 @@
       </div>
     {/each}
     {#if vorschau.fehler}<p class="warn">{vorschau.fehler}</p>{:else if store.istLeitung}<p class="leise">Neue Ebenen sind gesperrt (nur Leitung ändert).</p>{/if}
-    <div class="knoepfe">
+    <div class="knoepfe" use:insBild>
       <button onclick={() => (vorschau = null)} disabled={laeuft}>Abbrechen</button>
       <button class="primaer" onclick={importieren} disabled={laeuft || !!vorschau.fehler}>{laeuft ? 'Importiert …' : 'Importieren'}</button>
     </div>
@@ -95,7 +97,7 @@
       <label class="haken"><input type="checkbox" checked={auswahl.has(e.id)} onchange={(ev) => waehle(e.id, (ev.target as HTMLInputElement).checked)} />{e.name}</label>
     {/each}
     {#if ohneCode.length}<p class="leise">Nicht im MilX (kein Code bekannt): {ohneCode.join(' · ')}</p>{/if}
-    <div class="knoepfe">
+    <div class="knoepfe" use:insBild>
       <button onclick={() => (auswahl = null)} disabled={laeuft}>Abbrechen</button>
       <button class="primaer" onclick={() => exportieren('milx')} disabled={laeuft || !auswahl.size}>MilX</button>
       <button class="primaer" onclick={() => exportieren('kml')} disabled={laeuft || !auswahl.size}>KML</button>
