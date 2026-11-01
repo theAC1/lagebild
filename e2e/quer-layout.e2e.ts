@@ -301,6 +301,7 @@ test('Panel: Kopf und ✕ ganz sichtbar, ✕ schliesst @layout', async ({ browse
       await p.goto('/');
       await indieMission(p);
       await expect(p.locator('.verbindung.verbunden')).toBeVisible();
+      await p.getByRole('button', { name: 'Eigener Position folgen' }).click(); // Kartenmitte = eigene Position
       for (const panel of ['Status', 'Führungsraster']) {
         const wo = `${g.name} ${bed} ${panel}`;
         if (panel === 'Status') await p.getByRole('button', { name: /^Eigener Status/ }).click();
