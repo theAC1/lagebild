@@ -207,7 +207,7 @@ label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
   line-height: 1.1;
 }
 .rand-knopf[aria-pressed='true'], .rand-knopf[aria-expanded='true'] { border-color: var(--accent); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.rand-knopf > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rand-knopf > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4; } /* 1.1 schnitt die Punkte von «MENÜ» ab (overflow für die Ellipse) */
 .rand-knopf .badge {
   position: absolute;
   top: 4px;
@@ -231,6 +231,25 @@ label.feld { display: grid; gap: 4px; font-size: 0.9rem; color: var(--text-2); }
   text-transform: uppercase;
   color: var(--text-2);
 }
+
+/* Phasenschild AP/LV/AN (Spec v6): Kopf der Mission, Meine Missionen, Fähnchen im Menü */
+.p-schild {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  min-height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #000;
+  color: #fff;
+  font: 700 0.78rem/1 var(--mono);
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+.p-schild.ap { background: #555a5e; }
+.p-schild.an { background: #2e9e44; }
 
 /* Verbindungsanzeige in der Kopfzeile (beide Bedienungen) */
 .verbindung { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-2); }

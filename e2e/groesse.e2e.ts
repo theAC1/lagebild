@@ -1,6 +1,6 @@
 // Einstellung «Bediengrösse» auf dem Handy (Touch): Trefferflächen, keine Überlappung, Karte bleibt gross, gemerkt.
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { beitreten, DESKTOP, dokuBild, HOCH, langdruck, leereStelle, neueMission, QUER, QUER_GROSS } from './hilfen.ts';
+import { beitreten, DESKTOP, dokuBild, HOCH, langdruck, leereStelle, menue, neueMission, QUER, QUER_GROSS } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const NIEDRIG = QUER_GROSS;
@@ -124,16 +124,14 @@ for (const [ansicht, viewport] of [
     await pruefe(p, viewport);
     await bild(p, `${ansicht}-sehrgross`);
 
-    // Einstellungen als Panel: ganz im Bild und intern scrollbar bis «Lage verlassen»
-    await knopf(p, 'Mehr').click();
-    await p.getByRole('menuitem', { name: 'Einstellungen' }).click();
-    const panel = p.getByRole('region', { name: 'Einstellungen' });
+    // Menü › Einstellungen: Panel ganz im Bild und intern scrollbar bis zur letzten Einstellung
+    const panel = await menue(p, 'Einstellungen');
     await expect(panel).toBeInViewport({ ratio: 1 });
-    const verlassen = panel.getByRole('button', { name: 'Lage verlassen' });
-    await verlassen.scrollIntoViewIfNeeded();
-    await expect(verlassen).toBeInViewport({ ratio: 1 });
+    const letzte = panel.getByRole('group', { name: 'Ausrichtung' }).getByRole('button', { name: 'Quer' });
+    await letzte.scrollIntoViewIfNeeded();
+    await expect(letzte).toBeInViewport({ ratio: 1 });
     // grosse Schrift sprengt keine Spalte: nichts ragt in den rechten Innenabstand oder darüber hinaus
-    const raus = await panel.locator('.inhalt').evaluate((i) => {
+    const raus = await panel.locator('.scroll').evaluate((i) => {
       const rand = i.getBoundingClientRect().right - parseFloat(getComputedStyle(i).paddingRight) + 1;
       return [...i.querySelectorAll('*')].filter((x) => x.getBoundingClientRect().right > rand).map((x) => x.textContent?.slice(0, 20));
     });
@@ -146,18 +144,17 @@ test('Bediengrösse in den Einstellungen wählen: wirkt sofort und gilt nach Neu
   const p = await handy(browser, HOCH, 'normal', 'Reload');
   const folgen = knopf(p, 'Eigener Position folgen');
   const vorher = (await folgen.boundingBox())!.height;
-  await knopf(p, 'Mehr').click();
-  await p.getByRole('menuitem', { name: 'Einstellungen' }).click();
+  await menue(p, 'Einstellungen');
   const gruppe = p.getByRole('group', { name: 'Bediengrösse' });
   await gruppe.getByRole('button', { name: 'Sehr gross' }).click();
   await expect(gruppe.getByRole('button', { name: 'Sehr gross' })).toHaveAttribute('aria-pressed', 'true');
   expect(await ui(p)).toBe(1.4);
+  await knopf(p, /^Zurück zur Mission/).click();
   expect((await folgen.boundingBox())!.height).toBeCloseTo(vorher * 1.4, 0);
   await p.reload();
   await expect(p.locator('.verbindung.verbunden')).toBeVisible();
   expect(await ui(p)).toBe(1.4);
-  await knopf(p, 'Mehr').click();
-  await p.getByRole('menuitem', { name: 'Einstellungen' }).click();
+  await menue(p, 'Einstellungen');
   await expect(p.getByRole('group', { name: 'Bediengrösse' }).getByRole('button', { name: 'Sehr gross' })).toHaveAttribute('aria-pressed', 'true');
   await p.context().close();
 });
@@ -166,8 +163,7 @@ test('Touch quer: Sehr klein (31.10.) – Knöpfe auf 70 %, alle fünf Stufen w�
   const p = await handy(browser, QUER, 'normal', 'Klein');
   const folgen = knopf(p, 'Eigener Position folgen');
   const vorher = (await folgen.boundingBox())!.height;
-  await knopf(p, 'Mehr').click();
-  await p.getByRole('menuitem', { name: 'Einstellungen' }).click();
+  await menue(p, 'Einstellungen');
   const gruppe = p.getByRole('group', { name: 'Bediengrösse' });
   await expect(gruppe.getByRole('button')).toHaveText(['Sehr klein', 'Klein', 'Normal', 'Gross', 'Sehr gross']);
   for (const el of await gruppe.getByRole('button').all()) await expect(el).toBeInViewport({ ratio: 1 });

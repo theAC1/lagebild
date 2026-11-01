@@ -66,7 +66,7 @@
     const langdruck = (x: number, y: number) => {
       // Langdruck erkennt MapLibre selbst (auch iOS); Android feuert zusätzlich ein natives contextmenu an derselben Stelle
       const doppelt = Date.now() - zuletzt.t < 500 && Math.hypot(x - zuletzt.x, y - zuletzt.y) < 10;
-      if (doppelt || ui.punktWahl) return;
+      if (doppelt || ui.punktWahl || !store.token || ui.menue) return; // im Menü kein Radial-Menü
       zuletzt = { t: Date.now(), x, y };
       const z = zielUnter(x, y);
       if (z) return oeffneRadial(z.ziel, z.x, z.y);

@@ -1,6 +1,6 @@
 // Spec v2: Querformat (Handy, Tablet, Desktop), zwei Panels, Desktop-Bedienung, Radial-Menü.
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { bedienung, beitreten, dokuBild, HOCH, neueMission, QUER } from './hilfen.ts';
+import { bedienung, beitreten, dokuBild, HOCH, menue, neueMission, QUER } from './hilfen.ts';
 import type { Beigetreten } from '../shared/protocol.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
@@ -202,7 +202,7 @@ test('Koordinatenzeile: standardmässig aus, Klick aufs eigene Symbol schaltet (
 });
 
 test('Ausrichtung fix «Hoch» ohne Sperre: Hinweis «Gerät drehen»', async () => {
-  await leitung.getByRole('button', { name: 'Einstellungen', exact: true }).click();
+  await menue(leitung, 'Einstellungen');
   const gruppe = leitung.getByRole('group', { name: 'Ausrichtung' });
   // «ohne Sperre» ausdrücklich: headless Chromium erfüllt lock() sonst, dann blitzt der Hinweis nur kurz auf
   await leitung.evaluate(() => {
@@ -213,4 +213,5 @@ test('Ausrichtung fix «Hoch» ohne Sperre: Hinweis «Gerät drehen»', async ()
   await bild(leitung, 'desktop-drehen');
   await gruppe.getByRole('button', { name: 'Automatisch' }).click();
   await expect(leitung.getByText('Gerät drehen')).toHaveCount(0);
+  await leitung.keyboard.press('Escape');
 });

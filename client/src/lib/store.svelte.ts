@@ -1,6 +1,7 @@
 // Reaktiver Lagezustand + WebSocket-Verbindung + REST-Helfer.
 import { SvelteMap } from 'svelte/reactivity';
 import {
+  MAX_MISSIONEN_JE_ABFRAGE,
   phaseVon,
   staleNachFuer,
   STILLE_MS,
@@ -13,6 +14,7 @@ import {
   type Lage,
   type Marker,
   type Meldung,
+  type MissionenStand,
   type Notiz,
   type Phase,
   type Position,
@@ -25,6 +27,7 @@ import {
 import { PHASE_NAME } from '../../../shared/regeln/phase.ts';
 import * as rollen from '../../../shared/regeln/rollen.ts';
 import { apiUrl, wsUrl } from './umgebung.ts';
+import { mitMission, weiterNach, type Grund, type MeineMission } from './missionen.ts';
 import { raeumeAuf } from './speicher.ts';
 import { lies, schliesseAlle, schreibe, toast, ui } from './ui.svelte.ts';
 import type { KoordFormat } from './coords.ts';
@@ -33,7 +36,9 @@ import type { Basiskarte, Overlay } from './karten.ts';
 import { frischeAus, sollSenden, STILLSTAND_INTERVALL_MS, STILLSTAND_MS, type Frische } from './senden.ts';
 export type { Frische };
 
+/** Token der offenen Mission (beim App-Start direkt hinein); alle Missionen des Geräts stehen in MISSIONEN_KEY. */
 const TOKEN_KEY = 'lagebild.token';
+const MISSIONEN_KEY = 'lagebild.missionen';
 const EINST_KEY = 'lagebild.einstellungen';
 const MAX_LOG = 500;
 
@@ -82,8 +87,21 @@ function ladeEinstellungen(): Einstellungen {
   }
 }
 
+/** Meine Missionen frisch aus dem Speicher (ein anderer Tab kann sie geändert haben). */
+function ladeMissionen(): MeineMission[] {
+  try {
+    const j = JSON.parse(lies(MISSIONEN_KEY) ?? '[]');
+    return Array.isArray(j) ? j : [];
+  } catch {
+    return [];
+  }
+}
+
 class LageStore {
+  /** Token der offenen Mission (höchstens eine), null = Menü ohne Mission. */
   token = $state<string | null>(lies(TOKEN_KEY));
+  /** Alle Missionen dieses Geräts mit dem Stand vom letzten Besuch (Menü «Meine Missionen»). */
+  missionen = $state<MeineMission[]>(ladeMissionen());
   lage = $state<Lage | null>(null);
   /** eigene Teilnehmer-ID */
   ich = $state<string | null>(null);
@@ -124,6 +142,20 @@ class LageStore {
 
 export const store = new LageStore();
 export const token = () => store.token;
+
+function speichereMissionen(liste: MeineMission[]): void {
+  store.missionen = liste;
+  schreibe(MISSIONEN_KEY, JSON.stringify(liste));
+}
+/** Lage der offenen Mission; vor dem ersten Snapshot (App-Start) aus der Liste. */
+let offeneLage: string | null = store.missionen.find((m) => m.token === store.token)?.lageId ?? null;
+/** Token dieser Mission frisch aus dem Speicher, nicht aus store.missionen (Gate 01.11.). */
+const gespeichertesToken = (): string | null => (offeneLage && ladeMissionen().find((m) => m.lageId === offeneLage)?.token) || null;
+
+/** Stand der offenen Mission merken (Menü: Fähnchen-Ort, Zielobjekte, letzter Ausschnitt), lokal auf dem Gerät. */
+export function merkeMission(teil: Partial<Omit<MeineMission, 'lageId' | 'token'>>): void {
+  if (offeneLage) speichereMissionen(ladeMissionen().map((m) => (m.lageId === offeneLage ? { ...m, ...teil } : m)));
+}
 
 setInterval(() => (store.jetzt = Date.now()), 5000);
 
@@ -177,10 +209,18 @@ export function wende(m: ServerMsg): void {
   // Wiedergabe: die Anzeige zeigt einen früheren Stand; Live-Updates der Teilnehmenden würden ihn überschreiben
   if (store.wiedergabeZeit !== null && (m.typ === 'teilnehmer' || m.typ === 'pos')) return;
   switch (m.typ) {
-    case 'snapshot':
+    case 'snapshot': {
       store.ich = m.ich;
       store.lage = m.lage;
-      raeumeAuf(m.lage.id);
+      offeneLage = m.lage.id;
+      // Eintrag in Meine Missionen; ein gespeichertes Token ist nie älter als das dieser Verbindung (Beitritt schreibt es zuerst)
+      const ich = m.teilnehmer.find((t) => t.id === m.ich);
+      const alt = ladeMissionen().find((x) => x.lageId === m.lage.id);
+      if (ich && wsToken)
+        speichereMissionen(
+          mitMission(ladeMissionen(), { ziele: null, ansicht: null, ...alt, lageId: m.lage.id, token: alt?.token ?? wsToken, name: m.lage.name, phase: phaseVon(m.lage), rolle: ich.rolle, rufname: ich.rufname, funktion: ich.funktion }),
+        );
+      raeumeAuf([m.lage.id, ...store.missionen.map((x) => x.lageId)]);
       store.zeitversatz = m.serverZeit - Date.now();
       posEmpfang.clear();
       for (const t of m.teilnehmer) merkeEmpfang(t, t.zuletzt);
@@ -199,6 +239,7 @@ export function wende(m: ServerMsg): void {
       versuch = 0;
       sendePosJetzt(); // nach (Wieder-)Verbindung sofort zeigen, wo ich bin
       break;
+    }
     case 'teilnehmer': {
       const alt = store.teilnehmer.get(m.teilnehmer.id);
       // Statuswechsel o.ä. bringt dieselbe Position mit → Empfangszeit nur bei neuer Position setzen
@@ -275,7 +316,7 @@ export function wende(m: ServerMsg): void {
       break;
     }
     case 'beendet':
-      abmelden('Die Lage wurde gelöscht oder du wurdest entfernt.');
+      if (wsToken) weiter('beendet', wsToken);
       return;
     case 'fehler':
       toast(m.meldung);
@@ -296,6 +337,8 @@ export function wende(m: ServerMsg): void {
 // --- WebSocket mit Auto-Reconnect --------------------------------------------------------
 
 let ws: WebSocket | null = null;
+/** Token, mit dem `ws` sich angemeldet hat. */
+let wsToken: string | null = null;
 let versuch = 0;
 let wiederTimer: ReturnType<typeof setTimeout> | undefined;
 /** Letztes Lebenszeichen der Verbindung (Gerätezeit); der Server sendet spätestens alle PING_MS. */
@@ -303,14 +346,14 @@ let zuletztGehoert = 0;
 
 export function verbinde(): void {
   clearTimeout(wiederTimer);
-  if (!store.token || ws) return;
+  const token = store.token;
+  if (!token || ws) return;
   store.verbindung = 'verbinde';
   const s = new WebSocket(wsUrl());
   ws = s;
+  wsToken = token;
   zuletztGehoert = Date.now();
-  s.onopen = () => {
-    if (store.token) s.send(JSON.stringify({ typ: 'hallo', token: store.token, stand: __WEB_CODE__ } satisfies ClientMsg));
-  };
+  s.onopen = () => s.send(JSON.stringify({ typ: 'hallo', token, stand: __WEB_CODE__ } satisfies ClientMsg));
   s.onmessage = (e) => {
     zuletztGehoert = Date.now();
     let m: ServerMsg;
@@ -321,19 +364,45 @@ export function verbinde(): void {
     }
     wende(m);
   };
-  s.onclose = () => {
-    if (ws === s) getrennt();
+  s.onclose = (e) => {
+    if (ws !== s) return;
+    ws = null;
+    store.verbindung = 'getrennt';
+    weiter(e.code === 4005 ? 'neuesToken' : 'getrennt', token);
   };
 }
 
-function getrennt() {
-  ws = null;
-  store.verbindung = 'getrennt';
-  if (store.token) {
-    // Backoff 1 s … 30 s mit Streuung, damit nicht alle Geräte gleichzeitig anklopfen
-    const ms = Math.min(30_000, 1000 * 2 ** versuch++) * (0.75 + Math.random() * 0.5);
-    wiederTimer = setTimeout(verbinde, ms);
+/** Wie lange nach 4005 (Wiederbeitritt) auf das neue Token im Speicher gewartet wird. */
+const FRIST_NEUES_TOKEN_MS = 10_000;
+let wartetSeit = 0;
+
+/** Nach dem Ende der Verbindung mit `alt` weiter: Token-Regel in missionen.ts (weiterNach). */
+function weiter(grund: Grund, alt: string): void {
+  clearTimeout(wiederTimer);
+  if (store.token !== alt) return; // inzwischen anders geöffnet (Beitritt in diesem Tab, andere Mission, abgemeldet)
+  if (grund !== 'neuesToken') wartetSeit = 0;
+  else wartetSeit ||= Date.now();
+  const w = weiterNach(grund, alt, gespeichertesToken(), Date.now() - wartetSeit > FRIST_NEUES_TOKEN_MS);
+  if (w === 'abmelden') return abmelden('Die Mission wurde gelöscht oder du wurdest entfernt.');
+  if (w === 'warten') {
+    wiederTimer = setTimeout(() => weiter('neuesToken', alt), 250);
+    return;
   }
+  wartetSeit = 0;
+  if (w.token !== alt) {
+    // anderes Token derselben Mission (Wiederbeitritt): sofort damit verbinden
+    const s = ws;
+    ws = null;
+    s?.close();
+    store.token = w.token;
+    if (lies(TOKEN_KEY) === alt) schreibe(TOKEN_KEY, w.token);
+    versuch = 0;
+    verbinde();
+    return;
+  }
+  // Backoff 1 s … 30 s mit Streuung, damit nicht alle Geräte gleichzeitig anklopfen
+  const ms = Math.min(30_000, 1000 * 2 ** versuch++) * (0.75 + Math.random() * 0.5);
+  wiederTimer = setTimeout(verbinde, ms);
 }
 
 // Watchdog: Im Funkloch bleibt ein halb offener Socket minutenlang OPEN (kein FIN/RST). Ohne Lebenszeichen
@@ -341,12 +410,15 @@ function getrennt() {
 setInterval(() => {
   if (!ws || Date.now() - zuletztGehoert <= STILLE_MS) return;
   const tot = ws;
-  getrennt();
+  ws = null;
+  store.verbindung = 'getrennt';
   tot.close();
+  weiter('getrennt', wsToken!);
 }, 5000);
 
 function sofortWieder() {
-  if (store.token && !ws) {
+  if (store.token && !ws && !wartetSeit) {
+    // nach 4005 nicht: das gespeicherte Token ist dann das verworfene (weiter wartet auf das neue)
     versuch = 0;
     verbinde();
   }
@@ -450,16 +522,47 @@ function setzeZurueck() {
   ui.radial = null;
 }
 
-/** Token löschen, Verbindung schliessen, zurück zum Login. */
-export function abmelden(grund?: string): void {
+/** Verbindung zu und Lage-Zustand weg (beim Wechsel der Mission und beim Abmelden). */
+function trenne(): void {
   clearTimeout(wiederTimer);
-  store.token = null;
-  schreibe(TOKEN_KEY, null);
   const s = ws;
   ws = null;
   s?.close();
   store.verbindung = 'getrennt';
   setzeZurueck();
+}
+
+/** Offene Mission schliessen und eine andere öffnen (Token aus Meine Missionen bzw. frisch vom Beitritt). */
+function wechsle(token: string, lageId: string): void {
+  trenne();
+  store.token = token;
+  offeneLage = lageId;
+  schreibe(TOKEN_KEY, token);
+  versuch = 0;
+  verbinde();
+}
+
+/** Mission aus Meine Missionen öffnen; die offene schliesst (Verbindung zu, keine Position mehr). */
+export function oeffneMission(m: MeineMission): void {
+  ui.menue = false;
+  if (store.token !== m.token) wechsle(m.token, m.lageId);
+}
+
+/**
+ * Mission verlassen bzw. vom Server beendet: Token vom Gerät, offene Mission zu, zurück ins Menü. Gelöscht wird nur, wo noch
+ * dieses Token steht – ein anderer Tab kann die Mission inzwischen neu betreten haben (Gate 01.11.).
+ */
+export function abmelden(grund?: string, t: string | null = store.token): void {
+  if (t === store.token) {
+    trenne();
+    store.token = null;
+    offeneLage = null;
+    ui.menue = false;
+  }
+  if (t) {
+    if (lies(TOKEN_KEY) === t) schreibe(TOKEN_KEY, null);
+    speichereMissionen(ladeMissionen().filter((m) => m.token !== t));
+  }
   if (grund) toast(grund, 6000);
 }
 
@@ -501,12 +604,36 @@ export async function postJson<T>(pfad: string, body: unknown): Promise<T> {
 /** Eigene Angaben ändern, wirkt sofort für alle (Spec v7 «Meine Angaben live»). false ohne Verbindung. */
 export const ichAendern = (a: Omit<Extract<ClientMsg, { typ: 'ich.aendern' }>, 'typ'>): boolean => send({ typ: 'ich.aendern', ...a });
 
-export function anmelden(b: Beigetreten): void {
-  store.token = b.token;
+/**
+ * Nach Beitreten/Eröffnen: neues Token zuerst speichern (eine offene Verbindung derselben Mission wartet nach 4005 darauf),
+ * dann die Mission öffnen. `angaben`: bis zum Snapshot sichtbarer Stand in Meine Missionen.
+ */
+export function anmelden(b: Beigetreten, angaben: Pick<MeineMission, 'name' | 'phase' | 'rufname' | 'funktion'>): void {
+  const alt = ladeMissionen().find((m) => m.lageId === b.lageId);
+  speichereMissionen(mitMission(ladeMissionen(), { ziele: null, ansicht: null, ...angaben, ...alt, lageId: b.lageId, token: b.token, rolle: b.rolle }));
+  ui.menue = false;
+  wechsle(b.token, b.lageId);
   store.ich = b.teilnehmerId;
-  schreibe(TOKEN_KEY, b.token);
-  versuch = 0;
-  verbinde();
+}
+
+/**
+ * Meine Missionen mit dem Server abgleichen (Name, Phase, Rolle); unbekannte fallen mit Hinweis heraus. Ohne Verbindung
+ * bleibt der Stand vom letzten Besuch.
+ */
+export async function pruefeMissionen(): Promise<void> {
+  const liste = ladeMissionen().slice(0, MAX_MISSIONEN_JE_ABFRAGE);
+  if (!liste.length) return;
+  let stand: MissionenStand;
+  try {
+    stand = await postJson<MissionenStand>('/api/missionen', { tokens: liste.map((m) => m.token) });
+  } catch {
+    return;
+  }
+  const weg = liste.filter((_, i) => !stand.missionen[i]);
+  const neu = new Map(liste.map((m, i) => [m.token, stand.missionen[i]]));
+  // frisch geladen: inzwischen geänderte Tokens (Wiederbeitritt) bleiben unberührt
+  speichereMissionen(ladeMissionen().flatMap((m) => (neu.has(m.token) ? (neu.get(m.token) ? [{ ...m, ...neu.get(m.token) }] : []) : [m])));
+  if (weg.length) toast(`Nicht mehr verfügbar (gelöscht oder entfernt): ${weg.map((m) => m.name || 'Mission').join(', ')}`, 6000);
 }
 
 /** «gerade eben», «vor 40 s», «vor 3 min», «vor 2 h» */

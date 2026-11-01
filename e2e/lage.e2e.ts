@@ -2,7 +2,7 @@
 // Bildschirm aus dem Projekt: läuft quer (Vorgabe) und hoch (@hoch).
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { bedienung, dokuBild } from './hilfen.ts';
+import { bedienung, dokuBild, menue } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const BRAVO = { latitude: 46.9366, longitude: 7.4442 }; // ~1.11 km, Azimut 180° von Adler
@@ -23,10 +23,12 @@ async function neueSeite(browser: Browser, geolocation: typeof ADLER): Promise<P
   return page;
 }
 
+/** Menü › Beitreten (Code steht schon da, per Link); die Einheit fragt das Formular nur ab, solange das Profil keine hat. */
 async function beitreten(page: Page, rufname: string, einheit: string) {
-  await page.getByLabel('Rufname').fill(rufname);
-  await page.getByLabel('Einheit').fill(einheit);
-  await page.getByRole('button', { name: 'Beitreten', exact: true }).click();
+  const form = page.locator('section.panel form');
+  await form.getByLabel('Rufname').fill(rufname);
+  if (await form.getByLabel('Einheit').isVisible()) await form.getByLabel('Einheit').fill(einheit);
+  await form.getByRole('button', { name: 'Beitreten', exact: true }).click();
   await expect(page.locator('.verbindung.verbunden')).toBeVisible();
 }
 
@@ -62,7 +64,9 @@ test.afterAll(async () => {
 
 test('Mission eröffnen (direkt als Leitung), beitreten, gegenseitig sehen @hoch', async () => {
   await leitung.goto('/');
-  await expect(leitung.getByRole('button', { name: 'Neue Mission', exact: true })).toBeVisible();
+  // Startseite ohne Mission ist das Menü (Spec v7); ohne Missionen auf dem Gerät mit «Beitreten»
+  await expect(leitung.getByRole('navigation', { name: 'Menü' })).toBeVisible();
+  await expect(leitung.getByRole('region', { name: 'Beitreten' })).toBeVisible();
   await bild(leitung, 'quer-login');
   await leitung.getByRole('button', { name: 'Neue Mission', exact: true }).click();
   await leitung.getByLabel('Name der Mission').fill('Übung Aare');
@@ -139,18 +143,21 @@ test('Mission eröffnen (direkt als Leitung), beitreten, gegenseitig sehen @hoch
     else expect(b.left, `${a.text} / ${b.text}`).toBeGreaterThanOrEqual(a.right);
   }
 
-  // Einstellungen aus der Kopfzeile
-  await leitung.getByRole('button', { name: 'Einstellungen', exact: true }).click();
-  await expect(sheet(leitung).getByRole('group', { name: 'Bedienung' })).toBeVisible();
+  // Einstellungen im Menü (Knopf «Menü» statt Zahnrad in der Kopfzeile); die Mission läuft darunter weiter
+  const einstellungen = await menue(leitung, 'Einstellungen');
+  await expect(einstellungen.getByRole('group', { name: 'Bedienung' })).toBeVisible();
   await bild(leitung, 'quer-einstellungen');
-  await schliesseSheet(leitung);
+  await einstellungen.getByRole('button', { name: /^Zurück zur Mission/ }).click();
+  await expect(leitung.locator('.verbindung.verbunden')).toBeVisible();
 });
 
 test('Wiederbeitritt desselben Geräts ohne Doppel-Eintrag; Leitung setzt die Rolle @hoch', async () => {
   // Bravo verlässt die Mission und tritt mit demselben Gerät wieder bei: derselbe Eintrag, kein zweiter
-  await teilnehmer.getByRole('button', { name: 'Einstellungen', exact: true }).click();
-  await sheet(teilnehmer).getByRole('button', { name: 'Lage verlassen', exact: true }).click();
-  await sheet(teilnehmer).getByRole('button', { name: 'Verlassen', exact: true }).click();
+  const missionen = await menue(teilnehmer, 'Meine Missionen');
+  await missionen.locator('.mission', { hasText: 'Übung Aare' }).click();
+  await missionen.getByRole('button', { name: 'Mission verlassen', exact: true }).click();
+  await missionen.getByRole('button', { name: 'Verlassen', exact: true }).click();
+  await expect(missionen.locator('.mission')).toHaveCount(0);
   await teilnehmer.goto(`/?code=${teilnehmerCode}`);
   await beitreten(teilnehmer, 'Bravo', 'Zug 1');
   await leitung.getByRole('button', { name: 'Teilnehmende', exact: true }).click();
@@ -416,18 +423,19 @@ test('Export GPX, Nachbearbeitung statt Beenden, zurück und löschen @hoch', as
   await wgLeitung.getByRole('button', { name: 'Notiz löschen' }).click();
   await expect(notizZeile).toHaveCount(0);
 
-  // Löschen bleibt bei der Leitung (Phasenschild → Leitung › Lage, auch über der offenen Wiedergabe): beide landen im Login
+  // Löschen bleibt bei der Leitung (Phasenschild → Leitung › Lage, auch über der offenen Wiedergabe): beide landen im Menü
   await leitung.getByRole('button', { name: /^Phase: Aktionsnachbearbeitung/ }).click();
   await sheet(leitung).getByPlaceholder('Name der Lage').fill('Übung Aare');
   await sheet(leitung).getByRole('button', { name: 'Endgültig löschen', exact: true }).click();
-  await expect(leitung.getByRole('button', { name: 'Mission beitreten', exact: true })).toBeVisible();
-  await expect(teilnehmer.getByRole('button', { name: 'Mission beitreten', exact: true })).toBeVisible();
+  await expect(leitung.getByRole('navigation', { name: 'Menü' })).toBeVisible();
+  await expect(teilnehmer.getByRole('navigation', { name: 'Menü' })).toBeVisible();
   await expect(teilnehmer.locator('.toast', { hasText: 'gelöscht' })).toBeVisible();
+  await expect(teilnehmer.locator('section.panel .mission')).toHaveCount(0); // fällt aus Meine Missionen
 
   // Code ist danach ungültig (Lage gelöscht)
-  await teilnehmer.getByLabel('Code').fill(teilnehmerCode);
-  await teilnehmer.getByLabel('Rufname').fill('Charlie');
-  await teilnehmer.getByLabel('Einheit').fill('Zug 1');
-  await teilnehmer.getByRole('button', { name: 'Beitreten', exact: true }).click();
+  const form = (await menue(teilnehmer, 'Beitreten')).locator('form');
+  await form.getByLabel('Code').fill(teilnehmerCode);
+  await form.getByLabel('Rufname').fill('Charlie');
+  await form.getByRole('button', { name: 'Beitreten', exact: true }).click();
   await expect(teilnehmer.getByRole('alert')).toContainText('Code ungültig');
 });

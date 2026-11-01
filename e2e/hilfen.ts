@@ -1,6 +1,6 @@
 // Gemeinsame Hilfen der E2E-Tests (keine Testdatei: testMatch ist *.e2e.ts).
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { test, type APIRequestContext, type Page } from '@playwright/test';
+import { test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import { beitrittsText, eroeffnungsText, type Beigetreten, type GeraetNachweis, type LageErstellt } from '../shared/protocol.ts';
 
 type Person = { rufname?: string; einheit?: string; funktion?: string; sidc?: string };
@@ -26,6 +26,17 @@ export async function beitreten(req: APIRequestContext, code: string | Beigetret
   const r = await req.post('/api/beitreten', { data: { code, ...person(p), geraet: await nachweis(req, (c) => beitrittsText(c, code.toUpperCase())) } });
   if (r.status() !== 201) throw new Error(`Beitreten: ${r.status()}`);
   return r.json();
+}
+
+/**
+ * Menü (Spec v7) öffnen – aus der laufenden Mission über den Knopf «Menü», ohne Mission ist es ohnehin offen – und
+ * optional eine Seite der Menüspalte wählen. Liefert das Panel der Seite.
+ */
+export async function menue(p: Page, seite?: string): Promise<Locator> {
+  const spalte = p.getByRole('navigation', { name: 'Menü' });
+  if (!(await spalte.isVisible())) await p.getByRole('button', { name: 'Menü', exact: true }).click();
+  if (seite) await spalte.getByRole('button', { name: seite, exact: true }).click();
+  return p.locator('section.panel');
 }
 
 /** Vorgabe der Tests (Projekt «quer» in playwright.config.ts): Android-Handy FHD+ 2340×1080 bei DPR 2.75, quer. */

@@ -16,7 +16,7 @@
   const MELDEN = ['sichtung', 'marker'];
   const VERBINDUNG = { verbunden: 'verbunden', verbinde: 'verbinde …', getrennt: 'getrennt' } as const;
   const IKON_TN = ikon('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.5-4 3-6 6.5-6s6 2 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2 .7 3.2 2.6 3.5 6"/>');
-  const IKON_EINST = ikon('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9L7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>');
+  const IKON_MENUE = ikon('<path d="M4 6h16M4 12h16M4 18h16"/>');
 
   const quer = new MediaQuery('(orientation: landscape)', false);
   const sichtbar = $derived(features.filter((f) => zeigen(f, store.phase, store.ichSelbst?.rolle)));
@@ -24,7 +24,6 @@
   const mehr = $derived([
     ...sichtbar.filter((f) => f.Panel && !f.haupt).map((f) => ({ id: f.id, label: f.label, icon: f.icon })),
     { id: 'teilnehmer', label: 'Teilnehmende', icon: IKON_TN },
-    { id: 'einstellungen', label: 'Einstellungen', icon: IKON_EINST },
   ]);
   const koordLeiste = $derived(store.einstellungen.koordLeiste || !store.meinePos); // ohne Fix die einzige GPS-Anzeige
 
@@ -125,6 +124,11 @@
   </button>
 {/snippet}
 
+<!-- Menü (Spec v7) statt Einstellungen: rechts unten, wo im Menü «Zurück zur Mission» sitzt -->
+{#snippet menueKnopf()}
+  <button class="rand-knopf" aria-label="Menü" onclick={() => (zu(), (ui.menue = true))}>{@html IKON_MENUE}<span>Menü</span></button>
+{/snippet}
+
 {#snippet meldenKnopfS()}
   {@const badge = melden.reduce((n, f) => n + (f.badge?.() ?? 0), 0)}
   <button
@@ -187,6 +191,7 @@
       <span class="luecke"></span>
       {@render knopf('chat')}
       {@render mehrKnopf()}
+      {@render menueKnopf()}
     </aside>
     {#if koordLeiste}<footer class="fuss"><KoordLeiste /></footer>{/if}
   {:else}
@@ -199,6 +204,7 @@
         {#if melden.length}{@render meldenKnopfS()}{/if}
         {@render knopf('chat')}
         {@render mehrKnopf()}
+        {@render menueKnopf()}
       </nav>
     </footer>
   {/if}
@@ -393,6 +399,7 @@
     bottom: 0;
     z-index: 10;
     display: grid;
+    grid-template-columns: minmax(0, 1fr); /* lange Koordinatenzeile (GPS-Fehler) schob das Dock über den Rand */
     justify-items: center;
     gap: 6px;
     padding-bottom: var(--safe-bottom);

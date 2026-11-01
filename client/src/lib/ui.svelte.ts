@@ -34,6 +34,8 @@ class UiZustand {
   folgen = $state(false);
   /** Karte folgt diesem Teilnehmer (schliesst folgen aus). */
   folgtTeilnehmer = $state<string | null>(null);
+  /** Menü über der laufenden Mission offen (ohne offene Mission zeigt App das Menü ohnehin). */
+  menue = $state(false);
   /** Werkzeugleiste im Querformat eingeklappt (gemerkt). */
   leisteZu = $state(lies(LEISTE_KEY) === '1');
 

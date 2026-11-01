@@ -4,12 +4,12 @@
   import Daumen from './components/Daumen.svelte';
   import EbenenListe from './components/EbenenListe.svelte';
   import EigenePosition from './components/EigenePosition.svelte';
-  import Einstellungen from './components/Einstellungen.svelte';
   import Fadenkreuz from './components/Fadenkreuz.svelte';
   import KoordKarte from './components/KoordKarte.svelte';
   import KoordLeiste from './components/KoordLeiste.svelte';
-  import Login from './components/Login.svelte';
   import MapView from './components/MapView.svelte';
+  import { merkeStand } from './components/menu/kamera.ts';
+  import Menue from './components/menu/Menue.svelte';
   import RadialMenu from './components/RadialMenu.svelte';
   import Sheet from './components/Sheet.svelte';
   import TeilnehmerDetail from './components/TeilnehmerDetail.svelte';
@@ -32,7 +32,7 @@
   const stufe = $derived(update.web?.stufe ?? 'normal');
   const updateTitel = $derived(stufe === 'sicherheit' ? 'Sicherheitsupdate bereit' : stufe === 'wichtig' ? 'Wichtiges Update bereit' : 'Neue Version bereit');
 
-  const EINGEBAUT: Record<string, string> = { teilnehmer: 'Teilnehmende', einstellungen: 'Einstellungen' };
+  const EINGEBAUT: Record<string, string> = { teilnehmer: 'Teilnehmende' };
 
   let basisOffen = $state(false);
 
@@ -45,6 +45,9 @@
   }
   const koordLeiste = $derived(store.einstellungen.koordLeiste || !store.meinePos); // ohne Fix ist sie die einzige GPS-Anzeige
   const daumen = $derived(store.einstellungen.bedienung === 'daumen');
+  // Menü (Spec v7): ohne offene Mission die Startseite, sonst über der laufenden Mission (Verbindung und GPS laufen weiter)
+  const menue = $derived(!store.token || ui.menue);
+  const IKON_MENUE = ikon('<path d="M4 6h16M4 12h16M4 18h16"/>');
 
   $effect(wendeGroesseAn); // Bediengrösse: wirkt sofort, auch vor dem Anmelden
 
@@ -57,7 +60,8 @@
   // Esc: zuerst Ring und Koordinaten-Karte, dann Werkzeug (Punktwahl), dann das oberste Panel
   function taste(e: KeyboardEvent) {
     if (e.key !== 'Escape' || e.defaultPrevented) return;
-    if (ui.radial) ui.radial = null;
+    if (store.token && ui.menue) ui.menue = false;
+    else if (ui.radial) ui.radial = null;
     else if (ui.koordinate) ui.koordinate = null;
     else if (ui.punktWahl) ui.punktWahl.fertig(null);
     else if (basisOffen) basisOffen = false;
@@ -91,7 +95,13 @@
   onMount(() => {
     onMapReady(pruefeThema);
     const iv = setInterval(pruefeThema, 60_000);
-    return () => clearInterval(iv);
+    // Stand der offenen Mission fürs Menü (Fähnchen, letzter Ausschnitt), bevor Android die App beendet
+    const weg = () => document.visibilityState === 'hidden' && store.token && !ui.menue && merkeStand();
+    document.addEventListener('visibilitychange', weg);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener('visibilitychange', weg);
+    };
   });
 
   const VERBINDUNG = { verbunden: 'verbunden', verbinde: 'verbinde …', getrennt: 'getrennt' } as const;
@@ -113,8 +123,8 @@
 </MapView>
 
 {#if store.token && store.lage}<PhaseRahmen />{/if}
-{#if !store.token}
-  <Login />
+{#if menue}
+  <Menue />
 {:else if daumen}
   <Daumen />
 {:else}
@@ -130,9 +140,7 @@
       {@html ikon('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.5-4 3-6 6.5-6s6 2 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2 .7 3.2 2.6 3.5 6"/>')}
       <span class="zahl">{store.teilnehmer.size}</span>
     </button>
-    <button class="icon" aria-label="Einstellungen" onclick={() => oeffne('einstellungen')}>
-      {@html ikon('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9L7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>')}
-    </button>
+    <button class="icon" aria-label="Menü" onclick={() => (ui.menue = true)}>{@html IKON_MENUE}</button>
   </header>
 
   <div class="schwebend">
@@ -175,7 +183,7 @@
   </footer>
 {/if}
 
-{#if store.token}
+{#if !menue}
   {#if !ui.punktWahl && ui.panels.length}
     <div class="panels">
       {#each ui.panels as p (p.id)}
@@ -183,8 +191,6 @@
         <Sheet titel={titelVon(p)} panelId={p.id} onclose={() => schliesse(p.id)}>
           {#if p.id === 'teilnehmer'}
             <TeilnehmerListe />
-          {:else if p.id === 'einstellungen'}
-            <Einstellungen />
           {:else if p.id === DETAIL && p.params.art === 'teilnehmer'}
             <TeilnehmerDetail id={p.params.id} />
           {:else if p.id === DETAIL && f?.Detail}

@@ -1,7 +1,7 @@
 // Spec v3: Bedienung «Daumen-Ränder» (Vorgabe) – Querformat Handy/Tablet, Hochformat, Meldungen mit wenig Tipps,
 // Marker per Fadenkreuz, Alarm halten, Tag/Nacht nach Sonnenstand.
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
-import { beitreten, dokuBild, HOCH, neueMission, QUER } from './hilfen.ts';
+import { beitreten, dokuBild, HOCH, menue, neueMission, QUER } from './hilfen.ts';
 import type { Beigetreten, LageErstellt } from '../shared/protocol.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
@@ -109,7 +109,7 @@ test('Handy quer 851×393: Melden links, Karte rechts, grosse Ziele, schlanke Ko
 test('Mehr-Menü: übrige Werkzeuge, Panels zwischen linkem Rand und Karte', async () => {
   await knopf(leitung, 'Mehr').click();
   const menu = leitung.getByRole('menu', { name: 'Mehr' });
-  for (const name of ['Range & Bearing', 'Spuren', 'Zeichnen', 'Leitung', 'Teilnehmende', 'Einstellungen', 'Meldungslog'])
+  for (const name of ['Range & Bearing', 'Spuren', 'Zeichnen', 'Leitung', 'Teilnehmende', 'Meldungslog'])
     await expect(menu.getByRole('menuitem', { name })).toBeVisible();
   for (const name of ['Sichtung', 'Marker']) await expect(menu.getByRole('menuitem', { name })).toHaveCount(0); // nur über «Melden»
   await bild(leitung, 'mehr');
@@ -144,7 +144,7 @@ test('Status mit einem Tipp (zwei mit Öffnen), Panel schliesst sich', async () 
 test('Hochformat 393×851: Dock unten, Alarm links darüber, Kartenknöpfe rechts', async () => {
   const dock = bravo.getByRole('navigation', { name: 'Hauptaktionen' });
   const namen = await dock.getByRole('button').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''));
-  expect(namen.map((n) => n.split(/[:(]/)[0].trim())).toEqual(['Eigener Status', 'Melden', 'Chat', 'Mehr']);
+  expect(namen.map((n) => n.split(/[:(]/)[0].trim())).toEqual(['Eigener Status', 'Melden', 'Chat', 'Mehr', 'Menü']);
   const d = (await dock.boundingBox())!;
   expect(d.y + d.height).toBeGreaterThan(HOCH.height - 2);
   for (const b of await dock.getByRole('button').evaluateAll((els) => els.map((e) => e.getBoundingClientRect())))
@@ -311,7 +311,7 @@ test('Browser-Gesten: Text auf Knöpfen nicht markierbar, kein Browser-Menü auf
   const markierung = (l: Locator) => l.evaluate((el) => getComputedStyle(el).userSelect);
   // Ein später angehängter Zuhörer sieht, ob die App das Browser-Menü unterdrückt hat (true = unterdrückt)
   await leitung.evaluate(() => addEventListener('contextmenu', (e) => ((window as unknown as { menuWeg: boolean }).menuWeg = e.defaultPrevented)));
-  const menue = async (l: Locator, position?: { x: number; y: number }) => {
+  const kontextmenue = async (l: Locator, position?: { x: number; y: number }) => {
     if (position) await l.click({ button: 'right', position }); // echter Rechtsklick (Karte)
     else await l.dispatchEvent('contextmenu'); // Element im Panel kann von Nachbarn halb verdeckt sein
     return leitung.evaluate(() => (window as unknown as { menuWeg: boolean }).menuWeg);
@@ -319,10 +319,10 @@ test('Browser-Gesten: Text auf Knöpfen nicht markierbar, kein Browser-Menü auf
   const melden = knopf(leitung, 'Melden');
   expect(await markierung(melden.getByText('Melden'))).toBe('none');
   expect(await markierung(leitung.locator('header.kopf .lage'))).toBe('none');
-  expect(await menue(melden)).toBe(true);
+  expect(await kontextmenue(melden)).toBe(true);
   await expect(leitung.getByRole('menu', { name: 'Melden' })).toHaveCount(0); // Rechtsklick ist kein Tipp
   // Karte: Browser-Menü weg, der Rechtsklick (= Langdruck) der App wirkt weiter
-  expect(await menue(leitung.locator('.maplibregl-canvas'), { x: 300, y: 300 })).toBe(true);
+  expect(await kontextmenue(leitung.locator('.maplibregl-canvas'), { x: 300, y: 300 })).toBe(true);
   await expect(leitung.getByRole('menu', { name: 'Aktionen für Punkt' }).getByRole('menuitem').first()).toBeVisible();
   await leitung.keyboard.press('Escape');
   expect(await leitung.locator('img').evaluateAll((els) => els.every((e) => getComputedStyle(e).getPropertyValue('-webkit-user-drag') === 'none'))).toBe(true);
@@ -332,27 +332,27 @@ test('Browser-Gesten: Text auf Knöpfen nicht markierbar, kein Browser-Menü auf
   await chat.locator('button.zeile', { hasText: 'Alle' }).first().click();
   const blase = chat.locator('.blase', { hasText: 'Verstanden' }).first();
   expect(await markierung(blase)).toBe('text');
-  expect(await menue(blase)).toBe(false);
+  expect(await kontextmenue(blase)).toBe(false);
   const eingabe = chat.locator('input, textarea').last();
   expect(await markierung(eingabe)).toBe('text');
-  expect(await menue(eingabe)).toBe(false);
+  expect(await kontextmenue(eingabe)).toBe(false);
   await leitung.keyboard.press('Escape');
   await leitung.keyboard.press('Escape');
   await expect(sheets(leitung)).toHaveCount(0);
 });
 
 test('Klassisch bleibt wählbar und gilt nach Neuladen', async () => {
-  await knopf(bravo, 'Mehr').click();
-  await bravo.getByRole('menuitem', { name: 'Einstellungen' }).click();
+  await menue(bravo, 'Einstellungen');
   await bravo.getByRole('group', { name: 'Bedienung' }).getByRole('button', { name: 'Klassisch' }).click();
+  await knopf(bravo, /^Zurück zur Mission/).click();
   await expect(bravo.locator('nav.werkzeuge')).toBeVisible();
   await bravo.reload();
   await expect(bravo.locator('nav.werkzeuge')).toBeVisible();
   await expect(bravo.getByRole('navigation', { name: 'Hauptaktionen' })).toHaveCount(0);
-  await knopf(bravo, 'Einstellungen').click();
+  await menue(bravo, 'Einstellungen');
   await bravo.getByRole('group', { name: 'Bedienung' }).getByRole('button', { name: 'Daumen-Ränder' }).click();
-  await expect(bravo.getByRole('navigation', { name: 'Hauptaktionen' })).toBeVisible();
   await bravo.keyboard.press('Escape');
+  await expect(bravo.getByRole('navigation', { name: 'Hauptaktionen' })).toBeVisible();
 });
 
 test('Tag/Nacht nach Sonnenstand: hell am Mittag, dunkel nach Sonnenuntergang (minütlich geprüft)', async ({ browser }) => {
