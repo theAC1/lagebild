@@ -529,3 +529,18 @@ angehoben) bildet das alte Verhalten nach: Herabstufen bleibt geschützt, Hochst
 | `server/src/http.ts:176` | `rateLimiter(60, 60_000)` (limitMissionen) → `rateLimiter(61, 60_000)` | rest: Meine Missionen | rot |
 | `server/src/http.ts:331` | `phase: phaseVon(lage)` → `phase: 'lv'` | rest: Meine Missionen | rot |
 | `server/src/http.ts:331` | `rolle: g.teilnehmer.rolle` → `rolle: 'teilnehmer'` | rest: Meine Missionen | rot |
+
+## Panels quer (01.11., Juan: «das kreuz oben rechts funktioniert in 6 von 10 fällen nicht»)
+
+E2E `e2e/quer-layout.e2e.ts` «Panel: Kopf und ✕ ganz sichtbar, ✕ schliesst» (@layout; Projekt `quer` mit 851×393 und Juans
+Handy 891×411 bei DPR 3.5, Bediengrösse Klein; Projekt `quer-gross` mit 780×360; je Klassisch und Daumen, Panels Status und
+Führungsraster; Safe-Area oben 30, links 40, unten 15 per CDP `Emulation.setSafeAreaInsetsOverride`). Vor dem Fix rot
+(«851×393 klassisch Status oben: Kopf 0,74,319,128 ausserhalb des sicheren Bereichs»; Daumen: Kopf ab y = 0 unter der
+Statusleiste). 4 von 4 Mutationen rot (Runner wie oben, `playwright test e2e/quer-layout.e2e.ts -g "Kopf und ✕" --project quer`):
+
+| Produktivcode | Mutation | roter Test (erste Meldung) | Ergebnis |
+|---|---|---|---|
+| `client/src/app.css:102` | `top: calc(var(--safe-top) + 8px + var(--banner-h, 0px))` → `top: calc(8px + var(--banner-h, 0px))` | «851×393 daumen Status oben: Kopf 125,9,443,63 ausserhalb des sicheren Bereichs» | rot |
+| `client/src/app.css:82` | `--rand-l: env(safe-area-inset-left, 0px);` → `(entfernt)` | «851×393 klassisch Status oben: Kopf 9,83,327,137 ausserhalb des sicheren Bereichs» | rot |
+| `client/src/components/Sheet.svelte:111` | `width/min-height: max(44px, calc(48 * var(--u)))` → `(entfernt)` | «Juan 891×411 Klein klassisch Status: ✕ 41×41» | rot |
+| `client/src/components/Sheet.svelte:14` | `const left = offen ? Math.round(panels.getBoundingClientRect().right) : 0;` → `const left = 0;` | «851×393 klassisch Status: Kartenmitte neben dem Panel» | rot |
