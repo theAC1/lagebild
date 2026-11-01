@@ -1,6 +1,6 @@
 // Einstellung «Bediengrösse» auf dem Handy (Touch): Trefferflächen, keine Überlappung, Karte bleibt gross, gemerkt.
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { beitreten, DESKTOP, dokuBild, HOCH, langdruck, leereStelle, menue, neueMission, QUER, QUER_GROSS } from './hilfen.ts';
+import { beitreten, DESKTOP, dokuBild, HOCH, indieMission, langdruck, leereStelle, menue, neueMission, QUER, QUER_GROSS } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const NIEDRIG = QUER_GROSS;
@@ -37,6 +37,7 @@ async function handy(browser: Browser, viewport: typeof HOCH, groesse: string, r
     throw e;
   });
   await page.goto('/');
+  await indieMission(page);
   await expect(page.locator('.verbindung.verbunden')).toBeVisible();
   return page;
 }
@@ -152,6 +153,7 @@ test('Bediengrösse in den Einstellungen wählen: wirkt sofort und gilt nach Neu
   await knopf(p, /^Zurück zur Mission/).click();
   expect((await folgen.boundingBox())!.height).toBeCloseTo(vorher * 1.4, 0);
   await p.reload();
+  await indieMission(p);
   await expect(p.locator('.verbindung.verbunden')).toBeVisible();
   expect(await ui(p)).toBe(1.4);
   await menue(p, 'Einstellungen');
@@ -182,11 +184,13 @@ test('Desktop (Maus): Normal bleibt beim heutigen Stand, Gross skaliert', async 
   await ctx.addInitScript((t) => localStorage.setItem('lagebild.token', t), token);
   const p = await ctx.newPage();
   await p.goto('/');
+  await indieMission(p);
   await expect(p.locator('.verbindung.verbunden')).toBeVisible();
   expect(await ui(p)).toBe(1);
   expect((await knopf(p, 'Eigener Position folgen').boundingBox())!.height).toBe(48);
   await p.evaluate(() => localStorage.setItem('lagebild.einstellungen', JSON.stringify({ ...JSON.parse(localStorage.getItem('lagebild.einstellungen') ?? '{}'), groesse: 'gross' })));
   await p.reload();
+  await indieMission(p);
   expect(await ui(p)).toBe(1.2);
   expect((await knopf(p, 'Eigener Position folgen').boundingBox())!.height).toBeCloseTo(57.6, 0);
   await ctx.close();

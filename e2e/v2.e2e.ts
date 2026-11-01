@@ -1,6 +1,6 @@
 // Spec v2: Querformat (Handy, Tablet, Desktop), zwei Panels, Desktop-Bedienung, Radial-Menü.
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { bedienung, beitreten, dokuBild, HOCH, menue, neueMission, QUER } from './hilfen.ts';
+import { bedienung, beitreten, dokuBild, HOCH, indieMission, menue, neueMission, QUER } from './hilfen.ts';
 import type { Beigetreten } from '../shared/protocol.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
@@ -22,6 +22,7 @@ async function seite(browser: Browser, code: string | Beigetreten, rufname: stri
     throw e;
   });
   await page.goto('/');
+  await indieMission(page);
   await expect(page.locator('.verbindung.verbunden')).toBeVisible();
   return page;
 }
@@ -83,6 +84,7 @@ test('Handy quer 851×393: Leiste rechts, Panel seitlich, einklappen gemerkt', a
   await leitung.getByRole('button', { name: 'Werkzeugleiste einklappen' }).click();
   await expect.poll(async () => (await karte(leitung).boundingBox())!.width).toBeGreaterThan(vorher + 50);
   await leitung.reload();
+  await indieMission(leitung);
   await expect(leitung.getByRole('button', { name: 'Werkzeugleiste ausklappen' })).toBeVisible();
   await expect(werkzeug(leitung, 'Chat')).toBeHidden();
   await bild(leitung, 'handy-quer-eingeklappt');
@@ -192,6 +194,7 @@ test('Koordinatenzeile: standardmässig aus, Klick aufs eigene Symbol schaltet (
   await leitung.locator('.bft.ich .bft-sym').click();
   await expect(leiste).toBeVisible();
   await leitung.reload();
+  await indieMission(leitung);
   await expect(leiste).toBeVisible();
 
   await leitung.locator('.bft.ich .bft-sym').click({ button: 'right' });

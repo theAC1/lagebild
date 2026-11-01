@@ -1,7 +1,7 @@
 // Menü (Spec v7, Layout V4 «Karte als Menü»): Meine Missionen als Fähnchen, wechseln, Menü über der laufenden Mission,
 // unbekannte Missionen fallen heraus; Token-Haltung nach Wiederbeitritt (Close 4005) und «beendet» (Gate 01.11.).
 import { expect, test, type Browser, type BrowserContext, type Page, type WebSocketRoute } from '@playwright/test';
-import { beitreten, neueMission } from './hilfen.ts';
+import { beitreten, indieMission, neueMission } from './hilfen.ts';
 
 // Geräte schliessen: offene Seiten liefen sonst mit Karte und Verbindung in die folgenden Testdateien hinein
 const offen: BrowserContext[] = [];
@@ -14,7 +14,7 @@ const neuerKontext = async (browser: Browser, o = {}) => {
   return c;
 };
 
-type Eintrag = { lageId: string; token: string; name: string; ansicht?: { mitte: [number, number]; zoom: number } };
+type Eintrag = { lageId: string; token: string; name: string; rolle?: string; ansicht?: { mitte: [number, number]; zoom: number } };
 
 /** Gerät mit diesen Missionen (Stand vom letzten Besuch) und WebSocket-Mitschnitt: hallo-Tokens, Verbindungen, Abbrüche. */
 async function geraet(browser: Browser, missionen: Eintrag[], offen?: string) {
@@ -32,10 +32,14 @@ async function geraet(browser: Browser, missionen: Eintrag[], offen?: string) {
   page.on('pageerror', (e) => {
     throw e;
   });
-  const ws = { hallos: [] as string[], zu: 0, route: undefined as WebSocketRoute | undefined };
+  const ws = { hallos: [] as string[], zu: 0, vomServer: [] as number[], route: undefined as WebSocketRoute | undefined };
   await page.routeWebSocket(/\/ws$/, (r) => {
     ws.route = r;
     const server = r.connectToServer();
+    server.onClose((code, reason) => {
+      ws.vomServer.push(code ?? 0);
+      void r.close({ code, reason }); // an die Seite weiterreichen (mit eigenem Hörer leitet Playwright nicht selbst weiter)
+    });
     r.onMessage((m) => {
       const j = JSON.parse(String(m));
       if (j.typ === 'hallo') ws.hallos.push(j.token);
@@ -109,15 +113,25 @@ test('Token-Regel: nach 4005 erst mit dem neuen Token aus dem Speicher verbinden
   const ctx = await neuerKontext(browser);
   const m = await neueMission(ctx.request, 'Übung Token', 'lv');
   const [alpha, bravo, charlie] = [await beitreten(ctx.request, m.teilnehmerCode, { rufname: 'Alpha' }), await beitreten(ctx.request, m.teilnehmerCode, { rufname: 'Bravo' }), await beitreten(ctx.request, m.teilnehmerCode, { rufname: 'Charlie' })];
-  const { page, ws } = await geraet(browser, [{ lageId: m.lageId, token: alpha.token, name: 'Übung Token' }], alpha.token);
+  const anders = await neueMission(ctx.request, 'Übung Anders', 'lv');
+  const anders2 = await beitreten(ctx.request, anders.teilnehmerCode, { rufname: 'Delta' });
+  const { page, ws } = await geraet(
+    browser,
+    [
+      { lageId: m.lageId, token: alpha.token, name: 'Übung Token' },
+      { lageId: anders.lageId, token: anders.token, name: 'Übung Anders' },
+    ],
+    alpha.token,
+  );
   await page.goto('/');
+  await indieMission(page);
   await expect(page.locator('.verbindung.verbunden')).toBeVisible();
   // Ein anderer Tab (oder der eigene Beitritt) speichert das neue Token, der Server schliesst die alte Verbindung mit 4005
-  const neuesToken = (t: string) =>
+  const neuesToken = (t: string, lageId = m.lageId) =>
     page.evaluate(([id, t]) => {
       const liste = JSON.parse(localStorage.getItem('lagebild.missionen')!);
       localStorage.setItem('lagebild.missionen', JSON.stringify(liste.map((x: { lageId: string }) => (x.lageId === id ? { ...x, token: t } : x))));
-    }, [m.lageId, t]);
+    }, [lageId, t]);
 
   await ws.route!.close({ code: 4005, reason: 'neues Token' });
   await page.waitForTimeout(1200); // die Beitritts-Antwort steht noch aus: nicht mit dem verworfenen Token neu verbinden
@@ -134,6 +148,25 @@ test('Token-Regel: nach 4005 erst mit dem neuen Token aus dem Speicher verbinden
   await expect(page.locator('.verbindung.verbunden')).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Menü' })).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem('lagebild.token'))).toBe(charlie.token);
+
+  // Unterbrochenes Warten: 4005, während des Wartens eine andere Mission öffnen. Ein späteres 4005 auf dieser wartet wieder die
+  // volle Frist ab, statt wegen des alten Zeitstempels sofort abzumelden (Mission und Token blieben sonst weg)
+  await ws.route!.close({ code: 4005, reason: 'neues Token' });
+  await page.waitForTimeout(500);
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  await page.locator('section.panel .mission', { hasText: 'Übung Anders' }).click();
+  await page.locator('section.panel').getByRole('button', { name: 'Mission öffnen', exact: true }).click();
+  await expect.poll(() => ws.hallos).toEqual([alpha.token, bravo.token, charlie.token, anders.token]);
+  await expect(page.locator('.verbindung.verbunden')).toBeVisible();
+  await page.waitForTimeout(10_500); // länger als die Frist (10 s) seit dem ersten 4005
+  await ws.route!.close({ code: 4005, reason: 'neues Token' });
+  await page.waitForTimeout(800);
+  const liste = await page.evaluate(() => JSON.parse(localStorage.getItem('lagebild.missionen')!).map((x: { name: string }) => x.name));
+  expect(liste).toContain('Übung Anders');
+  expect(await page.evaluate(() => localStorage.getItem('lagebild.token'))).toBe(anders.token);
+  await neuesToken(anders2.token, anders.lageId);
+  await expect.poll(() => ws.hallos.at(-1)).toBe(anders2.token);
+  await expect(page.locator('.verbindung.verbunden')).toBeVisible();
 });
 
 test('Beitreten mit dem Code der offenen Mission (gleiches Gerät): 4005 kommt vor der Antwort, die Mission bleibt offen', async ({ browser }) => {
@@ -149,11 +182,97 @@ test('Beitreten mit dem Code der offenen Mission (gleiches Gerät): 4005 kommt v
   await beitreten();
   await page.getByRole('button', { name: 'Menü', exact: true }).click();
   await page.getByRole('navigation', { name: 'Menü' }).getByRole('button', { name: 'Beitreten', exact: true }).click();
+  // Antwort zurückhalten, bis der Client die Schliessung (4005) hat: so ist die Reihenfolge erzwungen, nicht Glückssache
+  await page.route('**/api/beitreten', async (route) => {
+    const antwort = await route.fetch(); // der Server schliesst die alte Verbindung, bevor er antwortet
+    await expect.poll(() => ws.vomServer).toEqual([4005]);
+    await page.waitForTimeout(1500); // länger als jede Wiederverbindung (Backoff höchstens 1,25 s): mit dem verworfenen Token hätte sich der Client schon gemeldet
+    await route.fulfill({ response: antwort });
+  });
   await beitreten();
+  expect(ws.vomServer).toEqual([4005]);
   await expect.poll(() => ws.hallos.length).toBe(2);
   expect(ws.hallos[1]).not.toBe(ws.hallos[0]);
   await page.waitForTimeout(1000);
   expect(ws.hallos).toHaveLength(2); // kein Versuch mit dem verworfenen Token
   const liste = await page.evaluate(() => JSON.parse(localStorage.getItem('lagebild.missionen')!));
   expect(liste.map((x: { lageId: string; token: string }) => [x.lageId, x.token])).toEqual([[m.lageId, ws.hallos[1]]]);
+});
+
+test('App-Start immer im Menü: die offene Mission verbindet im Hintergrund, «Zurück zur Mission» geht hinein; Fähnchen nah weg', async ({ browser }) => {
+  const ctx = await neuerKontext(browser);
+  const start = await neueMission(ctx.request, 'Übung Start', 'lv');
+  const daneben = await neueMission(ctx.request, 'Übung Daneben', 'lv');
+  const ansicht = { mitte: [7.4474, 46.948] as [number, number], zoom: 14 };
+  const { page, ws } = await geraet(
+    browser,
+    [
+      { lageId: start.lageId, token: start.token, name: 'Übung Start', rolle: 'leitung', ansicht },
+      { lageId: daneben.lageId, token: daneben.token, name: 'Übung Daneben', ansicht: { mitte: [7.63, 46.76], zoom: 12 } },
+    ],
+    start.token,
+  );
+  const stand = () => page.evaluate(() => JSON.parse(localStorage.getItem('lagebild.missionen')!)[0]);
+  await page.goto('/');
+
+  // Menü statt Mission; alle Fähnchen im Bild, die Mission läuft schon im Hintergrund
+  await expect(page.getByRole('navigation', { name: 'Menü' })).toBeVisible();
+  await expect(page.locator('.verbindung')).toHaveCount(0); // nicht in der Mission
+  await expect(page.locator('.m-pin')).toHaveCount(2);
+  await expect(panel(page).locator('.mission.offen')).toContainText('läuft');
+  await expect.poll(() => ws.hallos).toEqual([start.token]);
+  // Der gemerkte Stand bleibt: vor dem ersten Snapshot wüsste das Gerät sonst nichts von den Zielobjekten
+  expect((await stand()).ansicht).toEqual(ansicht);
+  // In der Übersicht (Zoom ≤ 13) bleibt das Fähnchen der offenen Mission sichtbar
+  await expect(page.locator('.m-pin.laeuft')).toBeVisible();
+
+  // Unterseite der offenen Mission: Karte fliegt in ihr Gebiet (Zoom 14), ihr Fähnchen verdeckte dort Symbol und Ziel
+  await page.locator('.m-pin.laeuft').click();
+  await expect(page.locator('.m-pin.laeuft')).toBeHidden();
+  await expect(page.locator('.m-pin:not(.laeuft)')).toBeVisible(); // andere Missionen unverändert
+  // Eigene Angaben live ändern: Meine Missionen führt sie sofort nach, nicht erst beim nächsten Snapshot
+  const rufname = panel(page).getByLabel('Rufname');
+  await rufname.fill('Falke');
+  await rufname.press('Tab');
+  await expect.poll(async () => (await stand()).rufname).toBe('Falke');
+  await panel(page).getByRole('button', { name: 'Zurück zu Meine Missionen' }).click();
+  await expect(page.locator('.m-pin.laeuft')).toBeVisible();
+
+  await indieMission(page);
+  await expect(kopf(page)).toContainText('Übung Start');
+  await expect(page.locator('.verbindung.verbunden')).toBeVisible();
+  expect(ws.hallos).toEqual([start.token]);
+});
+
+test('Missionswechsel setzt die Features zurück: Spuren aus A stehen nicht in B', async ({ browser }) => {
+  const ctx = await neuerKontext(browser);
+  const a = await neueMission(ctx.request, 'Übung A', 'lv');
+  const b = await neueMission(ctx.request, 'Übung B', 'lv');
+  const { page } = await geraet(
+    browser,
+    [
+      { lageId: a.lageId, token: a.token, name: 'Übung A', rolle: 'leitung' },
+      { lageId: b.lageId, token: b.token, name: 'Übung B', rolle: 'leitung' },
+    ],
+    a.token,
+  );
+  const spuren = async () => {
+    await page.getByRole('button', { name: 'Mehr', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Spuren', exact: true }).click();
+    return page.locator('section.sheet');
+  };
+  await page.goto('/');
+  await indieMission(page);
+  await expect(page.locator('.verbindung.verbunden')).toBeVisible();
+  const inA = await spuren();
+  await inA.getByRole('switch').first().check();
+  await expect(inA.getByRole('button', { name: 'Keine', exact: true })).toBeEnabled();
+
+  // A → B ohne Zwischenschritt über «keine Mission»
+  await page.getByRole('button', { name: 'Menü', exact: true }).click();
+  await panel(page).locator('.mission', { hasText: 'Übung B' }).click();
+  await panel(page).getByRole('button', { name: 'Mission öffnen', exact: true }).click();
+  await expect(page.locator('.verbindung.verbunden')).toBeVisible();
+  const inB = await spuren();
+  await expect(inB.getByRole('button', { name: 'Keine', exact: true })).toBeDisabled();
 });

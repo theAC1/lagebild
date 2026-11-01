@@ -8,13 +8,13 @@
   import KoordKarte from './components/KoordKarte.svelte';
   import KoordLeiste from './components/KoordLeiste.svelte';
   import MapView from './components/MapView.svelte';
-  import { merkeStand } from './components/menu/kamera.ts';
+  import { merkeStand, zurueckZurMission } from './components/menu/kamera.ts';
   import Menue from './components/menu/Menue.svelte';
   import RadialMenu from './components/RadialMenu.svelte';
   import Sheet from './components/Sheet.svelte';
   import TeilnehmerDetail from './components/TeilnehmerDetail.svelte';
   import TeilnehmerListe from './components/TeilnehmerListe.svelte';
-  import { onMount, untrack } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import PhaseRahmen from './components/PhaseRahmen.svelte';
   import PhaseSchild from './components/PhaseSchild.svelte';
   import { features, zeigen } from './features/registry.ts';
@@ -51,6 +51,22 @@
 
   $effect(wendeGroesseAn); // Bediengrösse: wirkt sofort, auch vor dem Anmelden
 
+  // Mission gewechselt (A→B ohne Zwischenschritt über «keine Mission»): die Feature-Ebenen erst ganz abbauen, dann für B neu
+  // aufbauen. Sonst blieben Spuren, Zeichnen-Verlauf und Taufmodus aus A, und {#key} legte B's Kartenquellen an, bevor A's weg sind.
+  // Reconnect und Tokenwechsel nach 4005 behalten dieselbe Lage und damit ihren Zustand. Eigene Position und Kräfte bleiben:
+  // sie halten nichts von A, und die Position würde beim Neuaufbau die Karte erneut auf mich setzen.
+  let abbau = $state(false);
+  let lageVorher = store.offeneLage;
+  $effect(() => {
+    const lage = store.offeneLage;
+    if (lage === lageVorher) return;
+    const wechsel = lageVorher !== null && lage !== null;
+    lageVorher = lage;
+    if (!wechsel) return;
+    abbau = true;
+    void tick().then(() => (abbau = false));
+  });
+
   // Unter 1100 px (oder nach dem Drehen ins Hochformat) bleibt nur das oberste Panel
   $effect(() => {
     void maxPanels();
@@ -60,7 +76,7 @@
   // Esc: zuerst Ring und Koordinaten-Karte, dann Werkzeug (Punktwahl), dann das oberste Panel
   function taste(e: KeyboardEvent) {
     if (e.key !== 'Escape' || e.defaultPrevented) return;
-    if (store.token && ui.menue) ui.menue = false;
+    if (store.token && ui.menue) zurueckZurMission();
     else if (ui.radial) ui.radial = null;
     else if (ui.koordinate) ui.koordinate = null;
     else if (ui.punktWahl) ui.punktWahl.fertig(null);
@@ -114,9 +130,11 @@
   {#if store.token}
     <BftLayer />
     <EigenePosition />
-    {#each features as f (f.id)}
-      {#if f.MapLayer}<f.MapLayer />{/if}
-    {/each}
+    {#if !abbau}
+      {#each features as f (f.id)}
+        {#if f.MapLayer}<f.MapLayer />{/if}
+      {/each}
+    {/if}
     {#if ui.koordinate}<KoordKarte punkt={ui.koordinate} />{/if}
     {#if ui.punktWahl}<Fadenkreuz hinweis={ui.punktWahl.hinweis} knopf={ui.punktWahl.knopf} />{/if}
   {/if}

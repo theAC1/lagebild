@@ -103,6 +103,8 @@ class LageStore {
   /** Alle Missionen dieses Geräts mit dem Stand vom letzten Besuch (Menü «Meine Missionen»). */
   missionen = $state<MeineMission[]>(ladeMissionen());
   lage = $state<Lage | null>(null);
+  /** Lage der offenen Mission; vor dem ersten Snapshot (App-Start) aus der Liste. Schlüssel für App.svelte: ein Wechsel setzt die Features zurück. */
+  offeneLage = $state<string | null>(this.missionen.find((m) => m.token === this.token)?.lageId ?? null);
   /** eigene Teilnehmer-ID */
   ich = $state<string | null>(null);
   teilnehmer = new SvelteMap<string, Teilnehmer>();
@@ -147,14 +149,14 @@ function speichereMissionen(liste: MeineMission[]): void {
   store.missionen = liste;
   schreibe(MISSIONEN_KEY, JSON.stringify(liste));
 }
-/** Lage der offenen Mission; vor dem ersten Snapshot (App-Start) aus der Liste. */
-let offeneLage: string | null = store.missionen.find((m) => m.token === store.token)?.lageId ?? null;
+// App-Start immer ins Menü (Juan 01.11.): auch mit offener Mission; die verbindet im Hintergrund, «Zurück zur Mission» geht hinein.
+if (store.token) ui.menue = true;
 /** Token dieser Mission frisch aus dem Speicher, nicht aus store.missionen (Gate 01.11.). */
-const gespeichertesToken = (): string | null => (offeneLage && ladeMissionen().find((m) => m.lageId === offeneLage)?.token) || null;
+const gespeichertesToken = (): string | null => (store.offeneLage && ladeMissionen().find((m) => m.lageId === store.offeneLage)?.token) || null;
 
 /** Stand der offenen Mission merken (Menü: Fähnchen-Ort, Zielobjekte, letzter Ausschnitt), lokal auf dem Gerät. */
 export function merkeMission(teil: Partial<Omit<MeineMission, 'lageId' | 'token'>>): void {
-  if (offeneLage) speichereMissionen(ladeMissionen().map((m) => (m.lageId === offeneLage ? { ...m, ...teil } : m)));
+  if (store.offeneLage) speichereMissionen(ladeMissionen().map((m) => (m.lageId === store.offeneLage ? { ...m, ...teil } : m)));
 }
 
 setInterval(() => (store.jetzt = Date.now()), 5000);
@@ -212,7 +214,7 @@ export function wende(m: ServerMsg): void {
     case 'snapshot': {
       store.ich = m.ich;
       store.lage = m.lage;
-      offeneLage = m.lage.id;
+      store.offeneLage = m.lage.id;
       // Eintrag in Meine Missionen; ein gespeichertes Token ist nie älter als das dieser Verbindung (Beitritt schreibt es zuerst)
       const ich = m.teilnehmer.find((t) => t.id === m.ich);
       const alt = ladeMissionen().find((x) => x.lageId === m.lage.id);
@@ -245,6 +247,8 @@ export function wende(m: ServerMsg): void {
       // Statuswechsel o.ä. bringt dieselbe Position mit → Empfangszeit nur bei neuer Position setzen
       if (!alt?.pos || alt.pos.t !== m.teilnehmer.pos?.t) merkeEmpfang(m.teilnehmer, serverJetzt());
       store.teilnehmer.set(m.teilnehmer.id, m.teilnehmer);
+      // eigene Angaben live geändert (ich.aendern, Rolle durch die Leitung): Meine Missionen nicht erst beim nächsten Snapshot nachführen
+      if (m.teilnehmer.id === store.ich) merkeMission({ rufname: m.teilnehmer.rufname, funktion: m.teilnehmer.funktion, rolle: m.teilnehmer.rolle });
       break;
     }
     case 'teilnehmer.weg':
@@ -525,6 +529,7 @@ function setzeZurueck() {
 /** Verbindung zu und Lage-Zustand weg (beim Wechsel der Mission und beim Abmelden). */
 function trenne(): void {
   clearTimeout(wiederTimer);
+  wartetSeit = 0; // ein unterbrochenes Warten auf das neue Token (4005) zählt nicht für die nächste Mission
   const s = ws;
   ws = null;
   s?.close();
@@ -536,7 +541,7 @@ function trenne(): void {
 function wechsle(token: string, lageId: string): void {
   trenne();
   store.token = token;
-  offeneLage = lageId;
+  store.offeneLage = lageId;
   schreibe(TOKEN_KEY, token);
   versuch = 0;
   verbinde();
@@ -556,7 +561,7 @@ export function abmelden(grund?: string, t: string | null = store.token): void {
   if (t === store.token) {
     trenne();
     store.token = null;
-    offeneLage = null;
+    store.offeneLage = null;
     ui.menue = false;
   }
   if (t) {
@@ -610,7 +615,7 @@ export const ichAendern = (a: Omit<Extract<ClientMsg, { typ: 'ich.aendern' }>, '
  */
 export function anmelden(b: Beigetreten, angaben: Pick<MeineMission, 'name' | 'phase' | 'rufname' | 'funktion'>): void {
   const alt = ladeMissionen().find((m) => m.lageId === b.lageId);
-  speichereMissionen(mitMission(ladeMissionen(), { ziele: null, ansicht: null, ...angaben, ...alt, lageId: b.lageId, token: b.token, rolle: b.rolle }));
+  speichereMissionen(mitMission(ladeMissionen(), { ziele: null, ansicht: null, ...alt, ...angaben, lageId: b.lageId, token: b.token, rolle: b.rolle }));
   ui.menue = false;
   wechsle(b.token, b.lageId);
   store.ich = b.teilnehmerId;
@@ -629,10 +634,11 @@ export async function pruefeMissionen(): Promise<void> {
   } catch {
     return;
   }
-  const weg = liste.filter((_, i) => !stand.missionen[i]);
   const neu = new Map(liste.map((m, i) => [m.token, stand.missionen[i]]));
-  // frisch geladen: inzwischen geänderte Tokens (Wiederbeitritt) bleiben unberührt
-  speichereMissionen(ladeMissionen().flatMap((m) => (neu.has(m.token) ? (neu.get(m.token) ? [{ ...m, ...neu.get(m.token) }] : []) : [m])));
+  // frisch geladen: inzwischen geänderte Tokens (Wiederbeitritt) bleiben unberührt und gelten nicht als weg
+  const frisch = ladeMissionen();
+  const weg = frisch.filter((m) => neu.get(m.token) === null);
+  speichereMissionen(frisch.flatMap((m) => (neu.has(m.token) ? (neu.get(m.token) ? [{ ...m, ...neu.get(m.token) }] : []) : [m])));
   if (weg.length) toast(`Nicht mehr verfügbar (gelöscht oder entfernt): ${weg.map((m) => m.name || 'Mission').join(', ')}`, 6000);
 }
 

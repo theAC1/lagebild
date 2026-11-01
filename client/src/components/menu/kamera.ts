@@ -4,6 +4,7 @@ import type { Map as MapLibreMap } from 'maplibre-gl';
 import { onMapReady } from '../../lib/map.ts';
 import { zielBox, type Box, type MeineMission } from '../../lib/missionen.ts';
 import { merkeMission, store } from '../../lib/store.svelte.ts';
+import { ui } from '../../lib/ui.svelte.ts';
 
 export type Rand = { top: number; bottom: number; left: number; right: number };
 
@@ -14,6 +15,8 @@ export const SCHWEIZ: Box = [
 
 /** Zielobjekte und Kartenausschnitt der offenen Mission merken (Menü öffnen, App in den Hintergrund). */
 export function merkeStand(): void {
+  // Vor dem ersten Snapshot (App-Start im Menü) wüsste das Gerät nichts von den Zielobjekten und überschriebe den gemerkten Stand
+  if (!store.lage) return;
   onMapReady((m) => {
     const c = m.getCenter();
     merkeMission({ ziele: zielBox(store.taufen.values()), ansicht: { mitte: [c.lng, c.lat], zoom: m.getZoom() } });
@@ -49,3 +52,10 @@ export function zeigeAlle(m: MapLibreMap, orte: [number, number][], rand: Rand, 
 /** Rand für die Ansicht der Mission ohne Menü (Daumen-Ränder bzw. Kopf und Leiste). */
 export const MISSIONS_RAND = (): Rand =>
   innerWidth > innerHeight ? { top: 64, bottom: 24, left: 96, right: 96 } : { top: 80, bottom: 96, left: 24, right: 72 };
+
+/** Menü schliessen und zurück in die offene Mission, zum Ausschnitt vom letzten Besuch (Knopf «Zurück zur Mission», Esc). */
+export function zurueckZurMission(): void {
+  ui.menue = false;
+  const a = store.missionen.find((m) => m.token === store.token)?.ansicht;
+  if (a) onMapReady((m) => m.flyTo({ center: a.mitte, zoom: a.zoom, duration: 900 }));
+}

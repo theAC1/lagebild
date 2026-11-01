@@ -28,8 +28,8 @@
       await api('/api/lage', { method: 'DELETE' });
       schreibe(codesKey(lageId), null);
       // Der Server wirft per WebSocket ('beendet') meist schon vorher ab
-      if (store.token) abmelden('Lage endgültig gelöscht.');
-      else toast('Lage endgültig gelöscht.', 6000);
+      if (store.token) abmelden('Mission endgültig gelöscht.');
+      else toast('Mission endgültig gelöscht.', 6000);
     } catch (e) {
       toast(`Löschen fehlgeschlagen: ${(e as Error).message}`);
       loescht = false;
@@ -55,11 +55,11 @@
 </section>
 
 <section>
-  <h3>Lage endgültig löschen</h3>
-  <p class="leise">Löscht Lage, Teilnehmende, Spuren, Marker, Meldungen und Fotos unwiderruflich. Zur Bestätigung den Namen der Lage eingeben:</p>
+  <h3>Mission endgültig löschen</h3>
+  <p class="leise">Löscht die Mission, Teilnehmende, Spuren, Marker, Meldungen und Fotos unwiderruflich. Zur Bestätigung den Namen der Mission eingeben:</p>
   <label class="feld">
     <span>Name: <strong class="mono">{name}</strong></span>
-    <input bind:value={loeschenName} autocomplete="off" placeholder="Name der Lage" />
+    <input bind:value={loeschenName} autocomplete="off" placeholder="Name der Mission" />
   </label>
   <button class="gefahr voll breit" disabled={!nameStimmt || loescht} onclick={loeschen}>
     {loescht ? 'Wird gelöscht …' : 'Endgültig löschen'}

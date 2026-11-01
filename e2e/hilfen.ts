@@ -39,6 +39,15 @@ export async function menue(p: Page, seite?: string): Promise<Locator> {
   return p.locator('section.panel');
 }
 
+/**
+ * App-Start ist immer das Menü (Juan 01.11.), auch mit offener Mission: dort verbindet sie im Hintergrund, mit
+ * «Zurück zur Mission» geht es hinein. Nach goto() und reload() einer Seite mit Mission aufrufen. Der Knopf erscheint mit
+ * dem Eintrag in Meine Missionen (bei Geräten mit nur `lagebild.token` erst mit dem ersten Snapshot).
+ */
+export async function indieMission(p: Page): Promise<void> {
+  await p.getByRole('button', { name: /^Zurück zur Mission/ }).click();
+}
+
 /** Vorgabe der Tests (Projekt «quer» in playwright.config.ts): Android-Handy FHD+ 2340×1080 bei DPR 2.75, quer. */
 export const QUER = { width: 851, height: 393 };
 /** Dasselbe Handy hochkant, für Tests, die bewusst das Hochformat prüfen. */

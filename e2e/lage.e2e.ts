@@ -2,7 +2,7 @@
 // Bildschirm aus dem Projekt: läuft quer (Vorgabe) und hoch (@hoch).
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { bedienung, dokuBild, menue } from './hilfen.ts';
+import { bedienung, dokuBild, indieMission, menue } from './hilfen.ts';
 
 const ADLER = { latitude: 46.9466, longitude: 7.4442 };
 const BRAVO = { latitude: 46.9366, longitude: 7.4442 }; // ~1.11 km, Azimut 180° von Adler
@@ -360,6 +360,7 @@ test('Export GPX, Nachbearbeitung statt Beenden, zurück und löschen @hoch', as
   await expect(teilnehmer.getByRole('button', { name: /^Eigener Status/ })).toHaveCount(0);
   await expect(teilnehmer.locator('.verbindung.verbunden')).toBeVisible();
   await teilnehmer.reload();
+  await indieMission(teilnehmer);
   await expect(teilnehmer.locator('.phase-rahmen.an')).toBeAttached();
 
   // Wiedergabe öffnet nur bei der Leitung von selbst; Teilnehmende tippen «Wiedergabe» in der Leiste.
@@ -425,7 +426,7 @@ test('Export GPX, Nachbearbeitung statt Beenden, zurück und löschen @hoch', as
 
   // Löschen bleibt bei der Leitung (Phasenschild → Leitung › Lage, auch über der offenen Wiedergabe): beide landen im Menü
   await leitung.getByRole('button', { name: /^Phase: Aktionsnachbearbeitung/ }).click();
-  await sheet(leitung).getByPlaceholder('Name der Lage').fill('Übung Aare');
+  await sheet(leitung).getByPlaceholder('Name der Mission').fill('Übung Aare');
   await sheet(leitung).getByRole('button', { name: 'Endgültig löschen', exact: true }).click();
   await expect(leitung.getByRole('navigation', { name: 'Menü' })).toBeVisible();
   await expect(teilnehmer.getByRole('navigation', { name: 'Menü' })).toBeVisible();
