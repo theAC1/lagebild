@@ -5,7 +5,6 @@ import type { Raster, Taufe } from '../../../../shared/protocol.ts';
 import { RASTER_NAME, zuLv95 } from '../../../../shared/raster.ts';
 import { oeffneSpeicher } from '../../lib/kachelspeicher.ts';
 import { BASISKARTEN, kachelUrl, type Basiskarte } from '../../lib/karten.ts';
-import { istApp } from '../../lib/umgebung.ts';
 import { drossel, PARALLEL } from '../offline/laden.ts';
 import { FASSADE_FARBE } from '../taufe/fassaden.ts';
 import { FAMILIE_FARBE, LABEL_RANG, labelAnker, platziere, polygoneVon, taufFeatures, ZIEL_FARBE, type LabelWunsch } from '../taufe/darstellung.ts';
@@ -360,32 +359,4 @@ export async function rasterPdf(r: Raster, lage: string, taufen: Taufe[], datum 
   }
   const pdf = pdfAusJpegs(seiten, b.format.w, b.format.h, `${lage} · ${RASTER_NAME[r.art]}`);
   return { blob: new Blob([pdf as BlobPart], { type: 'application/pdf' }), name: dateiName(lage, r.art, datum), fehlen };
-}
-
-/** Android-App: native Brücke aus MainActivity (Teilen-Dialog: speichern, senden, drucken). */
-type Bruecke = { teile(base64: string, name: string, typ: string): void };
-
-/** Datei speichern bzw. teilen: in der App über den Teilen-Dialog, im Browser als Download. false: hier nicht möglich. */
-export async function speichere(blob: Blob, name: string): Promise<boolean> {
-  const nativ = (window as unknown as { LagebildDatei?: Bruecke }).LagebildDatei;
-  if (nativ) {
-    const url = await new Promise<string>((ok, nok) => {
-      const f = new FileReader();
-      f.onload = () => ok(f.result as string);
-      f.onerror = () => nok(f.error);
-      f.readAsDataURL(blob);
-    });
-    nativ.teile(url.slice(url.indexOf(',') + 1), name, blob.type);
-    return true;
-  }
-  if (istApp()) return false; // ältere App ohne Brücke: Download geht im WebView ins Leere
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  return true;
 }

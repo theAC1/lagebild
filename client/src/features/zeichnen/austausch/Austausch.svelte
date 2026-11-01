@@ -3,11 +3,11 @@
   import { LngLatBounds } from 'maplibre-gl';
   import type { Ebene } from '../../../../../shared/protocol.ts';
   import { darfImportieren } from '../../../../../shared/regeln/index.ts';
+  import { speichere } from '../../../lib/datei.ts';
   import { getMap } from '../../../lib/map.ts';
   import { store } from '../../../lib/store.svelte.ts';
   import { toast } from '../../../lib/ui.svelte.ts';
   import { istApp } from '../../../lib/umgebung.ts';
-  import { speichere } from '../../raster/ausdruck.ts';
   import { artLabel } from '../logik.ts';
   import { zn } from '../zustand.svelte.ts';
   import { arten, ENDUNGEN, exportEbenen, exportiere, importiere, lies, plane, zaehle } from './austausch.ts';

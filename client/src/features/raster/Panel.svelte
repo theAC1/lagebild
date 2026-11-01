@@ -2,6 +2,7 @@
   // Führungsraster: auflegen, anpassen (Chips/Stufen), fixieren; Leitung löst. Mit params.melden: Marker per Rasterposition.
   import { RasterDef, RASTER_MAX_AUSDEHNUNG_M, RASTER_MAX_SPALTEN, RASTER_MAX_ZEILEN, type Raster, type RasterArt } from '../../../../shared/protocol.ts';
   import { RASTER_NAME, RASTER_VORGABE, rahmen, rasterMitteLv95, rasterUm, zuLv95 } from '../../../../shared/raster.ts';
+  import { speichere } from '../../lib/datei.ts';
   import { kartenMitte } from '../../lib/map.ts';
   import { send, store } from '../../lib/store.svelte.ts';
   import { oeffne, schliesse, toast } from '../../lib/ui.svelte.ts';
@@ -60,7 +61,7 @@
   async function alsPdf(r: Raster, a3 = false) {
     pdfLaeuft = r.art;
     try {
-      const { rasterPdf, speichere } = await import('./ausdruck.ts'); // PDF-Druck erst bei Bedarf laden
+      const { rasterPdf } = await import('./ausdruck.ts'); // PDF-Druck erst bei Bedarf laden
       const { A3_QUER, A4_QUER } = await import('./druck.ts');
       const { blob, name: datei, fehlen } = await rasterPdf(r, store.lage?.name ?? 'Lage', [...store.taufen.values()], new Date(), a3 ? A3_QUER : A4_QUER);
       if (!(await speichere(blob, datei))) toast('PDF braucht eine neuere App-Version – im Browser öffnen.', 5000);
